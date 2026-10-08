@@ -24,26 +24,34 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '17'
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '20'
       - name: Test media and prompt tools
         run: node --test tests/media-probe.test.cjs
       - name: Set up Gradle 8.9
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
         with:
           gradle-version: '8.9'
       - name: Ensure Android SDK 35
         run: |
-          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
-          test -f "$ANDROID_HOME/platforms/android-35/android.jar"
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          if [ ! -f "$SDK_ROOT/platforms/android-35/android.jar" ] || [ ! -f "$SDK_ROOT/build-tools/35.0.0/apksigner" ]; then
+            SDKMANAGER=$(find "$SDK_ROOT/cmdline-tools" -name sdkmanager -type f | head -n 1)
+            test -n "$SDKMANAGER"
+            "$SDKMANAGER" --sdk_root="$SDK_ROOT" 'platforms;android-35' 'build-tools;35.0.0'
+          fi
+          test -f "$SDK_ROOT/platforms/android-35/android.jar"
+          test -f "$SDK_ROOT/build-tools/35.0.0/apksigner"
       - name: Assemble debug APK
         run: gradle --no-daemon --stacktrace testDebugUnitTest assembleDebug
       - name: Verify APK signature and record SHA-256
@@ -52,7 +60,7 @@ jobs:
           cd app/build/outputs/apk/debug
           sha256sum app-debug.apk > app-debug.apk.sha256
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: doulala-android-debug
           path: |
@@ -62,7 +70,7 @@ jobs:
           retention-days: 14
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: android-test-reports
           path: app/build/reports/tests/
