@@ -1,6 +1,6 @@
 # 功能矩阵与验收边界
 
-来源：`D:\AIDM\豆啦啦无印浏览器\DolaMultiBrowser.deps.json`、`_work/decompiled/DolaMultiBrowser`（旧版 1.4.8 源码）以及当前 `Extensions/dola30`（MV3 1.6.11）。新版 `v231` 只有部分反编译类，因此不能把未知部分当作已完成。
+来源：桌面发布包的 `DolaMultiBrowser.deps.json`（版本 2.3.1）、现有旧版 1.4.8 源码与当前 `Extensions/dola30`（MV3 1.6.11）。新版 `v231` 只有部分现有类，因此不能把未知部分当作已完成。下列“已实现”仅指源码实现，不代表全部真机验收通过。
 
 | 能力 | Android 0.1 | 说明 |
 |---|---|---|
@@ -13,6 +13,7 @@
 | 快捷文本 | 已实现 | 本地 CRUD、复制或填入当前网页；不会自动发送 |
 | 分镜工作台 | 已实现（手动） | UTF-8 文本按空行导入、编辑、三态手动状态、JSON 备份；不代表平台生成状态 |
 | Cookie 导入/导出 | 未实现 | 必须显式设计安全迁移与用户确认 |
+| 多标签、书签 | 未实现 | 当前每个账号空间是单页 WebView |
 | CDP 深度嗅探/Fetch.fulfillRequest | 未实现 | Android WebView 没有桌面 WebView2 等价能力 |
 | HTTP/SOCKS5 认证、链式代理 | 未实现 | 需要重新设计 Android 网络层 |
 | UA/时区/Canvas/Audio/WebRTC 指纹 | 未实现 | 不用伪造或绕过平台安全 |
