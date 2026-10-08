@@ -1,0 +1,22 @@
+{
+  "androidGradlePlugin": "8.7.3",
+  "gradle": {
+    "version": "8.9",
+    "url": "https://downloads.gradle.org/distributions/gradle-8.9-bin.zip",
+    "sha256": "d725d707bfabd4dfdc958c624003b3c80accc03f7037b5122c4b1d0ef15cecab"
+  },
+  "commandlineTools": {
+    "version": "19.0",
+    "build": "13114758",
+    "url": "https://dl.google.com/android/repository/commandlinetools-win-13114758_latest.zip",
+    "sha1": "54a582f3bf73e04253602f2d1c80bd5868aac115",
+    "checksumSource": "https://dl.google.com/android/repository/repository2-1.xml"
+  },
+  "compileSdk": 35,
+  "targetSdk": 35,
+  "minSdk": 28,
+  "buildTools": "35.0.0",
+  "javaSourceLevel": 17,
+  "androidxWebkit": "1.12.1",
+  "testJunit": "4.13.2"
+}

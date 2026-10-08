@@ -1,0 +1,35 @@
+package com.doulala.android;
+
+import org.junit.Test;
+import static org.junit.Assert.*;
+
+public class UrlRulesTest {
+    @Test public void normalizeAcceptsWebUrlsOnly() {
+        assertEquals("https://example.com/a?q=1", UrlRules.normalize("example.com/a?q=1"));
+        assertNull(UrlRules.normalize("javascript:alert(1)"));
+        assertNull(UrlRules.normalize("file:///sdcard/private"));
+        assertNull(UrlRules.normalize("https://user:password@example.com/a"));
+        assertNull(UrlRules.normalize("https://example.com/a\n" + "b"));
+        assertNull(UrlRules.normalize(null));
+    }
+    @Test public void scriptsOnlyTrustHttpsExactOrigins() {
+        assertTrue(UrlRules.trusted("https://www.dola.com/chat/"));
+        assertTrue(UrlRules.trusted("https://doubao.com:443/chat/"));
+        assertFalse(UrlRules.trusted("http://dola.com"));
+        assertFalse(UrlRules.trusted("https://dola.com.evil.test"));
+        assertFalse(UrlRules.trusted("https://evil-dola.com"));
+        assertFalse(UrlRules.trusted("https://dola.com:444"));
+        assertFalse(UrlRules.trusted("https://user@dola.com"));
+        assertFalse(UrlRules.trusted(null));
+    }
+    @Test public void filenamesAreBoundedAndFlat() {
+        String file = UrlRules.safeFilename("../../secret:?.mp4", "media.mp4");
+        assertFalse(file.contains("/"));
+        assertFalse(file.contains(":"));
+        assertFalse(file.startsWith("."));
+        assertEquals("media.mp4",UrlRules.safeFilename("", "media.mp4"));
+        String longName = UrlRules.safeFilename("x".repeat(200)+".mp4","media.mp4");
+        assertTrue(longName.length()<=120);
+        assertTrue(longName.endsWith(".mp4"));
+    }
+}
