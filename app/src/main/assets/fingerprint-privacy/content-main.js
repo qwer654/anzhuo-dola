@@ -1,10 +1,10 @@
-/* Doulala Fingerprint Privacy: local diagnostics and opt-in API reduction. */
+/* Doulala Fingerprint Privacy: local diagnostics and user-controlled API reduction. */
 (function (root) {
   "use strict";
   if (!root || root.top !== root || root.__dolaFingerprintPrivacy) return;
 
-  var defaults = { blockCanvasReadback: false, hideWebglDebugInfo: false };
-  var settings = { blockCanvasReadback: false, hideWebglDebugInfo: false };
+  var defaults = { blockCanvasReadback: false, hideWebglDebugInfo: true, blockAudioFingerprint: false, blockWebRTC: false, blockDeviceEnumeration: false };
+  var settings = { blockCanvasReadback: false, hideWebglDebugInfo: true, blockAudioFingerprint: false, blockWebRTC: false, blockDeviceEnumeration: false };
   var originals = {};
 
   function copy(value) {
@@ -12,20 +12,20 @@
     Object.keys(value || {}).forEach(function (key) { out[key] = !!value[key]; });
     return out;
   }
-  function securityError() {
-    return new DOMException("Canvas readback disabled by the user", "SecurityError");
+  function securityError(message) {
+    return new DOMException(message || "Fingerprint surface disabled by the user", "SecurityError");
   }
   function installCanvasBlock() {
     if (originals.canvasToDataURL) return;
     if (root.HTMLCanvasElement && root.HTMLCanvasElement.prototype) {
       originals.canvasToDataURL = root.HTMLCanvasElement.prototype.toDataURL;
       originals.canvasToBlob = root.HTMLCanvasElement.prototype.toBlob;
-      root.HTMLCanvasElement.prototype.toDataURL = function () { throw securityError(); };
-      root.HTMLCanvasElement.prototype.toBlob = function () { throw securityError(); };
+      root.HTMLCanvasElement.prototype.toDataURL = function () { throw securityError("Canvas readback disabled by the user"); };
+      root.HTMLCanvasElement.prototype.toBlob = function () { throw securityError("Canvas readback disabled by the user"); };
     }
     if (root.CanvasRenderingContext2D && root.CanvasRenderingContext2D.prototype) {
       originals.getImageData = root.CanvasRenderingContext2D.prototype.getImageData;
-      root.CanvasRenderingContext2D.prototype.getImageData = function () { throw securityError(); };
+      root.CanvasRenderingContext2D.prototype.getImageData = function () { throw securityError("Canvas readback disabled by the user"); };
     }
   }
   function removeCanvasBlock() {
@@ -36,6 +36,7 @@
     if (root.CanvasRenderingContext2D && root.CanvasRenderingContext2D.prototype && originals.getImageData) {
       root.CanvasRenderingContext2D.prototype.getImageData = originals.getImageData;
     }
+    originals.canvasToDataURL = originals.canvasToBlob = originals.getImageData = null;
   }
   function installWebglReduction() {
     if (originals.getExtension) return;
@@ -60,11 +61,58 @@
     if (proto && originals.getExtension) proto.getExtension = originals.getExtension;
     var proto2 = root.WebGL2RenderingContext && root.WebGL2RenderingContext.prototype;
     if (proto2 && originals.getExtension2) proto2.getExtension = originals.getExtension2;
+    originals.getExtension = originals.getExtension2 = null;
+  }
+  function installAudioBlock() {
+    if (originals.offlineAudio) return;
+    if (root.OfflineAudioContext) {
+      originals.offlineAudio = root.OfflineAudioContext;
+      root.OfflineAudioContext = function () { throw securityError("Offline audio fingerprinting disabled by the user"); };
+    }
+    if (root.webkitOfflineAudioContext) {
+      originals.webkitOfflineAudio = root.webkitOfflineAudioContext;
+      root.webkitOfflineAudioContext = function () { throw securityError("Offline audio fingerprinting disabled by the user"); };
+    }
+  }
+  function removeAudioBlock() {
+    if (originals.offlineAudio) root.OfflineAudioContext = originals.offlineAudio;
+    if (originals.webkitOfflineAudio) root.webkitOfflineAudioContext = originals.webkitOfflineAudio;
+    originals.offlineAudio = originals.webkitOfflineAudio = null;
+  }
+  function installWebrtcBlock() {
+    if (originals.rtc) return;
+    var ctor = root.RTCPeerConnection || root.webkitRTCPeerConnection;
+    if (ctor) {
+      originals.rtc = ctor;
+      root.RTCPeerConnection = function () { throw securityError("WebRTC disabled by the user"); };
+      if (root.webkitRTCPeerConnection) root.webkitRTCPeerConnection = root.RTCPeerConnection;
+    }
+  }
+  function removeWebrtcBlock() {
+    if (!originals.rtc) return;
+    root.RTCPeerConnection = originals.rtc;
+    if (root.webkitRTCPeerConnection) root.webkitRTCPeerConnection = originals.rtc;
+    originals.rtc = null;
+  }
+  function installDeviceEnumerationBlock() {
+    if (originals.enumerateDevices || !root.navigator || !root.navigator.mediaDevices) return;
+    if (typeof root.navigator.mediaDevices.enumerateDevices !== "function") return;
+    originals.enumerateDevices = root.navigator.mediaDevices.enumerateDevices;
+    root.navigator.mediaDevices.enumerateDevices = function () { return Promise.resolve([]); };
+  }
+  function removeDeviceEnumerationBlock() {
+    if (originals.enumerateDevices && root.navigator && root.navigator.mediaDevices) {
+      root.navigator.mediaDevices.enumerateDevices = originals.enumerateDevices;
+    }
+    originals.enumerateDevices = null;
   }
   function apply(next) {
     settings = copy(Object.assign({}, defaults, next || {}));
     if (settings.blockCanvasReadback) installCanvasBlock(); else removeCanvasBlock();
     if (settings.hideWebglDebugInfo) installWebglReduction(); else removeWebglReduction();
+    if (settings.blockAudioFingerprint) installAudioBlock(); else removeAudioBlock();
+    if (settings.blockWebRTC) installWebrtcBlock(); else removeWebrtcBlock();
+    if (settings.blockDeviceEnumeration) installDeviceEnumerationBlock(); else removeDeviceEnumerationBlock();
     root.dispatchEvent(new CustomEvent("dola-fingerprint-settings", { detail: copy(settings) }));
   }
   function webglReport() {
@@ -95,6 +143,10 @@
       hardwareConcurrency: Number(root.navigator && root.navigator.hardwareConcurrency || 0),
       deviceMemory: Number(root.navigator && root.navigator.deviceMemory || 0),
       canvasReadbackAvailable: !!(root.HTMLCanvasElement && root.HTMLCanvasElement.prototype && root.HTMLCanvasElement.prototype.toDataURL),
+      audioContextAvailable: !!root.AudioContext,
+      offlineAudioAvailable: !!root.OfflineAudioContext,
+      webRtcAvailable: !!(root.RTCPeerConnection || root.webkitRTCPeerConnection),
+      mediaDeviceEnumerationAvailable: !!(root.navigator && root.navigator.mediaDevices && root.navigator.mediaDevices.enumerateDevices),
       webgl: webglReport(),
       protection: copy(settings),
       localOnly: true

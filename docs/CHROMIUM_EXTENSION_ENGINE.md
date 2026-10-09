@@ -42,7 +42,7 @@
 
 ## 指纹隐私扩展
 
-首个可移植模块已放在 `app/src/main/assets/fingerprint-privacy/`，是独立 MV3 扩展，不修改原始 Dola30 资源。它提供本地报告（UA、平台、语言、时区、屏幕、Canvas/WebGL 可见信号）以及用户主动开启的 Canvas 读回限制和 WebGL 调试渲染器隐藏。报告不联网；默认不改变页面行为。
+首个可移植模块已放在 `app/src/main/assets/fingerprint-privacy/`，是独立 MV3 扩展，不修改原始 Dola30 资源。它提供本地报告（UA、平台、语言、时区、屏幕、Canvas/WebGL、音频、WebRTC 和媒体设备可见信号），默认隐藏 WebGL 调试渲染器信息，并提供用户主动开启的 Canvas 读回、离线音频、WebRTC 和媒体设备枚举限制。报告不联网；高影响限制默认关闭，也可在扩展弹窗开启“严格隐私”。
 
 该模块不伪造 User-Agent、设备身份或请求头，也不用于绕过平台风控。真正的浏览器级防指纹仍以 Cobalt 内核的实现为准。
 

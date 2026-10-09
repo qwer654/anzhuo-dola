@@ -1,7 +1,7 @@
 /* Isolated-world bridge for chrome.storage and popup requests. No network I/O. */
 (function () {
   "use strict";
-  var defaults = { blockCanvasReadback: false, hideWebglDebugInfo: false };
+  var defaults = { blockCanvasReadback: false, hideWebglDebugInfo: true, blockAudioFingerprint: false, blockWebRTC: false, blockDeviceEnumeration: false };
   function sendSettings() {
     chrome.storage.local.get(defaults).then(function (settings) {
       window.postMessage({ source: "dola-fingerprint-privacy", type: "apply", settings: settings }, "*");

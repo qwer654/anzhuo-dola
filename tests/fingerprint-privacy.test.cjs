@@ -28,4 +28,7 @@ test("fingerprint module is explicit about local-only behavior", () => {
   assert.match(read("content-main.js"), /localOnly:\s*true/);
   assert.match(read("README.md"), /不上传网络/);
   assert.match(read("README.md"), /不伪造 User-Agent/);
+  assert.match(read("content-main.js"), /blockAudioFingerprint/);
+  assert.match(read("content-main.js"), /blockWebRTC/);
+  assert.match(read("popup.js"), /strict/);
 });
