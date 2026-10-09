@@ -13,6 +13,8 @@ jobs:
     timeout-minutes: 720
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Verify provisioned build host before source edits
+        run: python3 tools/cobalt/preflight.py
       - name: Verify originals and unit tests
         run: node --test tests/media-probe.test.cjs tests/dola30-source.test.cjs tests/dola30-android-adapter.test.cjs tests/fingerprint-privacy.test.cjs
       - name: Build real Chromium APK with installed-extension staging

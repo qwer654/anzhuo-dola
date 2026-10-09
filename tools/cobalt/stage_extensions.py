@@ -33,12 +33,16 @@ def stage(src, entries):
     if cc.count(cc_anchor) != 1 or gn.count(gn_anchor) != 1 or "disable_compression = true" not in gn:
         raise ValueError("Pinned Cobalt stager anchors changed; refusing to guess")
     lines, assets, hashes = [], [], {}
+    seen_ids = set()
     for entry in entries:
         name, extension_id, version = entry["name"], entry["id"], entry["version"]
         if not re.fullmatch(r"dola-[a-z0-9-]+\.crx", name):
             raise ValueError("Invalid CRX asset name")
         if not re.fullmatch(r"[a-p]{32}", extension_id) or not re.fullmatch(r"\d+(\.\d+){0,3}", version):
             raise ValueError("Invalid extension ID or version")
+        if extension_id in seen_ids:
+            raise ValueError("Duplicate extension signing identity")
+        seen_ids.add(extension_id)
         data = Path(entry["crx"]).read_bytes()
         if data[:8] != b"Cr24\x03\x00\x00\x00":
             raise ValueError("Expected a verified CRX3")

@@ -46,3 +46,12 @@ GN 参数必须包含 Android / arm64 / `is_desktop_android = true`，且已有�
 3. 执行原扩展功能逐项对照；未验证的 debugger、下载、宿主桥路径不能算等价。
 4. 接入 Doulala UI 后回归空间隔离、标签、书签、下载和工作台。不能用 Cobalt 的基础 UI 替代这些功能后称“全部移植”。
 5. iframe / Worker / 原型直接调用等仍未覆盖，不保证匿名或消除广告。
+
+## 新增接入门禁（2026-10-09）
+
+- `Cobalt upstream integration contract` 使用普通 GitHub Linux runner，检出固定 Cobalt 提交；读取上游真实 C++/GN 模板，不执行修改整棵 Chromium 的补丁脚本。
+- 用上游 CRX3 签名器及一次性测试密钥生成两份扩展；逐文件比对签名包与原件，检查损坏签名被拒绝；对上游模板执行两次接入，验证幂等、原 uBlock/pdf.js 条目保留。只上传 JSON 证据，不上传临时私钥或测试签名扩展。
+- 这项检查不是 Chromium 编译，不是安卓运行验收，也不会替代专用 runner。
+- `python3 tools/cobalt/preflight.py` 是只读检查：源码版本、工具链、GN 的 Android/arm64/MV3/JNI 配置、上游资源、签名密钥独立性和权限，以及已部署源码盘剩余空间。构建入口也强制检查，失败不改源码。
+- 可加 `--report PATH` 保存新报告，已有报告不会覆盖；未就绪返回退出码 2。64 GiB 是已准备源码树后的构建余量门槛，不是全新环境所需总容量。
+- 当前本机没有可用的完整 Linux Chromium 源码/构建工具链，不能靠普通 Gradle 构建弥补这一缺口。

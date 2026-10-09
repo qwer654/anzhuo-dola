@@ -24,6 +24,11 @@ def run(*args, cwd=None):
 def main():
     if platform.system() != "Linux":
         raise RuntimeError("The Chromium Android build requires a provisioned Linux runner")
+    from preflight import inspect
+    readiness = inspect()
+    if not readiness["ready"]:
+        print(json.dumps(readiness, indent=2))
+        raise RuntimeError("Cobalt preflight failed; no source files were changed")
     baseline = json.loads((ROOT / "tools/cobalt/baseline.json").read_text())
     upstream = Path(os.environ["COBALT_REPO"]).resolve()
     src = Path(os.environ["COBALT_SRC"]).resolve()

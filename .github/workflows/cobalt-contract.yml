@@ -1,0 +1,37 @@
+name: Cobalt upstream integration contract
+on:
+  workflow_dispatch:
+  push:
+    paths: ['tools/cobalt/**', 'tools/package_extensions.py', 'tests/test_cobalt*', 'tests/test_extension_packaging.py', 'app/src/main/assets/dola30-original/**', 'app/src/main/assets/fingerprint-privacy/**', '.github/workflows/cobalt-contract.yml']
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: AurielSolaris/Cobalt
+          ref: 9ba7d1bc288e9b47e03b6be25dcc4e7fc351ae4a
+          path: .tooling/cobalt-upstream
+          persist-credentials: false
+      - name: Prepare isolated signature-verification dependency
+        run: |
+          python3 -m venv .tooling/contract-venv
+          .tooling/contract-venv/bin/pip install cryptography==50.0.2
+      - name: Unit and readiness tests
+        run: |
+          python3 -m unittest discover -s tests -p test_cobalt_preflight.py
+          python3 -m unittest discover -s tests -p test_extension_packaging.py
+      - name: Verify real upstream staging templates and signed extension bytes
+        run: .tooling/contract-venv/bin/python tools/cobalt/check_upstream_contract.py --upstream .tooling/cobalt-upstream --report .tooling/cobalt-contract.json
+      - name: Upload evidence only (no disposable signing identities)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cobalt-upstream-contract
+          path: .tooling/cobalt-contract.json
+          if-no-files-found: warn
+          retention-days: 14
