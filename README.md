@@ -14,6 +14,10 @@ APK 额外注入 [`app/src/main/assets/dola30-android-adapter.js`](app/src/main/
 
 适配层保留原脚本使用的公开状态名（`setDola30s`、`getDola30sStatus`）以便页面兼容，但不会注入 Chrome API，不改写 `fetch`/XHR 请求，不伪造平台能力，不移除水印，也不会自动发送。平台最终是否提供 30 秒能力仍由网页和账号权限决定。原始 MV3 文件继续原样打包，未删除任何函数。
 
+## 已选择的后续架构：Chromium 扩展运行时
+
+已选择方案 3：不再把 Android WebView 伪装成 MV3，而是迁移到带 Chromium Extension System 的 Android 浏览器内核。候选基线与迁移门槛记录在 [`docs/CHROMIUM_EXTENSION_ENGINE.md`](docs/CHROMIUM_EXTENSION_ENGINE.md)。在真正的扩展内核接入前，当前 WebView 版继续作为可构建、可回退版本；不会删除原始 JS 或现有功能。
+
 ## 0.2.0 已实现范围
 
 - **8 个隔离账号空间**：每个空间运行在独立 Android 进程与 Chromium 数据目录；空间内网页标签共享登录态，空间之间不共享 Cookie/网页存储。
