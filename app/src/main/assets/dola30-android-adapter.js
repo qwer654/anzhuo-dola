@@ -50,7 +50,8 @@
   }
   function publish() {
     var on = isEnabled();
-    root.document.documentElement.setAttribute(STATE_ATTRIBUTE, on ? "true" : "false");
+    var documentElement = root.document.documentElement;
+    if (documentElement) documentElement.setAttribute(STATE_ATTRIBUTE, on ? "true" : "false");
     try { root.document.dispatchEvent(new Event(STATE_EVENT)); } catch (_) {}
   }
   function render() {
