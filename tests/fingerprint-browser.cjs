@@ -5,11 +5,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
 const { chromium } = require("playwright");
+const output = path.resolve(__dirname, "../.tooling/browser-test");
+function record(result) {
+  fs.mkdirSync(output, { recursive: true });
+  fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ generatedAt: new Date().toISOString(), ...result }, null, 2));
+}
 
 async function main() {
   const extension = path.resolve(__dirname, "../app/src/main/assets/fingerprint-privacy");
-  const output = path.resolve(__dirname, "../.tooling/browser-test");
-  fs.mkdirSync(output, { recursive: true });
+  record({ ok: false, status: "running" });
   const profile = fs.mkdtempSync(path.join(output, "profile-"));
   const checks = [];
   const server = http.createServer((req, res) => {
@@ -90,11 +94,11 @@ async function main() {
     await setClean(false);
     const result = { ok: true, browser: context.browser().version(), platform: process.platform, checks,
       notVerified: ["Android/Cobalt", "iframe/Worker coverage", "ad removal", "original Dola30 runtime equivalence"] };
-    fs.writeFileSync(path.join(output, "result.json"), JSON.stringify(result, null, 2));
+    record(result);
     console.log(JSON.stringify(result, null, 2));
   } finally {
     if (context) await context.close();
     await new Promise(resolve => server.close(resolve));
   }
 }
-main().catch(error => { console.error(error); process.exitCode = 1; });
+main().catch(error => { record({ ok: false, status: "failed", error: String(error) }); console.error(error); process.exitCode = 1; });

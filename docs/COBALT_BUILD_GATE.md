@@ -9,7 +9,7 @@
 
 ## 已可执行的两条流水线
 
-1. `MV3 runtime and extension packages`：普通 GitHub runner 执行单元测试、原件哈希校验、真实 Chromium 本机回显测试，输出两份完整扩展 ZIP 和逐文件 SHA-256。原扩展的 5 个图标从用户原目录补齐，原 JS / manifest 不改字节。
+1. `MV3 runtime and extension packages`：普通 GitHub runner 执行单元测试、原件哈希校验、真实 Chromium 本机回显测试，输出两份完整扩展 ZIP 和逐文件 SHA-256。矩阵分别使用 Playwright 1.55.0 对应的 Chromium 140.0.7339.16 和 Playwright 1.64.0 的浏览器；桌面同主版本通过仍不等于 Cobalt Android 通过。原扩展的 5 个图标从用户原目录补齐，原 JS / manifest 不改字节，`.gitattributes` 禁止原件的 Git 换行转换。
 2. `Cobalt engine integration (provisioned Linux only)`：手动触发，仅使用带 `cobalt-android` 标签的专用 Linux x64 runner。把两个经过签名校验的 CRX 接入 Cobalt 原有 external-extension stager，更新版本标记、GN assets 后构建真实内核 APK；不只是往 APK 塞文件。原 uBlock/pdf.js 条目保留，不添加强制启用策略。
 
 第二条输出是 **Cobalt 内核集成验证 APK**，不是现有 Doulala Android 应用的替代版本。空间、工作台、Cookie 管理等 Doulala UI 仍保留在原工程，迁移和回归没完成前不切换默认入口。

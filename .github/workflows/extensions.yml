@@ -9,6 +9,15 @@ jobs:
   runtime:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Playwright 1.55.0 bundles Chromium 140.0.7339.16 (same major as Cobalt).
+          - playwright: '1.55.0'
+            label: chromium-140
+          - playwright: '1.64.0'
+            label: current-chromium
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
@@ -20,7 +29,7 @@ jobs:
           python3 -m unittest discover -s tests -p test_extension_packaging.py
       - name: Install pinned browser test tooling
         run: |
-          npm install --prefix .tooling/playwright --no-audit --no-fund --ignore-scripts playwright@1.64.0
+          npm install --prefix .tooling/playwright --no-audit --no-fund --ignore-scripts playwright@${{ matrix.playwright }}
           node .tooling/playwright/node_modules/playwright/cli.js install --with-deps chromium
       - name: Test real MV3 headers and rollback on loopback
         env:
@@ -31,7 +40,7 @@ jobs:
       - name: Upload extension packages and measured browser result
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: mv3-extension-packages
+          name: mv3-extension-packages-${{ matrix.label }}
           path: |
             .tooling/extension-packages/*.zip
             .tooling/extension-packages/checksums.json
