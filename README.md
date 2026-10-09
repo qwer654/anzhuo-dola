@@ -2,6 +2,12 @@
 
 这是 Windows WPF/WebView2 版本的 Android 原生重写预览工程。当前源码版本为 **Android 0.2.0**；它不是把 EXE 重打包成 APK，也不是桌面版的完整替代品。实现状态以源码和下方边界为准，尚未宣称真实设备或平台网页登录已经验收。
 
+## 原始 JS 保留与 Android 兼容边界
+
+用户提供的 Dola30 MV3 JavaScript 已原样纳入 APK 资源目录 [`app/src/main/assets/dola30-original/`](app/src/main/assets/dola30-original/)；`duration-main.js`、`skill-pack-main.js`、`content-panel.js`、`host-bridge.js`、`service-worker.js`、`manifest.json`、`rules.json` 与响应样例均未改写或删除，`SOURCE-MANIFEST.json` 保存字节数和 SHA-256。
+
+Android WebView 没有 Chrome MV3 的 `chrome.runtime`、`chrome.debugger`、`webRequest` 和桌面 WebView2 host bridge，因此这些原脚本会作为编译资源保留，但不会假装已经等价执行。当前运行时继续使用 Android 安全子集；原脚本中涉及拦截平台请求、移除水印或绕过平台能力限制的部分不会被自动启用。
+
 ## 0.2.0 已实现范围
 
 - **8 个隔离账号空间**：每个空间运行在独立 Android 进程与 Chromium 数据目录；空间内网页标签共享登录态，空间之间不共享 Cookie/网页存储。
