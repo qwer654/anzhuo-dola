@@ -18,7 +18,7 @@ APK 额外注入 [`app/src/main/assets/dola30-android-adapter.js`](app/src/main/
 
 已选择方案 3：不再把 Android WebView 伪装成 MV3，而是迁移到带 Chromium Extension System 的 Android 浏览器内核。候选基线与迁移门槛记录在 [`docs/CHROMIUM_EXTENSION_ENGINE.md`](docs/CHROMIUM_EXTENSION_ENGINE.md)。在真正的扩展内核接入前，当前 WebView 版继续作为可构建、可回退版本；不会删除原始 JS 或现有功能。
 
-首个独立扩展模块已加入 [`app/src/main/assets/fingerprint-privacy/`](app/src/main/assets/fingerprint-privacy/)：提供本地指纹诊断，以及用户主动开启的 Canvas/WebGL 隐私限制。它不上传报告、不伪造 User-Agent 或请求头。
+首个独立扩展模块已加入 [`app/src/main/assets/fingerprint-privacy/`](app/src/main/assets/fingerprint-privacy/)：提供本地指纹诊断，以及用户可选的 Canvas、WebGL、离线音频、WebRTC 和媒体设备隐私限制；“严格隐私”可一次开启高影响限制。它不上传报告、不伪造 User-Agent 或请求头。
 
 ## 0.2.0 已实现范围
 
