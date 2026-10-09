@@ -1,0 +1,10 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>指纹隐私工具</title>
+<style>body{font:14px sans-serif;min-width:280px;padding:12px;color:#202638}label{display:block;margin:10px 0}button{padding:7px 10px}pre{white-space:pre-wrap;max-height:260px;overflow:auto;background:#f3f5f8;padding:8px}</style>
+<h3>指纹隐私工具</h3>
+<label><input id="canvas" type="checkbox"> 限制 Canvas 读回（可能影响绘图网站）</label>
+<label><input id="webgl" type="checkbox"> 隐藏 WebGL 调试渲染器信息</label>
+<button id="save">保存设置</button> <button id="report">生成本地报告</button>
+<pre id="output">报告只显示在本窗口，不上传网络。</pre>
+<script src="popup.js"></script>

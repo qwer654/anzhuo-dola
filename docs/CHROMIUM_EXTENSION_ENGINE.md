@@ -40,7 +40,12 @@
 5. 资源、Cookie、下载和 8 个空间功能回归测试通过。
 6. 与当前 Android WebView 版并行保留，确认新内核稳定后再切换默认入口。
 
+## 指纹隐私扩展
+
+首个可移植模块已放在 `app/src/main/assets/fingerprint-privacy/`，是独立 MV3 扩展，不修改原始 Dola30 资源。它提供本地报告（UA、平台、语言、时区、屏幕、Canvas/WebGL 可见信号）以及用户主动开启的 Canvas 读回限制和 WebGL 调试渲染器隐藏。报告不联网；默认不改变页面行为。
+
+该模块不伪造 User-Agent、设备身份或请求头，也不用于绕过平台风控。真正的浏览器级防指纹仍以 Cobalt 内核的实现为准。
+
 ## 构建现实
 
 这条路线需要完整 Chromium 源码、GN/Ninja、Android SDK/NDK、较大的磁盘和 GitHub Actions 专用 runner；不是在现有 `app/build.gradle` 增加一个依赖就能完成。当前仓库仍可构建 WebView 版，直到 Chromium 引擎迁移完成。
-

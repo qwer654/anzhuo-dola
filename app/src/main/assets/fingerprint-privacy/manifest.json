@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "豆啦啦 · 指纹隐私工具",
+  "version": "0.1.0",
+  "description": "本地指纹诊断与可选高熵 API 限制；不上传报告、不伪造请求头。",
+  "permissions": ["storage", "tabs"],
+  "action": {
+    "default_title": "指纹隐私工具",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-main.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["bridge.js"],
+      "run_at": "document_start"
+    }
+  ]
+}
