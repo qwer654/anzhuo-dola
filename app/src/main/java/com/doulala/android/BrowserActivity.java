@@ -247,7 +247,7 @@ public class BrowserActivity extends Activity {
         new AlertDialog.Builder(this).setTitle(title).setItems(new String[]{"前进","回到首页","新建标签","添加当前页书签","打开书签","下载中心","Cookie 手动迁移","回到空间列表"},(d,n)->{
             switch(n){case 0:if(active.view!=null&&active.view.canGoForward())active.view.goForward();break;
                 case 1:load(home);break;case 2:newTab(home);break;case 3:addBookmark();break;
-                case 4:showBookmarks();break;case 5:downloads.show();break;case 6:cookies.show();break;case 7:finish();break;}
+                case 4:showBookmarks();break;case 5:downloads.show();break;case 6:cookies.show();break;case 7:returnToCatalog();break;}
         }).show();
     }
     private JSONArray bookmarks(){try{return new JSONArray(prefs.getString("bookmarks","[]"));}catch(Exception e){return new JSONArray();}}
@@ -280,6 +280,12 @@ public class BrowserActivity extends Activity {
                     if(prefs.edit().putString("bookmarks",keep.toString()).commit()){d.dismiss();showBookmarks();}else Ui.toast(this,"删除失败");
                 }).show()));card.addView(row);list.addView(card);
         }d.show();
+    }
+    private void returnToCatalog(){
+        // Each profile has its own task affinity/process. Explicitly bring the dashboard
+        // task back instead of relying on task history, which may be empty after process isolation.
+        Intent i=new Intent(this,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        startActivity(i);finish();
     }
     private void goBack(){if(active!=null&&active.view!=null&&active.view.canGoBack())active.view.goBack();else finish();}
     private void cancelFile(){if(fileCallback!=null)fileCallback.onReceiveValue(null);fileCallback=null;fileTab=null;}
