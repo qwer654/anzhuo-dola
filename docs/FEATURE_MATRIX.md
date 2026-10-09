@@ -1,4 +1,4 @@
-# 功能矩阵与验收边界（Android 0.2.0）
+# 功能矩阵与验收边界（Android 0.2.1）
 
 来源：当前 `android-port/app/src/main/java/com/doulala/android` 实现与 Android 工作流。下表的“已实现”表示源码已提供对应路径，不代表真实设备、第三方网站或云端工作流已经验收通过。
 
@@ -14,7 +14,7 @@
 | 白名单页面媒体观察 | 已实现（安全子集） | 观察页面已有 JSON/fetch/XHR/DOM/Performance 的图片/视频 URL；不请求 fallback API、不改响应，不保证原图/无水印。 |
 | 资源下载 | 已实现（有限） | Android DownloadManager + 下载中心状态、打开、分享、SAF 另存、删除；最多保留 100 条记录，应用私有外部目录卸载时删除。 |
 | 认证下载 | 未实现 | 不自动附加 Cookie 或认证头；需登录或已过期链接可能失败/过期。 |
-| 30 秒/时间码 | 部分 | 本地提示词比例工具；不伪造模型能力，不保证目标平台接受 30 秒。 |
+| 30 秒/时间码 | 已实现（安全适配） | 白名单 WebView 页面提供本地 15/30 秒状态、原公开 API 兼容名、提示词时间轴转换和复制；不改写 fetch/XHR、不自动提交、不伪造模型能力，不保证目标平台接受 30 秒。原 MV3 文件原样保留在 `assets/dola30-original/`。 |
 | 快捷文本 | 已实现 | 本地 CRUD、复制或填入当前网页；不会自动发送。 |
 | 分镜工作台 | 已实现（手动） | UTF-8 文本按空行导入、编辑、三态手动状态、JSON 备份；不代表平台生成状态。 |
 | Cookie 导入/导出 | 已实现（有限快照） | 用户主动 SAF 操作；只接受完全相同 origin，快照仅名称和值。导入写根路径、Secure/HttpOnly/SameSite=Lax 会话 Cookie；Domain/Path/过期时间/其它元数据及网页本地存储不迁移，不是完整登录备份。明文快照需用户自行保管和删除。 |
@@ -28,10 +28,10 @@
 
 ## 验证状态
 
-- 本地已通过 11 项 Node 测试（`tests/media-probe.test.cjs`）。
+- 工作流会运行媒体、原始 JS 完整性和 Android 适配层 Node 测试（`tests/media-probe.test.cjs`、`tests/dola30-source.test.cjs`、`tests/dola30-android-adapter.test.cjs`）。
 - 11 项 Java 单元测试已编写，但当前没有云端验证结果，不能记为已通过。
-- `android.yml` 的预期检查为 `testDebugUnitTest lintDebug assembleDebug`、APK 签名验证与构件上传；当前没有 0.2.0 云端运行结果。
-- `android-smoke.yml` 可在 Android 15/API 35 模拟器运行 `connectedDebugAndroidTest`；当前没有该 0.2.0 运行结果。
+- `android.yml` 的预期检查为上述 Node 测试、`testDebugUnitTest lintDebug assembleDebug`、APK 签名验证与构件上传；当前没有 0.2.1 云端运行结果。
+- `android-smoke.yml` 可在 Android 15/API 35 模拟器运行 `connectedDebugAndroidTest`；当前没有该 0.2.1 运行结果。
 - 未完成 Android 真机验证；网页登录、空间隔离、标签恢复、Cookie 快照、上传、资源观察及下载中心仍需在目标设备/网站上验收。
 
 ## 安装与升级边界

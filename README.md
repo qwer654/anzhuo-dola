@@ -1,12 +1,18 @@
 # 豆啦啦 · Android 移植版
 
-这是 Windows WPF/WebView2 版本的 Android 原生重写预览工程。当前源码版本为 **Android 0.2.0**；它不是把 EXE 重打包成 APK，也不是桌面版的完整替代品。实现状态以源码和下方边界为准，尚未宣称真实设备或平台网页登录已经验收。
+这是 Windows WPF/WebView2 版本的 Android 原生重写预览工程。当前源码版本为 **Android 0.2.1**；它不是把 EXE 重打包成 APK，也不是桌面版的完整替代品。实现状态以源码和下方边界为准，尚未宣称真实设备或平台网页登录已经验收。
 
 ## 原始 JS 保留与 Android 兼容边界
 
 用户提供的 Dola30 MV3 JavaScript 已原样纳入 APK 资源目录 [`app/src/main/assets/dola30-original/`](app/src/main/assets/dola30-original/)；`duration-main.js`、`skill-pack-main.js`、`content-panel.js`、`host-bridge.js`、`service-worker.js`、`manifest.json`、`rules.json` 与响应样例均未改写或删除，`SOURCE-MANIFEST.json` 保存字节数和 SHA-256。
 
 Android WebView 没有 Chrome MV3 的 `chrome.runtime`、`chrome.debugger`、`webRequest` 和桌面 WebView2 host bridge，因此这些原脚本会作为编译资源保留，但不会假装已经等价执行。当前运行时继续使用 Android 安全子集；原脚本中涉及拦截平台请求、移除水印或绕过平台能力限制的部分不会被自动启用。
+
+### Android WebView 适配层
+
+APK 额外注入 [`app/src/main/assets/dola30-android-adapter.js`](app/src/main/assets/dola30-android-adapter.js) 与纯文本工具 [`app/src/main/assets/prompt-tools.js`](app/src/main/assets/prompt-tools.js)。在 `doubao.com`/`dola.com` 白名单页面上，菜单中的 **30S 工具**和页面浮动按钮可以由用户主动切换 15/30 秒本地状态，并把提示词中的时间轴转换为全片百分比；结果可复制后由用户自行检查和提交。
+
+适配层保留原脚本使用的公开状态名（`setDola30s`、`getDola30sStatus`）以便页面兼容，但不会注入 Chrome API，不改写 `fetch`/XHR 请求，不伪造平台能力，不移除水印，也不会自动发送。平台最终是否提供 30 秒能力仍由网页和账号权限决定。原始 MV3 文件继续原样打包，未删除任何函数。
 
 ## 0.2.0 已实现范围
 
@@ -17,12 +23,13 @@ Android WebView 没有 Chrome MV3 的 `chrome.runtime`、`chrome.debugger`、`we
 - **Cookie 手动迁移（有限快照）**：通过 SAF 由用户主动导出/导入当前完全相同 origin 的快照，仅保存名称和值。导入写入根路径、`Secure`、`HttpOnly`、`SameSite=Lax` 会话 Cookie；原始 Domain、Path、过期时间及其它属性会丢失，因此不是完整登录备份，不能保证恢复登录。快照含明文凭证，应仅保存在用户控制的位置并在用后删除。
 - **下载中心**：基于 Android `DownloadManager`，提供状态刷新、打开、分享、SAF 另存、删除；下载记录上限 100 条，应用私有外部下载目录会在卸载时删除。不会自动附加 Cookie/认证头，需登录或已过期的链接可能失败或过期。
 - **本地创作工作台**：快捷文本 CRUD、复制或填入当前网页；UTF-8 文本按空行导入并编辑分镜、三态手动状态、JSON 备份。不会伪造平台生成状态或自动发送。
+- **Android WebView 30S 工具**：白名单页面的本地 15/30 秒状态、提示词时间轴转换、结果复制；所有动作均由用户确认，不拦截网络请求或自动发送。
 
 ## 用 GitHub Actions 编译
 
 仓库为 `qwer654/anzhuo-dola`。在 **Actions → Android APK → Run workflow** 手动运行，或推送 `app/`、Gradle 文件、测试或工作流后自动运行。构建完成后从 workflow run 的 **Artifacts** 下载 `doulala-android-debug`，解压后安装 `app-debug.apk`，并可用同目录 SHA-256 文件校验完整性。
 
-主工作流使用 GitHub 托管的 Android SDK、JDK 17、Gradle 8.9 和 Node.js 20，执行 `node --test tests/media-probe.test.cjs`（当前本地已通过 11 项 Node 测试），随后运行 `testDebugUnitTest lintDebug assembleDebug`、APK 签名验证并上传报告。11 项 Java 单元测试已编写，但当前没有云端验证结果，不能在此声明通过。另有手动触发的 `Android UI smoke` 工作流，在 Android 15/API 35 模拟器运行 `connectedDebugAndroidTest`；当前没有该 0.2.0 工作流运行结果。
+主工作流使用 GitHub 托管的 Android SDK、JDK 17、Gradle 8.9 和 Node.js 20，执行 `node --test tests/media-probe.test.cjs tests/dola30-source.test.cjs tests/dola30-android-adapter.test.cjs`，随后运行 `testDebugUnitTest lintDebug assembleDebug`、APK 签名验证并上传报告。Java 单元测试已编写，但当前没有云端验证结果，不能在此声明通过。另有手动触发的 `Android UI smoke` 工作流，在 Android 15/API 35 模拟器运行 `connectedDebugAndroidTest`；当前没有该 0.2.1 工作流运行结果。
 
 工作流只生成 debug APK。正式发布需要用户自己的签名密钥与 release secrets，不能把 keystore 提交到仓库。debug 签名在每次 runner 上可能不同，升级时可能需要卸载并造成应用数据丢失；安装/升级前请先导出工作台 JSON 和需要保留的文件。最低系统目标仍按工程配置，以 Android 9（API 28）为预览下限；真实机兼容性需另行验收。
 
@@ -37,4 +44,4 @@ Android WebView 没有 Chrome MV3 的 `chrome.runtime`、`chrome.debugger`、`we
 
 ## 未移植或明确不承诺的桌面能力
 
-完整指纹/代理伪装、Windows 代理认证与链式代理、CDP 深度嗅探与 `Fetch.fulfillRequest`、批量自动生成/发送/后台任务、遮罩/人脸/参考音频、创作中心/百宝箱、桌面本地 API、Windows DLL/注册表/机器码、Chrome 扩展，以及桌面版的完整 Cookie 属性与本地存储迁移，均未等价移植。详见 [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md)。
+完整指纹/代理伪装、Windows 代理认证与链式代理、CDP 深度嗅探与 `Fetch.fulfillRequest`、批量自动生成/发送/后台任务、遮罩/人脸/参考音频、创作中心/百宝箱、桌面本地 API、Windows DLL/注册表/机器码、Chrome 扩展，以及桌面版的完整 Cookie 属性与本地存储迁移，均未等价移植。30S 适配层只提供本地状态和提示词转换，不等价于平台能力解锁。详见 [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md)。

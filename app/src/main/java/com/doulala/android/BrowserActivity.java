@@ -26,7 +26,7 @@ public class BrowserActivity extends Activity {
     private FrameLayout viewport;
     private EditText address;
     private TextView status,mediaButton,tabsButton,caption;
-    private String home,title,probeScript;
+    private String home,title,probeScript,promptScript,androidDolaScript;
     private ValueCallback<Uri[]> fileCallback;
     private DownloadCenter downloads;
     private CookieTransfer cookies;
@@ -37,7 +37,7 @@ public class BrowserActivity extends Activity {
         WebView view;
         String url,title="新标签",message="等待加载";
         int navigation;
-        boolean probe,closed,failed;
+        boolean probe,androidTools,closed,failed;
         final ArrayList<MediaItem> media=new ArrayList<>();
         final Set<String> mediaKeys=new HashSet<>();
         Tab(String u){url=u;}
@@ -164,7 +164,7 @@ public class BrowserActivity extends Activity {
             }
             @Override public void doUpdateVisitedHistory(WebView v,String u,boolean reload){String valid=webUrl(u);if(valid!=null){t.url=valid;if(t==active&&!address.hasFocus())address.setText(valid);saveTabs();}}
             @Override public void onPageFinished(WebView v,String u){
-                if(!t.failed)message(t,t.probe?"已就绪 · 长按链接可新建标签；资源观察仅在白名单启用":"已就绪 · 当前 WebView 不支持早期资源观察");scan(t);
+                if(!t.failed)message(t,t.probe?"已就绪 · 30S 本地工具与资源观察可用":(t.androidTools?"已就绪 · 30S 本地工具可用；资源观察未启用":"已就绪 · 当前 WebView 不支持早期脚本"));scan(t);
             }
             @Override public void onReceivedError(WebView v,WebResourceRequest r,WebResourceError e){if(r.isForMainFrame()){t.failed=true;message(t,"加载失败："+e.getDescription());}}
             @Override public void onReceivedHttpError(WebView v,WebResourceRequest r,WebResourceResponse response){if(r.isForMainFrame()){t.failed=true;message(t,"网页返回 HTTP "+response.getStatusCode());}}
@@ -205,15 +205,28 @@ public class BrowserActivity extends Activity {
         }else message(t,"已阻止非 HTTPS 或不支持的链接");return true;
     }
     private void installProbe(Tab t) {
-        t.probe=false;if(!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))return;
+        t.probe=false;t.androidTools=false;if(!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))return;
+        Set<String> origins=new HashSet<>(Arrays.asList(
+            "https://doubao.com","https://*.doubao.com","https://dola.com","https://*.dola.com",
+            "https://qianwen.com","https://*.qianwen.com","https://jianying.com","https://*.jianying.com"));
         try {
-            if(probeScript==null)try(java.io.InputStream in=getAssets().open("media-probe.js");java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){
-                byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);probeScript=new String(out.toByteArray(),java.nio.charset.StandardCharsets.UTF_8);
-            }
-            WebViewCompat.addDocumentStartJavaScript(t.view,probeScript,new HashSet<>(Arrays.asList(
-                "https://doubao.com","https://*.doubao.com","https://dola.com","https://*.dola.com",
-                "https://qianwen.com","https://*.qianwen.com","https://jianying.com","https://*.jianying.com")));t.probe=true;
+            if(probeScript==null)probeScript=readAsset("media-probe.js");
+            WebViewCompat.addDocumentStartJavaScript(t.view,probeScript,origins);t.probe=true;
         }catch(Exception ignored){}
+        // The supplied MV3 files stay byte-for-byte in dola30-original/. Only
+        // the Android-safe adapter and pure prompt utility are injected here.
+        try {
+            if(promptScript==null)promptScript=readAsset("prompt-tools.js");
+            if(androidDolaScript==null)androidDolaScript=readAsset("dola30-android-adapter.js");
+            WebViewCompat.addDocumentStartJavaScript(t.view,promptScript,origins);
+            WebViewCompat.addDocumentStartJavaScript(t.view,androidDolaScript,origins);t.androidTools=true;
+        }catch(Exception ignored){}
+    }
+    private String readAsset(String name)throws java.io.IOException{
+        try(java.io.InputStream in=getAssets().open(name);java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){
+            byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);
+            return new String(out.toByteArray(),java.nio.charset.StandardCharsets.UTF_8);
+        }
     }
     private void scan(Tab t) {
         if(destroyed||t==null||t.closed||t.view==null||!UrlRules.trusted(t.view.getUrl()))return;
@@ -243,11 +256,85 @@ public class BrowserActivity extends Activity {
         }
         new AlertDialog.Builder(this).setTitle("当前标签资源（"+active.media.size()+"）").setView(Ui.scroll(this,list)).setPositiveButton("关闭",null).show();
     }
+    private void showDurationTool() {
+        if(active==null||active.view==null||!UrlRules.trusted(active.view.getUrl())){
+            Ui.toast(this,"30S 工具仅在白名单网页可用");return;
+        }
+        final Tab t=active;final int navigation=t.navigation;
+        t.view.evaluateJavascript("window.getDola30sStatus?window.getDola30sStatus():null",value->{
+            if(destroyed||t.closed||t.view==null||t.navigation!=navigation||t!=active)return;
+            JSONObject state=parseJsObject(value);
+            if(state==null){Ui.toast(this,"当前 WebView 未加载 30S 工具");return;}
+            boolean on=state.optBoolean("on",false);
+            String message="当前页面本地目标时长："+state.optInt("duration",15)+" 秒\n"+
+                "Android WebView 只保存页面状态并提供提示词时间轴转换。\n"+
+                "不会拦截请求、伪造平台能力或自动发送；网页是否支持 30 秒由平台决定。";
+            new AlertDialog.Builder(this).setTitle("30S 工具（Android WebView）")
+                .setMessage(message).setNegativeButton("关闭",null)
+                .setNeutralButton("转换提示词时间轴",(d,w)->showTimelineRewrite())
+                .setPositiveButton(on?"切换为 15S":"启用 30S",(d,w)->setDurationState(!on)).show();
+        });
+    }
+    private JSONObject parseJsObject(String value) {
+        if(value==null||"null".equals(value))return null;
+        try {
+            Object decoded=new JSONTokener(value).nextValue();
+            if(decoded instanceof String)decoded=new JSONTokener((String)decoded).nextValue();
+            return decoded instanceof JSONObject?(JSONObject)decoded:null;
+        }catch(Exception ignored){return null;}
+    }
+    private String decodeJsString(String value) {
+        if(value==null||"null".equals(value))return null;
+        try {Object decoded=new JSONTokener(value).nextValue();return decoded==JSONObject.NULL?null:String.valueOf(decoded);}
+        catch(Exception ignored){return value;}
+    }
+    private void setDurationState(boolean enabled) {
+        if(active==null||active.view==null)return;
+        final Tab t=active;final int navigation=t.navigation;
+        String script="window.setDola30s("+(enabled?"true":"false")+")";
+        t.view.evaluateJavascript(script,value->{
+            if(!destroyed&&!t.closed&&t==active&&t.navigation==navigation)
+                message(t,enabled?"已启用 30S 本地状态，请检查网页后手动继续":"已切换为 15S 本地状态");
+        });
+    }
+    private void showTimelineRewrite() {
+        if(active==null||active.view==null||!UrlRules.trusted(active.view.getUrl())){Ui.toast(this,"当前页面不可用");return;}
+        LinearLayout form=Ui.column(this);Ui.pad(form,8);
+        TextView hint=Ui.text(this,"仅转换提示词中的时间表达，不会提交到网页。",12,Ui.MUTED);form.addView(hint);
+        EditText prompt=Ui.edit(this,"输入提示词，例如：00:00-00:05 开场","");
+        prompt.setSingleLine(false);prompt.setMinLines(5);prompt.setGravity(Gravity.TOP|Gravity.START);
+        prompt.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        form.addView(prompt,new LinearLayout.LayoutParams(-1,Ui.dp(this,130)));
+        EditText seconds=Ui.edit(this,"总时长（秒）","30");
+        seconds.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);form.addView(seconds);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("转换提示词时间轴").setView(Ui.scroll(this,form))
+            .setNegativeButton("取消",null).setPositiveButton("转换",null).create();
+        dialog.setOnShowListener(x->dialog.getButton(-1).setOnClickListener(v->{
+            String input=prompt.getText().toString();if(input.length()>100000){prompt.setError("提示词最多 100000 字");return;}
+            double total;try{total=Double.parseDouble(seconds.getText().toString().trim());}catch(Exception e){total=0;}
+            if(!(total>0&&total<=86400)){seconds.setError("请输入 0–86400 之间的秒数");return;}
+            final Tab t=active;final int navigation=t==null?0:t.navigation;
+            if(t==null||t.view==null||!UrlRules.trusted(t.view.getUrl())){dialog.dismiss();Ui.toast(this,"页面已变化，请重试");return;}
+            String js="window.rewriteDolaTimeline?window.rewriteDolaTimeline("+JSONObject.quote(input)+","+Double.toString(total)+"):null";
+            t.view.evaluateJavascript(js,value->{
+                if(destroyed||t.closed||t!=active||t.navigation!=navigation){Ui.toast(this,"页面已变化，未填入结果");return;}
+                String result=decodeJsString(value);if(result==null){Ui.toast(this,"提示词工具未加载");return;}
+                dialog.dismiss();showTimelineResult(result);
+            });
+        }));dialog.show();
+    }
+    private void showTimelineResult(String result) {
+        TextView output=Ui.text(this,result,14,Ui.INK);output.setTextIsSelectable(true);output.setGravity(Gravity.TOP|Gravity.START);
+        new AlertDialog.Builder(this).setTitle("转换结果（请手动检查）").setView(Ui.scroll(this,output))
+            .setNegativeButton("关闭",null).setPositiveButton("复制",(d,w)->{
+                ((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("提示词",result));Ui.toast(this,"结果已复制");
+            }).show();
+    }
     private void showMenu() {
-        new AlertDialog.Builder(this).setTitle(title).setItems(new String[]{"前进","回到首页","新建标签","添加当前页书签","打开书签","下载中心","Cookie 手动迁移","回到空间列表"},(d,n)->{
+        new AlertDialog.Builder(this).setTitle(title).setItems(new String[]{"前进","回到首页","新建标签","添加当前页书签","打开书签","下载中心","30S 工具","Cookie 手动迁移","回到空间列表"},(d,n)->{
             switch(n){case 0:if(active.view!=null&&active.view.canGoForward())active.view.goForward();break;
                 case 1:load(home);break;case 2:newTab(home);break;case 3:addBookmark();break;
-                case 4:showBookmarks();break;case 5:downloads.show();break;case 6:cookies.show();break;case 7:returnToCatalog();break;}
+                case 4:showBookmarks();break;case 5:downloads.show();break;case 6:showDurationTool();break;case 7:cookies.show();break;case 8:returnToCatalog();break;}
         }).show();
     }
     private JSONArray bookmarks(){try{return new JSONArray(prefs.getString("bookmarks","[]"));}catch(Exception e){return new JSONArray();}}
