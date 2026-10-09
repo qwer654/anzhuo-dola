@@ -13,3 +13,6 @@ tools/*.tmp
 .env.*
 *.p12
 *.pfx
+*.pem
+__pycache__/
+*.py[cod]

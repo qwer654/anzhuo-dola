@@ -15,13 +15,13 @@
 | 资源下载 | 已实现（有限） | Android DownloadManager + 下载中心状态、打开、分享、SAF 另存、删除；最多保留 100 条记录，应用私有外部目录卸载时删除。 |
 | 认证下载 | 未实现 | 不自动附加 Cookie 或认证头；需登录或已过期链接可能失败/过期。 |
 | 30 秒/时间码 | 已实现（安全适配） | 白名单 WebView 页面提供本地 15/30 秒状态、原公开 API 兼容名、提示词时间轴转换和复制；不改写 fetch/XHR、不自动提交、不伪造模型能力，不保证目标平台接受 30 秒。原 MV3 文件原样保留在 `assets/dola30-original/`。 |
-| 指纹诊断/隐私 | 已加入扩展模块（待 Cobalt 验收） | `assets/fingerprint-privacy/` 提供本地信号报告和可选 Canvas、WebGL、离线音频、WebRTC、媒体设备枚举限制；默认仅隐藏 WebGL 调试信息，不上传、不伪造 User-Agent/请求头、不用于绕过风控。 |
+| 指纹诊断/隐私 | 已加入扩展模块（待 Cobalt 验收） | `assets/fingerprint-privacy/` 提供本地信号报告、Canvas/WebGL/离线音频/WebRTC/媒体设备限制，以及“洁净模式”（固定低熵移动 UA、通用设备值、删除高熵 Client Hints）；不随机轮换，不改 Cookie/Referer/认证头，不用于绕过风控。 |
 | 快捷文本 | 已实现 | 本地 CRUD、复制或填入当前网页；不会自动发送。 |
 | 分镜工作台 | 已实现（手动） | UTF-8 文本按空行导入、编辑、三态手动状态、JSON 备份；不代表平台生成状态。 |
 | Cookie 导入/导出 | 已实现（有限快照） | 用户主动 SAF 操作；只接受完全相同 origin，快照仅名称和值。导入写根路径、Secure/HttpOnly/SameSite=Lax 会话 Cookie；Domain/Path/过期时间/其它元数据及网页本地存储不迁移，不是完整登录备份。明文快照需用户自行保管和删除。 |
 | CDP 深度嗅探/Fetch.fulfillRequest | 未实现 | Android WebView 没有桌面 WebView2 等价能力。 |
 | HTTP/SOCKS5 认证、链式代理 | 未实现 | 需要重新设计 Android 网络层。 |
-| UA/时区/Canvas/Audio/WebRTC 完整指纹 | 未实现 | 不提供伪造或绕过平台安全的实现。 |
+| UA/时区/Canvas/Audio/WebRTC 完整指纹 | 未完成（仅部分扩展源码） | 洁净模式含固定 UA/通用页面设备值、请求头规则及可选 API 限制；尚未接入 Android 运行时，不修改系统设备 ID，不覆盖 iframe/Worker/时区等信号，也不保证无广告。 |
 | 批量自动生成、发送、后台任务 | 未实现 | 目前仅提供用户确认后的网页填入。 |
 | 遮罩、人脸、参考音频、创作中心、百宝箱 | 未实现 | 桌面发布包只有入口线索或组件源码不完整。 |
 | Windows 机器码、注册表、WPF API、DLL/Chrome 扩展 | 不适用/未实现 | Android 无对应运行时。 |

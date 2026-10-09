@@ -1,0 +1,40 @@
+name: MV3 runtime and extension packages
+on:
+  workflow_dispatch:
+  push:
+    paths: ['app/src/main/assets/fingerprint-privacy/**', 'app/src/main/assets/dola30-original/**', 'tests/fingerprint*', 'tools/package_extensions.py', 'tools/cobalt/**', 'tests/test_extension_packaging.py', '.github/workflows/extensions.yml']
+permissions:
+  contents: read
+jobs:
+  runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+      - name: Unit and original-integrity tests
+        run: |
+          node --test tests/media-probe.test.cjs tests/dola30-source.test.cjs tests/dola30-android-adapter.test.cjs tests/fingerprint-privacy.test.cjs
+          python3 -m unittest discover -s tests -p test_extension_packaging.py
+      - name: Install pinned browser test tooling
+        run: |
+          npm install --prefix .tooling/playwright --no-audit --no-fund --ignore-scripts playwright@1.64.0
+          node .tooling/playwright/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Test real MV3 headers and rollback on loopback
+        env:
+          NODE_PATH: ${{ github.workspace }}/.tooling/playwright/node_modules
+        run: node tests/fingerprint-browser.cjs
+      - name: Package original and privacy extensions without backups or keys
+        run: python3 tools/package_extensions.py .tooling/extension-packages
+      - name: Upload extension packages and measured browser result
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: mv3-extension-packages
+          path: |
+            .tooling/extension-packages/*.zip
+            .tooling/extension-packages/checksums.json
+            .tooling/browser-test/result.json
+          if-no-files-found: error
+          retention-days: 14

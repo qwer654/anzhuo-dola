@@ -1,0 +1,30 @@
+name: Cobalt engine integration (provisioned Linux only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cobalt-engine-isolated-tree
+  cancel-in-progress: false
+jobs:
+  engine:
+    # This runner needs a dedicated Chromium checkout, not a developer's dirty tree.
+    runs-on: [self-hosted, Linux, X64, cobalt-android]
+    timeout-minutes: 720
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Verify originals and unit tests
+        run: node --test tests/media-probe.test.cjs tests/dola30-source.test.cjs tests/dola30-android-adapter.test.cjs tests/fingerprint-privacy.test.cjs
+      - name: Build real Chromium APK with installed-extension staging
+        id: engine
+        run: python3 tools/cobalt/build_engine.py
+      - name: Upload integration APK and evidence (never signing keys)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cobalt-extension-integration
+          path: |
+            ${{ steps.engine.outputs.directory }}/cobalt-extension-integration.apk
+            ${{ steps.engine.outputs.directory }}/build-result.json
+            ${{ steps.engine.outputs.directory }}/checksums.json
+          if-no-files-found: error
+          retention-days: 7

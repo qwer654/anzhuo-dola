@@ -42,9 +42,9 @@
 
 ## 指纹隐私扩展
 
-首个可移植模块已放在 `app/src/main/assets/fingerprint-privacy/`，是独立 MV3 扩展，不修改原始 Dola30 资源。它提供本地报告（UA、平台、语言、时区、屏幕、Canvas/WebGL、音频、WebRTC 和媒体设备可见信号），默认隐藏 WebGL 调试渲染器信息，并提供用户主动开启的 Canvas 读回、离线音频、WebRTC 和媒体设备枚举限制。报告不联网；高影响限制默认关闭，也可在扩展弹窗开启“严格隐私”。
+首个可移植模块已放在 `app/src/main/assets/fingerprint-privacy/`，是独立 MV3 扩展，不修改原始 Dola30 资源。它提供本地报告（UA、平台、语言、时区、屏幕、Canvas/WebGL、音频、WebRTC 和媒体设备可见信号），默认隐藏 WebGL 调试渲染器信息，并提供用户主动开启的 Canvas 读回、离线音频、WebRTC 和媒体设备枚举限制。“洁净模式”使用固定的低熵移动 UA/通用设备值，并通过 `declarativeNetRequest` 删除高熵 Client Hints；不随机轮换，不修改 Cookie、Referer 或认证头。报告不联网；高影响限制默认关闭，也可在扩展弹窗开启“严格隐私”。
 
-该模块不伪造 User-Agent、设备身份或请求头，也不用于绕过平台风控。真正的浏览器级防指纹仍以 Cobalt 内核的实现为准。
+该模块只在用户打开“洁净模式”后使用固定的隐私化 UA/设备值和高熵请求头删除规则；不随机轮换，不修改 Cookie、Referer 或认证头，也不用于绕过平台风控。当前 Cobalt 尚未接入，未验证其内核原生反指纹能力，不能把本扩展当作内核功能或声称手机上已生效。页面层保护不覆盖 iframe / Worker 等路径，且会受页面脚本干扰；它不保证匿名或消除广告。
 
 ## 构建现实
 

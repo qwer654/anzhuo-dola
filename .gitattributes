@@ -1,0 +1,2 @@
+# User-supplied extension files are byte-preserved, including mixed line endings.
+app/src/main/assets/dola30-original/** -text

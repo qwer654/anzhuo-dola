@@ -1,9 +1,11 @@
 {
   "manifest_version": 3,
   "name": "豆啦啦 · 指纹隐私工具",
-  "version": "0.1.0",
-  "description": "本地指纹诊断与可选高熵 API 限制；不上传报告、不伪造请求头。",
-  "permissions": ["storage", "tabs"],
+  "version": "0.2.0",
+  "description": "本地指纹诊断；可选洁净模式统一页面 UA 和部分请求头，不上传报告。",
+  "permissions": ["storage", "tabs", "declarativeNetRequestWithHostAccess"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "service-worker.js" },
   "action": {
     "default_title": "指纹隐私工具",
     "default_popup": "popup.html"

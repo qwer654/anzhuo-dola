@@ -3,9 +3,11 @@
   "use strict";
   if (!root || root.top !== root || root.__dolaFingerprintPrivacy) return;
 
-  var defaults = { blockCanvasReadback: false, hideWebglDebugInfo: true, blockAudioFingerprint: false, blockWebRTC: false, blockDeviceEnumeration: false };
-  var settings = { blockCanvasReadback: false, hideWebglDebugInfo: true, blockAudioFingerprint: false, blockWebRTC: false, blockDeviceEnumeration: false };
+  var CLEAN_USER_AGENT = "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36";
+  var defaults = { cleanMode: false, blockCanvasReadback: false, hideWebglDebugInfo: true, blockAudioFingerprint: false, blockWebRTC: false, blockDeviceEnumeration: false };
+  var settings = { cleanMode: false, blockCanvasReadback: false, hideWebglDebugInfo: true, blockAudioFingerprint: false, blockWebRTC: false, blockDeviceEnumeration: false };
   var originals = {};
+  var navigatorOriginals = {};
 
   function copy(value) {
     var out = {};
@@ -14,6 +16,54 @@
   }
   function securityError(message) {
     return new DOMException(message || "Fingerprint surface disabled by the user", "SecurityError");
+  }
+  function setNavigatorValue(name, value) {
+    if (!Object.prototype.hasOwnProperty.call(navigatorOriginals, name)) {
+      navigatorOriginals[name] = { own: Object.prototype.hasOwnProperty.call(root.navigator, name), descriptor: Object.getOwnPropertyDescriptor(root.navigator, name) };
+    }
+    try {
+      Object.defineProperty(root.navigator, name, { configurable: true, enumerable: true, get: function () { return value; } });
+    } catch (_) {}
+  }
+  function restoreNavigatorValues() {
+    Object.keys(navigatorOriginals).forEach(function (name) {
+      var original = navigatorOriginals[name];
+      try {
+        if (original.own && original.descriptor) Object.defineProperty(root.navigator, name, original.descriptor);
+        else delete root.navigator[name];
+      } catch (_) {}
+    });
+    navigatorOriginals = {};
+  }
+  function genericUserAgentData() {
+    var brands = Object.freeze([Object.freeze({ brand: "Chromium", version: "140" })]);
+    var hints = { architecture: "", bitness: "", formFactors: Object.freeze(["Mobile"]), fullVersionList: Object.freeze([Object.freeze({ brand: "Chromium", version: "140.0.0.0" })]), model: "", platformVersion: "13.0.0", uaFullVersion: "140.0.0.0", wow64: false };
+    return Object.freeze({
+      brands: brands,
+      mobile: true,
+      platform: "Android",
+      getHighEntropyValues: function (requested) {
+        var result = { brands: brands, mobile: true, platform: "Android" };
+        Array.from(requested || []).forEach(function (key) {
+          if (Object.prototype.hasOwnProperty.call(hints, key)) result[key] = hints[key];
+        });
+        return Promise.resolve(result);
+      },
+      toJSON: function () { return { brands: this.brands, mobile: this.mobile, platform: this.platform }; }
+    });
+  }
+  function installCleanIdentity() {
+    if (!root.navigator) return;
+    setNavigatorValue("userAgent", CLEAN_USER_AGENT);
+    setNavigatorValue("appVersion", CLEAN_USER_AGENT.slice("Mozilla/".length));
+    setNavigatorValue("platform", "Linux armv8l");
+    setNavigatorValue("language", "zh-CN");
+    setNavigatorValue("languages", Object.freeze(["zh-CN", "zh", "en"]));
+    setNavigatorValue("hardwareConcurrency", 4);
+    if ("deviceMemory" in root.navigator) setNavigatorValue("deviceMemory", 4);
+    setNavigatorValue("maxTouchPoints", 1);
+    setNavigatorValue("vendor", "Google Inc.");
+    if (root.navigator.userAgentData) setNavigatorValue("userAgentData", genericUserAgentData());
   }
   function installCanvasBlock() {
     if (originals.canvasToDataURL) return;
@@ -43,16 +93,18 @@
     var proto = root.WebGLRenderingContext && root.WebGLRenderingContext.prototype;
     if (!proto) return;
     originals.getExtension = proto.getExtension;
+    var getExtension = originals.getExtension;
     proto.getExtension = function (name) {
       if (String(name) === "WEBGL_debug_renderer_info") return null;
-      return originals.getExtension.apply(this, arguments);
+      return getExtension.apply(this, arguments);
     };
     var proto2 = root.WebGL2RenderingContext && root.WebGL2RenderingContext.prototype;
     if (proto2) {
       originals.getExtension2 = proto2.getExtension;
+      var getExtension2 = originals.getExtension2;
       proto2.getExtension = function (name) {
         if (String(name) === "WEBGL_debug_renderer_info") return null;
-        return originals.getExtension2.apply(this, arguments);
+        return getExtension2.apply(this, arguments);
       };
     }
   }
@@ -108,6 +160,7 @@
   }
   function apply(next) {
     settings = copy(Object.assign({}, defaults, next || {}));
+    if (settings.cleanMode) installCleanIdentity(); else restoreNavigatorValues();
     if (settings.blockCanvasReadback) installCanvasBlock(); else removeCanvasBlock();
     if (settings.hideWebglDebugInfo) installWebglReduction(); else removeWebglReduction();
     if (settings.blockAudioFingerprint) installAudioBlock(); else removeAudioBlock();
@@ -149,6 +202,8 @@
       mediaDeviceEnumerationAvailable: !!(root.navigator && root.navigator.mediaDevices && root.navigator.mediaDevices.enumerateDevices),
       webgl: webglReport(),
       protection: copy(settings),
+      cleanMode: !!settings.cleanMode,
+      cleanUserAgent: settings.cleanMode ? CLEAN_USER_AGENT : null,
       localOnly: true
     };
   }

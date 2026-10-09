@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/AurielSolaris/Cobalt.git",
+  "commit": "9ba7d1bc288e9b47e03b6be25dcc4e7fc351ae4a",
+  "chromiumTag": "140.0.7339.264",
+  "androidMinSdk": 29,
+  "abi": "arm64-v8a",
+  "status": "source-inspected-build-and-device-validation-pending"
+}

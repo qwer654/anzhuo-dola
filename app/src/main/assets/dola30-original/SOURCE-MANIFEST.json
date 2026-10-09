@@ -51,6 +51,31 @@
       "path": "使用说明.txt",
       "bytes": 7838,
       "sha256": "105a8d4aa372a78de235b671a10d96247971518b184d908cca04ba9a82be6c87"
+    },
+    {
+      "path": "icons/doraemon.png",
+      "bytes": 7084,
+      "sha256": "49f4ac0d189e0314c1e1dd50a7ed163a5c5704ae69efeec915f6cd20c4dc3046"
+    },
+    {
+      "path": "icons/icon128.png",
+      "bytes": 28214,
+      "sha256": "54a6ef9083e618e9f609b28058dd1bf5fa99f0d596e55373939a4b97d04be765"
+    },
+    {
+      "path": "icons/icon16.png",
+      "bytes": 757,
+      "sha256": "c6d3e4f707a7f6dd1a7b3cd0cfed328b4143ca6c51bf6fcaad63917dfc1b33e4"
+    },
+    {
+      "path": "icons/icon48.png",
+      "bytes": 5191,
+      "sha256": "d61447bf76d330f80c1b9b02ddb7b2acb044a1e3037b66049d7bcab88d586688"
+    },
+    {
+      "path": "icons/logo96.png",
+      "bytes": 17633,
+      "sha256": "f484ad08d86b3a22345c9fe2ca91f80db4ea4990b397bf6593d4737cfa63a33e"
     }
   ]
 }
