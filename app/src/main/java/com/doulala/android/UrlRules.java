@@ -7,6 +7,7 @@ import java.util.Locale;
 public final class UrlRules {
     private UrlRules() {}
     public static String normalize(String text) {
+        if(text!=null && text.chars().anyMatch(c -> c<32 || c==127)) return null;
         String s = text == null ? "" : text.trim();
         if (s.isEmpty() || s.length()>16384 || s.chars().anyMatch(c -> c<32 || c==127)) return null;
         if (!s.matches("(?i)^[a-z][a-z0-9+.-]*:.*")) s="https://"+s;
@@ -14,7 +15,8 @@ public final class UrlRules {
             URI u=new URI(s);
             if (!("https".equalsIgnoreCase(u.getScheme())||"http".equalsIgnoreCase(u.getScheme())) || u.getHost()==null || u.getUserInfo()!=null) return null;
             if (u.getPort()<-1 || u.getPort()>65535) return null;
-            return u.toASCIIString();
+            String ascii=u.toASCIIString();
+            return u.getScheme().toLowerCase(Locale.ROOT)+ascii.substring(ascii.indexOf(':'));
         } catch (Exception e) { return null; }
     }
     public static boolean trusted(String url) {
@@ -29,7 +31,11 @@ public final class UrlRules {
     public static String origin(String url) {
         String normalized=normalize(url);
         if(normalized==null) return null;
-        try { URI u=new URI(normalized); return u.getScheme().toLowerCase(Locale.ROOT)+"://"+u.getRawAuthority().toLowerCase(Locale.ROOT); }
+        try {
+            URI u=new URI(normalized);String scheme=u.getScheme().toLowerCase(Locale.ROOT);int port=u.getPort();
+            boolean standard=port==-1 || (scheme.equals("https")&&port==443) || (scheme.equals("http")&&port==80);
+            return scheme+"://"+u.getHost().toLowerCase(Locale.ROOT)+(standard?"":":"+port);
+        }
         catch(Exception e) { return null; }
     }
     public static String safeFilename(String name, String fallback) {

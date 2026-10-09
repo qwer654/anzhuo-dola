@@ -15,13 +15,13 @@ public final class MainActivity extends Activity {
         LinearLayout root=Ui.column(this); root.setBackgroundColor(Ui.BG); Ui.pad(root,20);
         root.addView(Ui.text(this,"DOULALA  /  ANDROID",12,Ui.ACCENT));
         root.addView(Ui.title(this,"把灵感，带在身边。",27));
-        root.addView(Ui.text(this,"豆啦啦 · 安卓移植预览版 0.1.0\n独立账号空间与移动创作工作台",14,Ui.MUTED));
+        root.addView(Ui.text(this,"豆啦啦 · 安卓移植预览版 0.2.0\n独立账号空间与移动创作工作台",14,Ui.MUTED));
         LinearLayout hero=Ui.card(this);
         hero.addView(Ui.title(this,"创作工作台",20));
         hero.addView(Ui.text(this,"管理快捷文本、导入剧本、拆分分镜。选择一条，即可填入网页继续创作。",14,Ui.MUTED));
         hero.addView(Ui.button(this,"打开工作台  →",()->startActivity(new Intent(this,StudioActivity.class)))); root.addView(hero);
         root.addView(Ui.title(this,"账号空间",21));
-        root.addView(Ui.text(this,"每个空间独立保存 Cookie 和网页存储，最多 8 个空间。当前为单页浏览预览版。",13,Ui.MUTED));
+        root.addView(Ui.text(this,"每个空间独立保存 Cookie 和网页存储，最多 8 个空间。每个空间支持 6 个标签，空间内共享登录。",13,Ui.MUTED));
         int used=0;
         for(int i=0;i<8;i++) {
             final int slot=i;
@@ -63,7 +63,7 @@ public final class MainActivity extends Activity {
     }
     private void about() {
         new AlertDialog.Builder(this).setTitle("不是桌面版的完整替代品")
-        .setMessage("已编写：8 个进程隔离账号空间、单页浏览、上传文件、网页媒体观察、系统下载、快捷文本、分镜工作台。需真机验收。\n\n限制：Android WebView 不能运行 Windows DLL 或 Chrome 扩展。资源观察不等于桌面 CDP 深度嗅探，不能保证原图或无水印版本。30 秒生成取决于平台支持，本版不伪造授权或生成结果。\n\n待迁移：多标签、书签、Cookie 导入导出、认证/链式代理、完整指纹、批量自动生成、遮罩与人脸处理、API 创作中心、本地自动化服务。\n\n网页登录兼容性需真机验证，若第三方不允许 WebView 登录，请通过官方客户端使用。无需 Root。")
+        .setMessage("已编写：8 个进程隔离账号空间、多标签与书签、上传文件、网页媒体观察、下载中心（打开/分享/另存）、同站点 Cookie 手动快照、快捷文本、分镜工作台。需真机验收。\n\n限制：Android WebView 不能运行 Windows DLL 或 Chrome 扩展。资源观察不等于桌面 CDP 深度嗅探，不能保证原图或无水印版本。30 秒生成取决于平台支持，本版不伪造授权或生成结果。\n\n待迁移：完整 Cookie 属性迁移、认证/链式代理、完整指纹、批量自动生成、遮罩与人脸处理、API 创作中心、本地自动化服务。\n\n网页登录兼容性需真机验证，若第三方不允许 WebView 登录，请通过官方客户端使用。无需 Root。")
         .setPositiveButton("知道了",null).show();
     }
 }

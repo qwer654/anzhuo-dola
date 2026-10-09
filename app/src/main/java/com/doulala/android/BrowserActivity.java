@@ -1,13 +1,12 @@
 package com.doulala.android;
 
-import android.app.Activity;
-import android.app.AlertDialog;
-import android.app.DownloadManager;
+import android.app.*;
 import android.content.*;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.*;
 import android.view.*;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.*;
 import android.widget.*;
 import androidx.webkit.WebViewCompat;
@@ -15,148 +14,305 @@ import androidx.webkit.WebViewFeature;
 import org.json.*;
 import java.util.*;
 
-/**
- * A conservative Android replacement for the desktop WebView2 host.  It does
- * not spoof platform capabilities and it never sends a request on behalf of
- * the user.  Each declared Space activity has a separate Chromium data dir.
- */
+/** Each Space runs in its own process/data directory. Tabs within a Space share its login. */
 public class BrowserActivity extends Activity {
-    private final ArrayList<MediaItem> media = new ArrayList<>();
-    private final HashSet<String> mediaKeys = new HashSet<>();
-    private final Handler handler = new Handler(Looper.getMainLooper());
-    private WebView webView;
+    private static final int MAX_TABS=6, MAX_MEDIA=300, MAX_BOOKMARKS=200;
+    private static final int FILE_CHOOSER=8101, PICK_PROMPT=8102;
+    private final ArrayList<Tab> tabs=new ArrayList<>();
+    private final Handler handler=new Handler(Looper.getMainLooper());
+    private SharedPreferences prefs;
+    private Tab active, fileTab, promptTab;
+    private int fileNavigation, promptNavigation;
+    private FrameLayout viewport;
     private EditText address;
-    private TextView status;
-    private TextView mediaButton;
-    private String home;
-    private String title;
+    private TextView status,mediaButton,tabsButton,caption;
+    private String home,title,probeScript;
     private ValueCallback<Uri[]> fileCallback;
-    private static final int FILE_CHOOSER = 8101;
-    private static final int MAX_MEDIA = 300;
-    private boolean destroyed;
-    private boolean probeInstalled;
-    private int navigationId;
-    private final Runnable scanLoop = new Runnable() { @Override public void run() { scan(); if (!destroyed) handler.postDelayed(this, 3000L); } };
+    private DownloadCenter downloads;
+    private CookieTransfer cookies;
+    private boolean destroyed,resumed;
+    private final Runnable scanLoop=new Runnable(){public void run(){scan(active);if(resumed&&!destroyed)handler.postDelayed(this,3000);}};
+
+    private static final class Tab {
+        WebView view;
+        String url,title="新标签",message="等待加载";
+        int navigation;
+        boolean probe,closed,failed;
+        final ArrayList<MediaItem> media=new ArrayList<>();
+        final Set<String> mediaKeys=new HashSet<>();
+        Tab(String u){url=u;}
+    }
 
     @Override public void onCreate(Bundle state) {
-        super.onCreate(state);
-        Ui.setup(this);
-        title = getIntent().getStringExtra("title");
-        if (title == null || title.trim().isEmpty()) title = "创作空间";
-        home = UrlRules.normalize(getIntent().getStringExtra("home"));
-        if (home == null) home = MainActivity.URLS[0];
-        build();
-        if (state == null || webView.restoreState(state) == null) webView.loadUrl(home);
+        super.onCreate(state);Ui.setup(this);readLaunch(getIntent());
+        prefs=getSharedPreferences("browser_"+getClass().getSimpleName(),MODE_PRIVATE);
+        downloads=new DownloadCenter(this,prefs,getClass().getSimpleName());
+        cookies=new CookieTransfer(this,()->active==null?null:active.url);
+        build();restoreTabs();
     }
+    private void readLaunch(Intent i) {
+        title=i.getStringExtra("title");if(title==null||title.trim().isEmpty())title="创作空间";
+        home=webUrl(i.getStringExtra("home"));if(home==null)home=MainActivity.URLS[0];
+    }
+    @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);readLaunch(i);if(caption!=null)caption.setText(title);}
+    private static String webUrl(String raw){String u=UrlRules.normalize(raw);return u!=null&&u.startsWith("https://")?u:null;}
 
     private void build() {
-        LinearLayout root = Ui.column(this); root.setBackgroundColor(Ui.BG);
-        LinearLayout bar = Ui.row(this); Ui.pad(bar, 6);
-        TextView back = Ui.text(this, "‹", 28, Ui.INK); back.setGravity(Gravity.CENTER); back.setOnClickListener(v -> goBack());
-        bar.addView(back, new LinearLayout.LayoutParams(Ui.dp(this, 42), Ui.dp(this, 48)));
-        TextView forward = Ui.text(this, "›", 28, Ui.INK); forward.setGravity(Gravity.CENTER); forward.setOnClickListener(v -> goForward());
-        bar.addView(forward, new LinearLayout.LayoutParams(Ui.dp(this, 42), Ui.dp(this, 48)));
-        address = Ui.edit(this, "输入网页地址", home); address.setSingleLine(true); address.setTextSize(14); address.setSelectAllOnFocus(true);
-        address.setOnEditorActionListener((v, action, event) -> { if (action != 0 || (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER)) { loadAddress(); return true; } return false; });
-        bar.addView(address, new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1));
-        TextView reload = Ui.text(this, "↻", 24, Ui.INK); reload.setGravity(Gravity.CENTER); reload.setOnClickListener(v -> webView.reload());
-        bar.addView(reload, new LinearLayout.LayoutParams(Ui.dp(this, 42), Ui.dp(this, 48)));
-        TextView homeButton = Ui.text(this, "⌂", 22, Ui.INK); homeButton.setGravity(Gravity.CENTER); homeButton.setOnClickListener(v -> webView.loadUrl(home));
-        bar.addView(homeButton, new LinearLayout.LayoutParams(Ui.dp(this, 42), Ui.dp(this, 48)));
-        root.addView(bar);
-        LinearLayout second = Ui.row(this); Ui.pad(second, 4);
-        TextView caption = Ui.text(this, title + "  ·  独立空间", 12, Ui.MUTED); second.addView(caption, new LinearLayout.LayoutParams(0, -2, 1));
-        mediaButton = Ui.text(this, "资源 0", 12, Ui.ACCENT); mediaButton.setGravity(Gravity.CENTER); mediaButton.setOnClickListener(v -> showMedia()); second.addView(mediaButton, new LinearLayout.LayoutParams(Ui.dp(this, 82), Ui.dp(this, 38)));
-        TextView studio = Ui.text(this, "工作台", 12, Ui.ACCENT); studio.setGravity(Gravity.CENTER); studio.setOnClickListener(v -> { Intent i = new Intent(this, StudioActivity.class); i.putExtra("pickPrompt", true); startActivityForResult(i, 8102); }); second.addView(studio, new LinearLayout.LayoutParams(Ui.dp(this, 82), Ui.dp(this, 38)));
-        root.addView(second);
-        status = Ui.text(this, "正在准备网页…", 11, Ui.MUTED); status.setSingleLine(true); status.setEllipsize(android.text.TextUtils.TruncateAt.MARQUEE); status.setMarqueeRepeatLimit(1); root.addView(status);
-        webView = new WebView(this); configureWebView(webView); root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
-        installProbe();
-    }
-
-    private void configureWebView(WebView view) {
-        WebSettings s = view.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(true); s.setAllowFileAccess(false); s.setAllowContentAccess(true); s.setSupportMultipleWindows(false); s.setJavaScriptCanOpenWindowsAutomatically(false); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setSafeBrowsingEnabled(true); s.setUserAgentString(s.getUserAgentString() + " DoulalaAndroid/0.1");
-        CookieManager.getInstance().setAcceptCookie(true); CookieManager.getInstance().setAcceptThirdPartyCookies(view, true);
-        view.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        view.setWebViewClient(new WebViewClient() {
-            @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) { String scheme=request.getUrl().getScheme(); if(!request.isForMainFrame()) return !"https".equalsIgnoreCase(scheme); return openOnlyWebScheme(request.getUrl()); }
-            @Override public boolean shouldOverrideUrlLoading(WebView v, String url) { return openOnlyWebScheme(Uri.parse(url)); }
-            @Override public void onPageStarted(WebView v, String url, Bitmap icon) { navigationId++; media.clear(); mediaKeys.clear(); updateMediaLabel(); address.setText(url); status.setText("正在加载…"); }
-            @Override public void onPageFinished(WebView v, String url) { address.setText(url); status.setText(probeInstalled ? "已就绪 · 资源观察只在白名单站点启用" : "已就绪 · 当前 WebView 不支持早期资源观察"); scan(); }
-            @Override public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) { if (r.isForMainFrame()) status.setText("加载失败：" + e.getDescription()); }
+        LinearLayout root=Ui.column(this);root.setBackgroundColor(Ui.BG);
+        LinearLayout bar=Ui.row(this);Ui.pad(bar,4);
+        addAction(bar,"‹","后退",36,()->goBack());
+        address=Ui.edit(this,"输入 HTTPS 地址",home);address.setSingleLine(true);address.setTextSize(14);address.setSelectAllOnFocus(true);
+        address.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        address.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_GO);
+        address.setOnEditorActionListener((v,action,event)->{
+            if(action==android.view.inputmethod.EditorInfo.IME_ACTION_GO || (event!=null&&event.getKeyCode()==KeyEvent.KEYCODE_ENTER&&event.getAction()==KeyEvent.ACTION_UP)) {
+                String u=webUrl(address.getText().toString());
+                if(u==null)address.setError("请输入有效的 HTTPS 地址");else{
+                    load(u);address.clearFocus();
+                    ((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(address.getWindowToken(),0);
+                }return true;
+            }return false;
         });
-        view.setWebChromeClient(new WebChromeClient() {
-            @Override public void onProgressChanged(WebView v, int n) { if (n < 100) status.setText("加载 " + n + "%"); }
-            @Override public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams p) { if (fileCallback != null) fileCallback.onReceiveValue(null); fileCallback = cb; try { Intent i = p.createIntent(); i.addCategory(Intent.CATEGORY_OPENABLE); startActivityForResult(i, FILE_CHOOSER); } catch (Exception e) { fileCallback = null; cb.onReceiveValue(null); status.setText("无法打开文件选择器"); } return true; }
+        bar.addView(address,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1));
+        addAction(bar,"↻","刷新",40,()->{if(active.view==null)select(active);else active.view.reload();});root.addView(bar);
+        LinearLayout actions=Ui.row(this);Ui.pad(actions,4);
+        caption=Ui.text(this,title,12,Ui.MUTED);caption.setSingleLine(true);caption.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        actions.addView(caption,new LinearLayout.LayoutParams(0,-2,1));
+        tabsButton=addAction(actions,"标签 1","管理标签",66,this::showTabs);
+        mediaButton=addAction(actions,"资源 0","观察到的资源",66,this::showMedia);
+        addAction(actions,"工作台","创作工作台",60,()->{
+            promptTab=active;promptNavigation=active.navigation;
+            startActivityForResult(new Intent(this,StudioActivity.class).putExtra("pickPrompt",true),PICK_PROMPT);
         });
+        addAction(actions,"菜单","浏览器菜单",50,this::showMenu);root.addView(actions);
+        status=Ui.text(this,"正在准备网页…",11,Ui.MUTED);status.setSingleLine(true);root.addView(status);
+        viewport=new FrameLayout(this);root.addView(viewport,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
     }
-
-    private void installProbe() {
-        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) { status.setText("当前 WebView 不支持早期资源观察；可正常浏览"); return; }
+    private TextView addAction(LinearLayout row,String text,String description,int width,Runnable action) {
+        TextView v=Ui.text(this,text,14,Ui.ACCENT);v.setGravity(Gravity.CENTER);v.setContentDescription(description);
+        v.setOnClickListener(w->action.run());row.addView(v,new LinearLayout.LayoutParams(Ui.dp(this,width),Ui.dp(this,48)));return v;
+    }
+    private void restoreTabs() {
         try {
-            String script; try (java.io.InputStream in = getAssets().open("media-probe.js"); java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) { byte[] b=new byte[8192]; int n; while((n=in.read(b))!=-1) out.write(b,0,n); script = new String(out.toByteArray(), java.nio.charset.StandardCharsets.UTF_8); }
-            WebViewCompat.addDocumentStartJavaScript(webView, script, new HashSet<>(Arrays.asList("https://doubao.com","https://*.doubao.com","https://dola.com","https://*.dola.com","https://qianwen.com","https://*.qianwen.com","https://jianying.com","https://*.jianying.com")));
-            probeInstalled = true;
-        } catch (Exception e) { status.setText("资源观察脚本不可用；可正常浏览"); }
+            String saved=prefs.getString("tabs","[]");if(saved.length()>128*1024)throw new JSONException("too large");
+            JSONArray array=new JSONArray(saved);
+            for(int i=0;i<array.length()&&tabs.size()<MAX_TABS;i++){String u=webUrl(array.optString(i));if(u!=null)tabs.add(new Tab(u));}
+        }catch(Exception ignored){}
+        if(tabs.isEmpty())tabs.add(new Tab(home));
+        select(tabs.get(Math.max(0,Math.min(prefs.getInt("selected",0),tabs.size()-1))));
     }
+    private void saveTabs() {
+        if(prefs==null)return;JSONArray a=new JSONArray();for(Tab t:tabs)a.put(t.url);
+        prefs.edit().putString("tabs",a.toString()).putInt("selected",Math.max(0,tabs.indexOf(active))).apply();
+    }
+    private void select(Tab tab) {
+        if(tab==null||tab.closed)return;
+        if(active!=null&&active.view!=null)active.view.onPause();viewport.removeAllViews();active=tab;
+        if(tab.view==null){tab.view=new WebView(this);configure(tab);installProbe(tab);tab.view.loadUrl(tab.url);}
+        viewport.addView(tab.view,new FrameLayout.LayoutParams(-1,-1));
+        if(resumed)tab.view.onResume();else tab.view.onPause();
+        updateUi();saveTabs();
+    }
+    private void newTab(String url) {
+        if(tabs.size()>=MAX_TABS){Ui.toast(this,"每个空间最多 6 个标签，请先关闭一个");return;}
+        String u=webUrl(url);if(u==null){Ui.toast(this,"只支持 HTTPS 标签页");return;}
+        Tab t=new Tab(u);tabs.add(t);select(t);
+    }
+    private void load(String url){if(active.view==null){active.url=url;select(active);}else active.view.loadUrl(url);}
+    private void closeTab(Tab t) {
+        if(!tabs.contains(t))return;
+        if(fileTab==t)cancelFile();if(promptTab==t)promptTab=null;
+        int index=tabs.indexOf(t);tabs.remove(t);t.closed=true;
+        if(t==active){viewport.removeAllViews();active=null;}
+        if(t.view!=null){t.view.stopLoading();t.view.destroy();t.view=null;}
+        if(tabs.isEmpty())tabs.add(new Tab(home));
+        if(active==null)select(tabs.get(Math.min(index,tabs.size()-1)));else{updateUi();saveTabs();}
+    }
+    private void showTabs() {
+        LinearLayout list=Ui.column(this);Ui.pad(list,12);
+        AlertDialog d=new AlertDialog.Builder(this).setTitle("标签（同一空间共享登录）").setView(Ui.scroll(this,list))
+            .setNegativeButton("关闭",null).setPositiveButton("＋ 新标签",(x,w)->newTab(home)).create();
+        for(Tab t:new ArrayList<>(tabs)) {
+            LinearLayout row=Ui.row(this);TextView text=Ui.text(this,(t==active?"● ":"")+t.title+"\n"+t.url,13,Ui.INK);
+            text.setMaxLines(3);text.setEllipsize(android.text.TextUtils.TruncateAt.END);text.setOnClickListener(v->{d.dismiss();select(t);});
+            row.addView(text,new LinearLayout.LayoutParams(0,-2,1));
+            row.addView(Ui.button(this,"关闭",()->new AlertDialog.Builder(this).setTitle("关闭此标签？")
+                .setMessage("网页中未提交的输入可能丢失。").setNegativeButton("保留",null)
+                .setPositiveButton("关闭",(x,w)->{d.dismiss();closeTab(t);}).show()));list.addView(row);
+        }d.show();
+    }
+    private void updateUi(){if(active==null)return;address.setText(active.url);status.setText(active.message);tabsButton.setText("标签 "+tabs.size());mediaButton.setText("资源 "+active.media.size());}
+    private void message(Tab t,String text){t.message=text;if(t==active&&!destroyed)status.setText(text);}
 
-    private boolean openOnlyWebScheme(Uri uri) {
-        if (uri == null) return true; String scheme = uri.getScheme();
-        if ("https".equalsIgnoreCase(scheme)) return false;
-        if ("mailto".equalsIgnoreCase(scheme) || "tel".equalsIgnoreCase(scheme)) {
-            new AlertDialog.Builder(this).setTitle("打开系统应用？").setMessage(uri.toString())
-                .setNegativeButton("取消", null).setPositiveButton("打开", (d,w)->{
-                    try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (Exception ignored) { status.setText("此链接无法在系统中打开"); }
-                }).show();
-        } else status.setText("已阻止非 HTTPS 或不支持的链接");
-        return true;
-    }
-    private void loadAddress() { String normalized = UrlRules.normalize(address.getText().toString()); if (normalized == null || !normalized.startsWith("https://")) { address.setError("请输入有效的 HTTPS 地址"); return; } webView.loadUrl(normalized); }
-    private void goBack() { if (webView.canGoBack()) webView.goBack(); else finish(); }
-    private void goForward() { if (webView.canGoForward()) webView.goForward(); }
-    private void scan() {
-        if (destroyed || webView == null || !UrlRules.trusted(webView.getUrl())) return;
-        final int currentNavigation=navigationId;
-        webView.evaluateJavascript("(window.__dolaAndroidDrain?window.__dolaAndroidDrain():[])", value -> {
-            if(destroyed || currentNavigation!=navigationId || !UrlRules.trusted(webView.getUrl()) || value==null || value.length()>4*1024*1024) return;
-            try { JSONArray a = new JSONArray(value); int added=0; for(int i=0;i<a.length() && media.size()<MAX_MEDIA;i++){
-                JSONObject o=a.optJSONObject(i); if(o==null)continue;
-                String raw=o.optString("url",null), u=UrlRules.normalize(raw), type=o.optString("type", "");
-                if(u==null || !u.startsWith("https://") || !(type.equals("image")||type.equals("video")))continue;
-                String key=type+"|"+u; if(mediaKeys.add(key)){String label=o.optString("title","资源"); media.add(new MediaItem(raw,type,label.substring(0,Math.min(label.length(),120))));added++;}
-            } if(added>0) updateMediaLabel(); } catch(Exception ignored){}
+    private void configure(Tab t) {
+        WebView view=t.view;WebSettings s=view.getSettings();
+        s.setJavaScriptEnabled(true);s.setDomStorageEnabled(true);s.setDatabaseEnabled(true);
+        s.setAllowFileAccess(false);s.setAllowContentAccess(true);s.setSupportMultipleWindows(false);
+        s.setJavaScriptCanOpenWindowsAutomatically(false);s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        s.setSafeBrowsingEnabled(true);s.setUserAgentString(s.getUserAgentString()+" DoulalaAndroid/0.2");
+        CookieManager.getInstance().setAcceptCookie(true);CookieManager.getInstance().setAcceptThirdPartyCookies(view,true);
+        view.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        view.setWebViewClient(new WebViewClient(){
+            @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){
+                if(!r.isForMainFrame())return !"https".equalsIgnoreCase(r.getUrl().getScheme());
+                return external(t,r.getUrl());
+            }
+            @Override public boolean shouldOverrideUrlLoading(WebView v,String u){return external(t,Uri.parse(u));}
+            @Override public void onPageStarted(WebView v,String u,Bitmap icon){
+                t.navigation++;t.failed=false;t.media.clear();t.mediaKeys.clear();String valid=webUrl(u);if(valid!=null)t.url=valid;
+                t.message="正在加载…";if(t==active)updateUi();saveTabs();
+            }
+            @Override public void doUpdateVisitedHistory(WebView v,String u,boolean reload){String valid=webUrl(u);if(valid!=null){t.url=valid;if(t==active&&!address.hasFocus())address.setText(valid);saveTabs();}}
+            @Override public void onPageFinished(WebView v,String u){
+                if(!t.failed)message(t,t.probe?"已就绪 · 长按链接可新建标签；资源观察仅在白名单启用":"已就绪 · 当前 WebView 不支持早期资源观察");scan(t);
+            }
+            @Override public void onReceivedError(WebView v,WebResourceRequest r,WebResourceError e){if(r.isForMainFrame()){t.failed=true;message(t,"加载失败："+e.getDescription());}}
+            @Override public void onReceivedHttpError(WebView v,WebResourceRequest r,WebResourceResponse response){if(r.isForMainFrame()){t.failed=true;message(t,"网页返回 HTTP "+response.getStatusCode());}}
+            @Override public boolean onRenderProcessGone(WebView v,RenderProcessGoneDetail detail){
+                // A renderer can be shared by several tabs: invalidate every affected view via callbacks.
+                if(t.view==v){t.view=null;t.navigation++;if(t==active)viewport.removeAllViews();}
+                v.destroy();message(t,"网页进程已回收，点刷新重试");return true;
+            }
+        });
+        view.setWebChromeClient(new WebChromeClient(){
+            @Override public void onReceivedTitle(WebView v,String text){if(text!=null)t.title=text.substring(0,Math.min(120,text.length()));}
+            @Override public void onProgressChanged(WebView v,int n){if(n<100&&!t.failed)message(t,"加载 "+n+"%");}
+            @Override public boolean onShowFileChooser(WebView v,ValueCallback<Uri[]> cb,FileChooserParams p){
+                if(t!=active){cb.onReceiveValue(null);return true;}cancelFile();fileCallback=cb;fileTab=t;fileNavigation=t.navigation;
+                try{Intent i=p.createIntent();i.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(i,FILE_CHOOSER);}
+                catch(Exception e){cancelFile();message(t,"无法打开文件选择器");}return true;
+            }
+        });
+        view.setDownloadListener((url,ua,disposition,mime,length)->{if(t==active&&!destroyed)downloads.confirm(url,disposition,mime);});
+        view.setOnLongClickListener(v->{
+            WebView.HitTestResult hit=view.getHitTestResult();
+            if(hit!=null&&(hit.getType()==WebView.HitTestResult.SRC_ANCHOR_TYPE||hit.getType()==WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE)){
+                String url=webUrl(hit.getExtra());if(url!=null){new AlertDialog.Builder(this).setTitle("链接")
+                    .setItems(new String[]{"在新标签打开","复制链接"},(d,w)->{
+                        if(w==0)newTab(url);else{((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("链接",url));Ui.toast(this,"已复制链接");}
+                    }).show();return true;}
+            }return false;
         });
     }
-    private void updateMediaLabel() { mediaButton.setText("资源 " + media.size()); }
+    private boolean external(Tab t,Uri uri) {
+        if(webUrl(uri.toString())!=null)return false;
+        String scheme=uri.getScheme();
+        if(t==active&&("tel".equalsIgnoreCase(scheme)||"mailto".equalsIgnoreCase(scheme))) {
+            new AlertDialog.Builder(this).setTitle("打开系统应用？").setMessage(uri.toString())
+                .setNegativeButton("取消",null).setPositiveButton("打开",(d,w)->{
+                    try{startActivity(new Intent(Intent.ACTION_VIEW,uri));}catch(Exception e){message(t,"此链接无法在系统中打开");}
+                }).show();
+        }else message(t,"已阻止非 HTTPS 或不支持的链接");return true;
+    }
+    private void installProbe(Tab t) {
+        t.probe=false;if(!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))return;
+        try {
+            if(probeScript==null)try(java.io.InputStream in=getAssets().open("media-probe.js");java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){
+                byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);probeScript=new String(out.toByteArray(),java.nio.charset.StandardCharsets.UTF_8);
+            }
+            WebViewCompat.addDocumentStartJavaScript(t.view,probeScript,new HashSet<>(Arrays.asList(
+                "https://doubao.com","https://*.doubao.com","https://dola.com","https://*.dola.com",
+                "https://qianwen.com","https://*.qianwen.com","https://jianying.com","https://*.jianying.com")));t.probe=true;
+        }catch(Exception ignored){}
+    }
+    private void scan(Tab t) {
+        if(destroyed||t==null||t.closed||t.view==null||!UrlRules.trusted(t.view.getUrl()))return;
+        final int navigation=t.navigation;
+        t.view.evaluateJavascript("(window.__dolaAndroidDrain?window.__dolaAndroidDrain():[])",value->{
+            if(destroyed||t.closed||t.view==null||navigation!=t.navigation||!UrlRules.trusted(t.view.getUrl())||value==null||value.length()>4*1024*1024)return;
+            try {
+                JSONArray a=new JSONArray(value);
+                for(int i=0;i<a.length()&&t.media.size()<MAX_MEDIA;i++){
+                    JSONObject o=a.optJSONObject(i);if(o==null)continue;
+                    String u=webUrl(o.optString("url",null)),type=o.optString("type","");
+                    if(u==null||!(type.equals("image")||type.equals("video")))continue;
+                    if(t.mediaKeys.add(type+"|"+u)){String label=o.optString("title","资源");t.media.add(new MediaItem(u,type,label.substring(0,Math.min(label.length(),120))));}
+                }
+                if(t==active)mediaButton.setText("资源 "+t.media.size());
+            }catch(Exception ignored){}
+        });
+    }
     private void showMedia() {
-        if (media.isEmpty()) { new AlertDialog.Builder(this).setTitle("资源列表").setMessage("尚未观察到图片或视频。请在白名单站点打开创作页面并完成一次加载。\n\n本版本只观察页面已经暴露的 URL，不请求 fallback_api，不保证原图或无水印结果。").setPositiveButton("知道了", null).show(); return; }
-        LinearLayout list=Ui.column(this); ScrollView scroll=new ScrollView(this); scroll.addView(list);
-        for (int i=0;i<media.size();i++) { final MediaItem item=media.get(i); LinearLayout row=Ui.row(this); row.setPadding(Ui.dp(this,8),Ui.dp(this,4),Ui.dp(this,8),Ui.dp(this,4)); TextView t=Ui.text(this,(i+1)+"  "+item.type+"  "+item.title,13,Ui.INK); row.addView(t,new LinearLayout.LayoutParams(0,-2,1)); row.addView(Ui.button(this,"下载",()->download(item)),new LinearLayout.LayoutParams(Ui.dp(this,76),-2)); list.addView(row); }
-        new AlertDialog.Builder(this).setTitle("已观察资源（"+media.size()+"）").setView(scroll).setPositiveButton("关闭",null).show();
+        if(active.media.isEmpty()){
+            new AlertDialog.Builder(this).setTitle("当前标签资源").setMessage("尚未观察到图片或视频。请在白名单站点完成一次加载。只观察页面已经暴露的 URL，不请求 fallback_api，不保证原图或无水印结果。").setPositiveButton("知道了",null).show();return;
+        }
+        LinearLayout list=Ui.column(this);Ui.pad(list,8);
+        for(MediaItem item:new ArrayList<>(active.media)){
+            LinearLayout row=Ui.row(this);TextView label=Ui.text(this,item.type+" · "+item.title,13,Ui.INK);
+            row.addView(label,new LinearLayout.LayoutParams(0,-2,1));row.addView(Ui.button(this,"下载",()->downloads.confirm(item.url,null,null)));list.addView(row);
+        }
+        new AlertDialog.Builder(this).setTitle("当前标签资源（"+active.media.size()+"）").setView(Ui.scroll(this,list)).setPositiveButton("关闭",null).show();
     }
-    private void download(MediaItem item) {
-        String url=UrlRules.normalize(item.url); if(url==null || !url.startsWith("https://")){status.setText("已拒绝不安全下载地址");return;}
-        try { DownloadManager dm=(DownloadManager)getSystemService(DOWNLOAD_SERVICE); DownloadManager.Request r=new DownloadManager.Request(Uri.parse(url)); r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED); r.setTitle(UrlRules.safeFilename(item.title, "doulala-resource")); r.setDescription("豆啦啦资源"); r.setAllowedOverMetered(true); r.setAllowedOverRoaming(false); r.setMimeType(item.type.equals("video")?"video/mp4":"image/*"); dm.enqueue(r); status.setText("已交给系统下载"); } catch(Exception e){status.setText("下载失败：请检查系统下载服务");}
+    private void showMenu() {
+        new AlertDialog.Builder(this).setTitle(title).setItems(new String[]{"前进","回到首页","新建标签","添加当前页书签","打开书签","下载中心","Cookie 手动迁移","回到空间列表"},(d,n)->{
+            switch(n){case 0:if(active.view!=null&&active.view.canGoForward())active.view.goForward();break;
+                case 1:load(home);break;case 2:newTab(home);break;case 3:addBookmark();break;
+                case 4:showBookmarks();break;case 5:downloads.show();break;case 6:cookies.show();break;case 7:finish();break;}
+        }).show();
     }
-    @Override protected void onActivityResult(int request,int result,Intent data){
+    private JSONArray bookmarks(){try{return new JSONArray(prefs.getString("bookmarks","[]"));}catch(Exception e){return new JSONArray();}}
+    private void addBookmark() {
+        final String url=webUrl(active.url);if(url==null)return;EditText name=Ui.edit(this,"书签名称",active.title);name.setContentDescription("书签名称");
+        AlertDialog d=new AlertDialog.Builder(this).setTitle("收藏当前网页").setView(name).setNegativeButton("取消",null).setPositiveButton("保存",null).create();
+        d.setOnShowListener(x->d.getButton(-1).setOnClickListener(v->{
+            String label=name.getText().toString().trim();if(label.isEmpty()||label.length()>120){name.setError("名称需为 1–120 字");return;}
+            try {
+                JSONArray a=bookmarks();int index=-1;for(int i=0;i<a.length();i++)if(url.equals(a.getJSONObject(i).getString("url"))){index=i;break;}
+                if(index<0&&a.length()>=MAX_BOOKMARKS){name.setError("最多 200 个书签");return;}
+                JSONObject b=new JSONObject().put("title",label).put("url",url);if(index>=0)a.put(index,b);else a.put(b);
+                if(!prefs.edit().putString("bookmarks",a.toString()).commit())throw new Exception();d.dismiss();Ui.toast(this,"书签已保存（仅本空间）");
+            }catch(Exception e){name.setError("保存失败，未完成收藏");}
+        }));d.show();
+    }
+    private void showBookmarks() {
+        JSONArray a=bookmarks();if(a.length()==0){Ui.toast(this,"本空间还没有书签");return;}
+        LinearLayout list=Ui.column(this);Ui.pad(list,12);
+        AlertDialog d=new AlertDialog.Builder(this).setTitle("本空间书签").setView(Ui.scroll(this,list)).setPositiveButton("关闭",null).create();
+        for(int i=0;i<a.length();i++){
+            JSONObject b=a.optJSONObject(i);if(b==null)continue;String url=webUrl(b.optString("url"));if(url==null)continue;
+            LinearLayout card=Ui.card(this);card.addView(Ui.text(this,b.optString("title","书签"),16,Ui.INK));
+            TextView link=Ui.text(this,url,12,Ui.MUTED);link.setMaxLines(2);card.addView(link);
+            LinearLayout row=Ui.row(this);Ui.equal(row,Ui.button(this,"打开",()->{d.dismiss();load(url);}));
+            Ui.equal(row,Ui.button(this,"新标签",()->{d.dismiss();newTab(url);}));
+            Ui.equal(row,Ui.button(this,"删除",()->new AlertDialog.Builder(this).setTitle("删除书签？").setNegativeButton("取消",null)
+                .setPositiveButton("删除",(x,w)->{
+                    JSONArray all=bookmarks(),keep=new JSONArray();for(int n=0;n<all.length();n++){JSONObject item=all.optJSONObject(n);if(item!=null&&!url.equals(item.optString("url")))keep.put(item);}
+                    if(prefs.edit().putString("bookmarks",keep.toString()).commit()){d.dismiss();showBookmarks();}else Ui.toast(this,"删除失败");
+                }).show()));card.addView(row);list.addView(card);
+        }d.show();
+    }
+    private void goBack(){if(active!=null&&active.view!=null&&active.view.canGoBack())active.view.goBack();else finish();}
+    private void cancelFile(){if(fileCallback!=null)fileCallback.onReceiveValue(null);fileCallback=null;fileTab=null;}
+    @Override protected void onActivityResult(int request,int result,Intent data) {
         super.onActivityResult(request,result,data);
-        if(request==FILE_CHOOSER && fileCallback!=null){
-            Uri[] items=result==RESULT_OK && data!=null?WebChromeClient.FileChooserParams.parseResult(result,data):null;
-            if(items!=null){for(Uri uri:items) if(uri==null || !"content".equalsIgnoreCase(uri.getScheme())) {items=null;break;}}
-            fileCallback.onReceiveValue(items);fileCallback=null;
-        } else if(request==8102 && result==RESULT_OK && data!=null){
-            String prompt=data.getStringExtra("prompt");
-            if(prompt!=null && prompt.length()<=30000 && UrlRules.trusted(webView.getUrl())){
-                webView.evaluateJavascript("(function(){var e=document.activeElement;var ok=function(x){return x&&x.offsetParent!==null&&!x.disabled&&!x.readOnly&&((x.tagName==='TEXTAREA')||x.isContentEditable);};if(!ok(e))e=Array.from(document.querySelectorAll('textarea,[contenteditable=true]')).find(ok);if(!e)return false;e.focus();if(e.tagName==='TEXTAREA'){Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,"+JSONObject.quote(prompt)+");e.dispatchEvent(new Event('input',{bubbles:true}));}else{if(!document.execCommand('insertText',false,"+JSONObject.quote(prompt)+"))return false;}return true;})()",v->status.setText("true".equals(v)?"内容已填入；请检查后手动发送":"未找到可用输入框，请从工作台复制并手动粘贴"));
-            } else status.setText("当前页面不支持安全填入；请从工作台复制并手动粘贴");
+        if(cookies.onResult(request,result,data)||downloads.onResult(request,result,data))return;
+        if(request==FILE_CHOOSER&&fileCallback!=null){
+            Uri[] items=result==RESULT_OK&&data!=null?WebChromeClient.FileChooserParams.parseResult(result,data):null;
+            if(fileTab==null||fileTab.closed||fileTab.navigation!=fileNavigation)items=null;
+            if(items!=null)for(Uri uri:items)if(uri==null||!"content".equalsIgnoreCase(uri.getScheme())){items=null;break;}
+            fileCallback.onReceiveValue(items);fileCallback=null;fileTab=null;
+        }else if(request==PICK_PROMPT){
+            Tab t=promptTab;promptTab=null;
+            if(result!=RESULT_OK||data==null)return;String prompt=data.getStringExtra("prompt");
+            if(t==null||t!=active||t.closed||t.view==null||t.navigation!=promptNavigation||prompt==null||prompt.length()>30000||!UrlRules.trusted(t.view.getUrl())){
+                Ui.toast(this,"页面已变化或不支持安全填入，请从工作台复制并手动粘贴");return;
+            }
+            final int navigation=t.navigation;
+            t.view.evaluateJavascript("(function(){if(location.href!=="+JSONObject.quote(t.view.getUrl())+")return false;var e=document.activeElement;var ok=function(x){return x&&x.offsetParent!==null&&!x.disabled&&!x.readOnly&&((x.tagName==='TEXTAREA')||x.isContentEditable);};if(!ok(e))e=Array.from(document.querySelectorAll('textarea,[contenteditable=true]')).find(ok);if(!e)return false;e.focus();if(e.tagName==='TEXTAREA'){Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,"+JSONObject.quote(prompt)+");e.dispatchEvent(new Event('input',{bubbles:true}));}else{if(!document.execCommand('insertText',false,"+JSONObject.quote(prompt)+"))return false;}return true;})()",
+                v->{if(!destroyed&&!t.closed&&t.navigation==navigation)message(t,"true".equals(v)?"内容已填入，请检查后手动发送":"未找到可用输入框，请从工作台复制并手动粘贴");});
         }
     }
-    @Override protected void onResume(){super.onResume();if(webView!=null)webView.onResume();handler.removeCallbacks(scanLoop);handler.postDelayed(scanLoop,1200L);}
-    @Override protected void onPause(){handler.removeCallbacks(scanLoop);if(webView!=null)webView.onPause();CookieManager.getInstance().flush();super.onPause();}
+    @Override protected void onResume(){super.onResume();resumed=true;if(active!=null&&active.view!=null)active.view.onResume();downloads.resume();handler.removeCallbacks(scanLoop);handler.postDelayed(scanLoop,1200);}
+    @Override protected void onPause(){resumed=false;handler.removeCallbacks(scanLoop);downloads.pause();if(active!=null&&active.view!=null)active.view.onPause();saveTabs();CookieManager.getInstance().flush();super.onPause();}
     @Override public void onBackPressed(){goBack();}
-    @Override protected void onSaveInstanceState(Bundle out){if(webView!=null)webView.saveState(out);super.onSaveInstanceState(out);}
-    @Override protected void onDestroy(){destroyed=true;handler.removeCallbacksAndMessages(null);if(fileCallback!=null){fileCallback.onReceiveValue(null);fileCallback=null;}if(webView!=null){webView.stopLoading();webView.destroy();}super.onDestroy();}
-    private static final class MediaItem {final String url,type,title;MediaItem(String u,String t,String n){url=u;type=t;title=n;}}
-    public static class Space0 extends BrowserActivity{} public static class Space1 extends BrowserActivity{} public static class Space2 extends BrowserActivity{} public static class Space3 extends BrowserActivity{} public static class Space4 extends BrowserActivity{} public static class Space5 extends BrowserActivity{} public static class Space6 extends BrowserActivity{} public static class Space7 extends BrowserActivity{}
+    @Override protected void onSaveInstanceState(Bundle out){saveTabs();super.onSaveInstanceState(out);}
+    @Override protected void onDestroy(){
+        destroyed=true;handler.removeCallbacksAndMessages(null);cancelFile();cookies.close();downloads.close();viewport.removeAllViews();
+        for(Tab t:tabs){t.closed=true;if(t.view!=null){t.view.stopLoading();t.view.destroy();t.view=null;}}super.onDestroy();
+    }
+    private static final class MediaItem{final String url,type,title;MediaItem(String u,String t,String n){url=u;type=t;title=n;}}
+    public static class Space0 extends BrowserActivity{} public static class Space1 extends BrowserActivity{}
+    public static class Space2 extends BrowserActivity{} public static class Space3 extends BrowserActivity{}
+    public static class Space4 extends BrowserActivity{} public static class Space5 extends BrowserActivity{}
+    public static class Space6 extends BrowserActivity{} public static class Space7 extends BrowserActivity{}
 }

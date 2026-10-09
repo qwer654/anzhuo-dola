@@ -25,5 +25,23 @@ final class Ui {
     static void equal(LinearLayout row,View child) { row.addView(child,new LinearLayout.LayoutParams(0,-2,1)); }
     static ScrollView scroll(Context c,View child) { ScrollView s=new ScrollView(c); s.setFillViewport(true); s.addView(child); return s; }
     static void toast(Context c,String message) { Toast.makeText(c,message,Toast.LENGTH_LONG).show(); }
-    static void setup(Activity a) { a.getWindow().setStatusBarColor(BG); a.getWindow().setNavigationBarColor(BG); }
+    static void setup(Activity a) {
+        a.getWindow().setStatusBarColor(BG); a.getWindow().setNavigationBarColor(BG);
+        a.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        // Android 15 enforces edge-to-edge. Pad the content container, not each screen.
+        View content=a.findViewById(android.R.id.content);
+        content.setBackgroundColor(BG);
+        content.setOnApplyWindowInsetsListener((v,insets)->{
+            if(android.os.Build.VERSION.SDK_INT>=30) {
+                android.graphics.Insets edges=insets.getInsets(android.view.WindowInsets.Type.systemBars()
+                    |android.view.WindowInsets.Type.displayCutout()|android.view.WindowInsets.Type.ime());
+                v.setPadding(edges.left,edges.top,edges.right,edges.bottom);
+                return android.view.WindowInsets.CONSUMED;
+            }
+            v.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),
+                insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());
+            return insets.consumeSystemWindowInsets();
+        });
+        content.requestApplyInsets();
+    }
 }

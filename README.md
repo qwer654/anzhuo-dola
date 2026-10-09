@@ -1,18 +1,24 @@
 # 豆啦啦 · Android 移植版
 
-这是 Windows WPF/WebView2 版本的 Android 原生重写预览工程，不是把 EXE 重打包成 APK，也尚未完成桌面版所有功能的移植。
+这是 Windows WPF/WebView2 版本的 Android 原生重写预览工程。当前源码版本为 **Android 0.2.0**；它不是把 EXE 重打包成 APK，也不是桌面版的完整替代品。实现状态以源码和下方边界为准，尚未宣称真实设备或平台网页登录已经验收。
+
+## 0.2.0 已实现范围
+
+- **8 个隔离账号空间**：每个空间运行在独立 Android 进程与 Chromium 数据目录；空间内网页标签共享登录态，空间之间不共享 Cookie/网页存储。
+- **移动浏览器**：HTTPS 地址、前进/后退、刷新、系统文件选择器上传；每个空间最多 **6 个按需创建的标签**。只恢复标签 URL 与当前选中标签，不恢复表单、历史记录或页面内状态。
+- **书签**：每个空间最多 **200** 条本地书签；当前没有书签导出/跨设备同步。
+- **白名单资源观察**：仅观察页面已有 JSON/fetch/XHR/DOM/Performance 中的图片/视频 URL；不请求 `fallback_api`、不修改响应，也不保证原图或无水印版本。
+- **Cookie 手动迁移（有限快照）**：通过 SAF 由用户主动导出/导入当前完全相同 origin 的快照，仅保存名称和值。导入写入根路径、`Secure`、`HttpOnly`、`SameSite=Lax` 会话 Cookie；原始 Domain、Path、过期时间及其它属性会丢失，因此不是完整登录备份，不能保证恢复登录。快照含明文凭证，应仅保存在用户控制的位置并在用后删除。
+- **下载中心**：基于 Android `DownloadManager`，提供状态刷新、打开、分享、SAF 另存、删除；下载记录上限 100 条，应用私有外部下载目录会在卸载时删除。不会自动附加 Cookie/认证头，需登录或已过期的链接可能失败或过期。
+- **本地创作工作台**：快捷文本 CRUD、复制或填入当前网页；UTF-8 文本按空行导入并编辑分镜、三态手动状态、JSON 备份。不会伪造平台生成状态或自动发送。
 
 ## 用 GitHub Actions 编译
 
-当前仓库为 `qwer654/anzhuo-dola`。在 **Actions → Android APK → Run workflow** 手动运行，或推送 `app/`、Gradle 文件、测试或工作流后自动运行。构建完成后从 workflow run 的 **Artifacts** 下载 `doulala-android-debug`，解压后安装 `app-debug.apk`。另含 SHA-256 文件，可用于校验完整性。
+仓库为 `qwer654/anzhuo-dola`。在 **Actions → Android APK → Run workflow** 手动运行，或推送 `app/`、Gradle 文件、测试或工作流后自动运行。构建完成后从 workflow run 的 **Artifacts** 下载 `doulala-android-debug`，解压后安装 `app-debug.apk`，并可用同目录 SHA-256 文件校验完整性。
 
-Actions 使用 GitHub 托管的 Android SDK、JDK 17 和 Gradle 8.9，不需要把 Android SDK 放进仓库。当前 workflow 只生成 debug APK；要发布给别人安装，需要用户自己的签名密钥与单独的 release secrets，不能把 keystore 提交到仓库。
+主工作流使用 GitHub 托管的 Android SDK、JDK 17、Gradle 8.9 和 Node.js 20，执行 `node --test tests/media-probe.test.cjs`（当前本地已通过 11 项 Node 测试），随后运行 `testDebugUnitTest lintDebug assembleDebug`、APK 签名验证并上传报告。11 项 Java 单元测试已编写，但当前没有云端验证结果，不能在此声明通过。另有手动触发的 `Android UI smoke` 工作流，在 Android 15/API 35 模拟器运行 `connectedDebugAndroidTest`；当前没有该 0.2.0 工作流运行结果。
 
-预览 APK 的最低系统为 Android 9（API 28）。安装前需在手机允许当前文件管理器安装未知来源应用。不同构建使用临时 debug 签名，可能不能直接覆盖安装；卸载会清除账号空间和本地草稿，请先导出工作台备份。后续正式版需要固定签名密钥。
-
-## 验证范围
-
-CI 执行 11 项 JavaScript 测试、3 项 URL 安全单元测试、Android 编译与 APK 签名验证，并保存单元测试报告。构建成功不等于真机功能验证；目前没有连接手机，网页登录、空间隔离、文件上传和下载仍需实际验收。
+工作流只生成 debug APK。正式发布需要用户自己的签名密钥与 release secrets，不能把 keystore 提交到仓库。debug 签名在每次 runner 上可能不同，升级时可能需要卸载并造成应用数据丢失；安装/升级前请先导出工作台 JSON 和需要保留的文件。最低系统目标仍按工程配置，以 Android 9（API 28）为预览下限；真实机兼容性需另行验收。
 
 ## 本机编译
 
@@ -21,8 +27,8 @@ CI 执行 11 项 JavaScript 测试、3 项 URL 安全单元测试、Android 编�
 .\build.ps1
 ```
 
-脚本不会替用户接受 Android SDK 许可。没有本机 SDK 时直接使用 GitHub Actions。
+脚本不会替用户接受 Android SDK 许可。没有本机 SDK 时可使用 GitHub Actions。
 
-## 当前边界
+## 未移植或明确不承诺的桌面能力
 
-已编写账号空间、WebView 单页浏览/上传、白名单页面媒体观察、系统下载和本地创作工作台。多标签、书签、Cookie 导入导出，以及桌面版依赖 CDP 的深度嗅探、Windows 代理认证/链式代理、完整指纹、批量自动生成、遮罩/人脸处理和自动化 API 尚未等价移植；见 `docs/FEATURE_MATRIX.md`。
+完整指纹/代理伪装、Windows 代理认证与链式代理、CDP 深度嗅探与 `Fetch.fulfillRequest`、批量自动生成/发送/后台任务、遮罩/人脸/参考音频、创作中心/百宝箱、桌面本地 API、Windows DLL/注册表/机器码、Chrome 扩展，以及桌面版的完整 Cookie 属性与本地存储迁移，均未等价移植。详见 [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md)。

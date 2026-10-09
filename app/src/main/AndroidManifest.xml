@@ -14,14 +14,14 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <activity android:name=".StudioActivity" android:exported="false" android:screenOrientation="portrait" />
-        <activity android:name=".BrowserActivity$Space0" android:exported="false" android:process=":space0" android:screenOrientation="portrait" />
-        <activity android:name=".BrowserActivity$Space1" android:exported="false" android:process=":space1" android:screenOrientation="portrait" />
-        <activity android:name=".BrowserActivity$Space2" android:exported="false" android:process=":space2" android:screenOrientation="portrait" />
-        <activity android:name=".BrowserActivity$Space3" android:exported="false" android:process=":space3" android:screenOrientation="portrait" />
-        <activity android:name=".BrowserActivity$Space4" android:exported="false" android:process=":space4" android:screenOrientation="portrait" />
-        <activity android:name=".BrowserActivity$Space5" android:exported="false" android:process=":space5" android:screenOrientation="portrait" />
-        <activity android:name=".BrowserActivity$Space6" android:exported="false" android:process=":space6" android:screenOrientation="portrait" />
-        <activity android:name=".BrowserActivity$Space7" android:exported="false" android:process=":space7" android:screenOrientation="portrait" />
+        <activity android:name=".BrowserActivity$Space0" android:exported="false" android:process=":space0" android:launchMode="singleTask" android:taskAffinity="${applicationId}.space0" android:screenOrientation="portrait" />
+        <activity android:name=".BrowserActivity$Space1" android:exported="false" android:process=":space1" android:launchMode="singleTask" android:taskAffinity="${applicationId}.space1" android:screenOrientation="portrait" />
+        <activity android:name=".BrowserActivity$Space2" android:exported="false" android:process=":space2" android:launchMode="singleTask" android:taskAffinity="${applicationId}.space2" android:screenOrientation="portrait" />
+        <activity android:name=".BrowserActivity$Space3" android:exported="false" android:process=":space3" android:launchMode="singleTask" android:taskAffinity="${applicationId}.space3" android:screenOrientation="portrait" />
+        <activity android:name=".BrowserActivity$Space4" android:exported="false" android:process=":space4" android:launchMode="singleTask" android:taskAffinity="${applicationId}.space4" android:screenOrientation="portrait" />
+        <activity android:name=".BrowserActivity$Space5" android:exported="false" android:process=":space5" android:launchMode="singleTask" android:taskAffinity="${applicationId}.space5" android:screenOrientation="portrait" />
+        <activity android:name=".BrowserActivity$Space6" android:exported="false" android:process=":space6" android:launchMode="singleTask" android:taskAffinity="${applicationId}.space6" android:screenOrientation="portrait" />
+        <activity android:name=".BrowserActivity$Space7" android:exported="false" android:process=":space7" android:launchMode="singleTask" android:taskAffinity="${applicationId}.space7" android:screenOrientation="portrait" />
         <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

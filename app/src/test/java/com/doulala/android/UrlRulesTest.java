@@ -32,4 +32,11 @@ public class UrlRulesTest {
         assertTrue(longName.length()<=120);
         assertTrue(longName.endsWith(".mp4"));
     }
+    @Test public void canonicalizesSchemeWithoutReencodingSignedQueries(){
+        assertEquals("https://example.com/a%2Fb?sig=a%2Bb%3D",UrlRules.normalize("HTTPS://example.com/a%2Fb?sig=a%2Bb%3D"));
+        assertEquals("https://example.com",UrlRules.origin("HTTPS://EXAMPLE.COM:443/path?q=1"));
+        assertEquals("https://example.com:444",UrlRules.origin("https://example.com:444/"));
+        assertEquals("https://[::1]",UrlRules.origin("https://[::1]:443/a"));
+        assertNull(UrlRules.normalize("https://example.com\r\n"));
+    }
 }
