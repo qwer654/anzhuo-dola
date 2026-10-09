@@ -2,7 +2,7 @@ name: MV3 runtime and extension packages
 on:
   workflow_dispatch:
   push:
-    paths: ['app/src/main/assets/fingerprint-privacy/**', 'app/src/main/assets/dola30-original/**', 'tests/fingerprint*', 'tools/package_extensions.py', 'tools/cobalt/**', 'tests/test_extension_packaging.py', '.github/workflows/extensions.yml']
+    paths: ['app/src/main/assets/fingerprint-privacy/**', 'app/src/main/assets/dola30-original/**', 'tests/fingerprint*', 'tools/package_extensions.py', 'tools/verify_apk_assets.py', 'tools/cobalt/**', 'tests/test_extension_packaging.py', '.github/workflows/extensions.yml', '.gitattributes']
 permissions:
   contents: read
 jobs:

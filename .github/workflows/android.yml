@@ -9,6 +9,8 @@ on:
       - 'settings.gradle'
       - 'gradle.properties'
       - 'tests/**'
+      - 'tools/verify_apk_assets.py'
+      - '.gitattributes'
       - '.github/workflows/android.yml'
 
 permissions:
@@ -59,6 +61,8 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/debug/app-debug.apk
           cd app/build/outputs/apk/debug
           sha256sum app-debug.apk > app-debug.apk.sha256
+      - name: Verify original extension bytes inside APK
+        run: python3 tools/verify_apk_assets.py app/build/outputs/apk/debug/app-debug.apk
       - name: Upload APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

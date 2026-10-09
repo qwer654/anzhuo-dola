@@ -17,9 +17,28 @@ def load(name, path):
 
 pack = load("pack", "tools/package_extensions.py")
 stager = load("stager", "tools/cobalt/stage_extensions.py")
+apk_verify = load("apk_verify", "tools/verify_apk_assets.py")
 
 
 class Packaging(unittest.TestCase):
+    def test_apk_verification_checks_built_bytes_and_rejects_tampering(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            apk = Path(tmp) / "fixture.apk"
+            source = ROOT / "app/src/main/assets/dola30-original"
+            manifest = json.loads((source / "SOURCE-MANIFEST.json").read_text(encoding="utf-8"))
+            for tamper in (False, True):
+                with zipfile.ZipFile(apk, "w") as archive:
+                    for entry in manifest["files"]:
+                        data = (source / entry["path"]).read_bytes()
+                        if tamper and entry["path"] == "manifest.json":
+                            data += b" "
+                        archive.writestr("assets/dola30-original/" + entry["path"], data)
+                if tamper:
+                    with self.assertRaises(ValueError):
+                        apk_verify.verify(apk)
+                else:
+                    self.assertEqual(apk_verify.verify(apk)["originalFilesVerified"], len(manifest["files"]))
+
     def test_packages_are_complete_deterministic_and_preserve_sources(self):
         with tempfile.TemporaryDirectory() as tmp:
             a, b = Path(tmp) / "a", Path(tmp) / "b"
