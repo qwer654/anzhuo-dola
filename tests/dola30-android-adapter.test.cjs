@@ -190,5 +190,9 @@ test("floating Android control is draggable and persists the original panel posi
   listeners.get("pointerdown")({ button: 0, pointerId: 5, clientX: 80, clientY: 500, preventDefault() {} });
   listeners.get("pointerup")({ pointerId: 5 });
   assert.equal(page.dola30Android.getDola30sStatus().includes('"on":true'), true, "tap must toggle 30S");
+  page.setDola30s(false);
+  listeners.get("pointerdown")({ button: 0, pointerId: 6, clientX: 80, clientY: 500, preventDefault() {} });
+  listeners.get("pointercancel")({ pointerId: 6 });
+  assert.equal(page.dola30Android.getDola30sStatus().includes('"on":false'), true, "cancelled pointer must not count as a tap");
 });
 
