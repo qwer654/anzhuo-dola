@@ -11,7 +11,7 @@
 | 浏览、前进/后退、刷新、上传 | 已实现 | HTTPS WebView；上传使用系统 SAF 文档选择器；不允许 `file://`。 |
 | 多标签 | 已实现（有限） | 每空间最多 6 个按需标签；只保存/恢复标签 URL 与当前选中标签，不恢复表单、历史记录或页面内状态。 |
 | 书签 | 已实现（有限） | 每空间本地最多 200 条；不可导出、同步或跨空间共享。 |
-| 白名单页面媒体观察 | 已实现（安全子集） | 观察页面已有 JSON/fetch/XHR/DOM/Performance 的图片/视频 URL；DOM 支持 img[srcset]、picture>source[srcset]、video/source 与 video poster。明确的图片/视频 URL 扩展名优先于可能误导的 Performance initiator hint。可手动重扫当前页、复制单项或全部链接、在新 HTTPS 标签打开或确认下载；不请求 fallback API、不改响应，不保证原图/无水印。 |
+| 白名单页面媒体观察 | 已实现（安全子集） | 观察页面已有 JSON/fetch/XHR/DOM/Performance 的图片/视频 URL；可手动重扫当前页、复制链接、通过 Android 系统分享发送单个 HTTPS URL、在新 HTTPS 标签打开或确认下载；分享不附 Cookie/Referer 或资源字节；不请求 fallback API、不改响应，不保证原图/无水印。 |
 | 资源下载 | 已实现（有限） | Android DownloadManager + 下载中心状态、打开、分享、SAF 另存、删除；最多保留 100 条记录，应用私有外部目录卸载时删除。 |
 | 认证下载 | 未实现 | 不自动附加 Cookie 或认证头；需登录或已过期链接可能失败/过期。 |
 | 30 秒/时间码 | 已实现（默认安全适配；原版脚本可选） | 默认 WebView 模式只保存本地状态并提供人工提示词工具；用户可在浏览器菜单显式开启原版 `duration-main.js`，经警告并重载后原样注入 Dola/Doubao 白名单页。Android 默认适配器提供 `setDola30s` / `getDola30sStatus` 及兼容旧 C# 宿主的 `setDoubao30s` / `getDoubao30sStatus` 本地状态 API；其中 `applied: 0` 明确表示未控制页面平台。页面悬浮控件支持拖动，并复用原版面板位置键 `intl_doubao_media_panel_pos_v3`；原面板最小化/解析界面仍未复刻。30S 对话框会说明仅可观察页面已暴露的资源 URL，MV3 Debugger 深度/自动嗅探和 fallback API 解析不可用。原版脚本选项菜单直接读写原脚本既有的 prompt-guard / timeline-rewrite localStorage 键；开启原版模式后，原脚本自行判断是否更改页面状态、提示词或匹配请求中的用户文本；不会由应用自动提交。原 MV3 源文件保持原样。 |
@@ -29,7 +29,6 @@
 
 ## 验证状态
 
-- 最新洁净模式 WebGL 子集代码提交 `f87f8e1` 的 APK workflow `38041152167` 与 Android 15/API 35 UI smoke `38041152221` 均通过；Android 模拟器 12/12 instrumentation 全通过，包含隐私模式开启时 WebGL debug 信息隐藏、原生 WebView UA 保持一致的断言。APK 工作流完成 Node/Java 测试、lint、debug/deviceValidation 构建签名及原始资源哈希校验。
 - 工作流会运行媒体、原始 JS 完整性和 Android 适配层 Node 测试（`tests/media-probe.test.cjs`、`tests/dola30-source.test.cjs`、`tests/dola30-android-adapter.test.cjs`）。
 - 在 2026-10-10 的 PR 检查中，4 个 Node 测试文件共 26 项、11 项 Java 单元测试、`lintDebug`、APK 构建/签名及原始资源打包哈希验证均通过；APK 构件已由 GitHub Actions 上传。
 - 最新提交 `f361cc0` 的 GitHub Actions APK 工作流已通过：29 项 Node 测试、12 项 Java 单元测试、lint、debug/deviceValidation APK 构建与签名、原始资源哈希校验。新增的运行时 VM 夹具验证媒体观察器只读取 fetch/XHR 可读响应副本，维持原 Response 对象、XHR `send` 返回值和 `responseText` 不变。API 35 模拟器 6/6 instrumentation 已在同一 Android 代码状态的 `05093fc` 通过；Dola30 原版匹配请求的 fetch/XHR 转换测试也通过。

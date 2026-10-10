@@ -444,6 +444,19 @@ public class WebViewAdapterInstrumentationTest {
         }
     }
 
+    @Test public void observedMediaShareIntentContainsOnlyTheHttpsUrl() {
+        String url = "https://cdn.example.test/media?id=abc%2F123&quality=hd";
+        android.content.Intent intent = BrowserActivity.mediaShareIntent(url);
+        assertNotNull(intent);
+        assertEquals(android.content.Intent.ACTION_SEND, intent.getAction());
+        assertEquals("text/plain", intent.getType());
+        assertEquals(url, intent.getStringExtra(android.content.Intent.EXTRA_TEXT));
+        assertEquals(1, intent.getExtras().keySet().size());
+        assertEquals(url, intent.getClipData().getItemAt(0).getText());
+        assertNull(BrowserActivity.mediaShareIntent("http://cdn.example.test/media.mp4"));
+        assertNull(BrowserActivity.mediaShareIntent("https://user:pass@cdn.example.test/media.mp4"));
+    }
+
     @Test public void manualRescanFindsDomMediaInTrustedWebViewPage() throws Exception {
         assertTrue("WebView provider lacks document-start JavaScript support",
             WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));

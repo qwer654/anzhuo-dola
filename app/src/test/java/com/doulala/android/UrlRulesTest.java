@@ -1,7 +1,7 @@
 package com.doulala.android;
 
+import android.content.Intent;
 import org.junit.Test;
-import java.util.Arrays;
 import static org.junit.Assert.*;
 
 public class UrlRulesTest {
@@ -66,17 +66,24 @@ public class UrlRulesTest {
         assertEquals("https://[::1]",UrlRules.origin("https://[::1]:443/a"));
         assertNull(UrlRules.normalize("https://example.com\r\n"));
     }
-    @Test public void bulkCopyPreservesExactHttpsUrlsAndTheirSignedQueries() {
-        assertEquals("https://cdn.example/a.mp4?sig=a%2Fb\nhttps://cdn.example/b.jpg?id=2&token=x%3Dy",
-            BrowserActivity.joinMediaUrls(Arrays.asList(
-                "https://cdn.example/a.mp4?sig=a%2Fb",
-                "https://cdn.example/b.jpg?id=2&token=x%3Dy")));
+    @Test public void mediaShareIntentSharesOnlyValidatedHttpsUrlText(){
+        String url="https://cdn.example.test/media?id=abc%2F123&quality=hd";
+        Intent intent=BrowserActivity.mediaShareIntent(url);
+        assertNotNull(intent);
+        assertEquals(Intent.ACTION_SEND,intent.getAction());
+        assertEquals("text/plain",intent.getType());
+        assertEquals(url,intent.getStringExtra(Intent.EXTRA_TEXT));
+        assertEquals(1,intent.getExtras().keySet().size());
+        assertEquals(url,intent.getClipData().getItemAt(0).getText());
+        assertNull(BrowserActivity.mediaShareIntent(null));
+        assertNull(BrowserActivity.mediaShareIntent("  "));
+        assertNull(BrowserActivity.mediaShareIntent("cdn.example.test/media.mp4"));
+        assertNull(BrowserActivity.mediaShareIntent(" https://cdn.example.test/media.mp4"));
+        assertNull(BrowserActivity.mediaShareIntent("http://cdn.example.test/media.mp4"));
+        assertNull(BrowserActivity.mediaShareIntent("javascript:alert(1)"));
+        assertNull(BrowserActivity.mediaShareIntent("blob:https://dola.com/id"));
+        assertNull(BrowserActivity.mediaShareIntent("data:text/plain,secret"));
+        assertNull(BrowserActivity.mediaShareIntent("https://user:pass@cdn.example.test/media.mp4"));
     }
-    @Test public void bulkCopyOmitsUnsafeAndEmptyUrls() {
-        assertEquals("https://cdn.example/ok.jpg", BrowserActivity.joinMediaUrls(Arrays.asList(
-            "javascript:alert(1)", "http://cdn.example/insecure.jpg", "https://cdn.example/ok.jpg", null)));
-        assertEquals("", BrowserActivity.joinMediaUrls(null));
-    }
-
 }
 

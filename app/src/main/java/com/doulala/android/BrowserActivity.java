@@ -221,9 +221,9 @@ public class BrowserActivity extends Activity {
             if(probeScript==null)probeScript=readAsset("media-probe.js");
             WebViewCompat.addDocumentStartJavaScript(t.view,probeScript,origins);t.probe=true;
         }catch(Exception ignored){}
-        // In privacy-clean mode, suppress only WebGL debug renderer info
-        // on supported provider origins. Keep the native WebView UA and leave
-        // Canvas/audio/WebRTC untouched.
+        // Privacy-clean mode reduces supported page fingerprint APIs only on
+        // provider origins. Preserve the actual native WebView UA; never forge
+        // a Chrome/device identity or alter high-entropy request headers.
         if(prefs.getBoolean("privacyCleanMode",false))try {
             if(fingerprintScript==null)fingerprintScript=readAsset("fingerprint-privacy/content-main.js");
             WebViewCompat.addDocumentStartJavaScript(t.view,privacyFingerprintBootstrap(fingerprintScript,true),origins);
@@ -290,8 +290,14 @@ public class BrowserActivity extends Activity {
         }
         LinearLayout list=Ui.column(this);Ui.pad(list,8);
         for(MediaItem item:new ArrayList<>(active.media)){
-            LinearLayout row=Ui.row(this);TextView label=Ui.text(this,item.type+" · "+item.title,13,Ui.INK);
-            row.addView(label,new LinearLayout.LayoutParams(0,-2,1));row.addView(Ui.button(this,"复制链接",()->copyMediaUrl(item.url)));row.addView(Ui.button(this,"打开",()->newTab(item.url)));row.addView(Ui.button(this,"下载",()->downloads.confirm(item.url,null,null)));list.addView(row);
+            LinearLayout row=Ui.column(this);TextView label=Ui.text(this,item.type+" · "+item.title,13,Ui.INK);
+            row.addView(label);
+            LinearLayout actions=Ui.row(this);
+            addMediaAction(actions,"复制",()->copyMediaUrl(item.url));
+            addMediaAction(actions,"分享",()->shareMediaUrl(item.url));
+            addMediaAction(actions,"打开",()->newTab(item.url));
+            addMediaAction(actions,"下载",()->downloads.confirm(item.url,null,null));
+            row.addView(actions);list.addView(row);
         }
         list.addView(Ui.button(this,"复制全部资源链接",()->copyMediaUrls(active.media)));
         list.addView(Ui.button(this,"重扫当前页",this::rescanMedia));
@@ -310,6 +316,26 @@ public class BrowserActivity extends Activity {
     }
     private void copyMediaUrl(String url) {
         Ui.toast(this,writeMediaUrlToClipboard(this,url)?"资源链接已复制":"资源链接复制失败");
+    }
+    private void addMediaAction(LinearLayout row,String label,Runnable action) {
+        Button button=Ui.button(this,label,action);
+        row.addView(button,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1));
+    }
+    static Intent mediaShareIntent(String rawUrl) {
+        if(rawUrl==null||!rawUrl.equals(rawUrl.trim())||!rawUrl.regionMatches(true,0,"https://",0,8))return null;
+        String url=webUrl(rawUrl);
+        if(url==null)return null;
+        Intent intent=new Intent(Intent.ACTION_SEND);
+        intent.setType("text/plain");
+        intent.putExtra(Intent.EXTRA_TEXT,url);
+        intent.setClipData(ClipData.newPlainText("媒体链接",url));
+        return intent;
+    }
+    private void shareMediaUrl(String url) {
+        Intent intent=mediaShareIntent(url);
+        if(intent==null){Ui.toast(this,"仅可分享有效的 HTTPS 资源链接");return;}
+        try { startActivity(Intent.createChooser(intent,"分享资源链接")); }
+        catch(ActivityNotFoundException e) { Ui.toast(this,"没有可用的分享应用"); }
     }
     static String joinMediaUrls(Collection<String> urls) {
         StringBuilder result=new StringBuilder();
