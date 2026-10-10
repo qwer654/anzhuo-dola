@@ -7,7 +7,7 @@ const root = path.join(__dirname, "../app/src/main/assets/fingerprint-privacy");
 const read = name => fs.readFileSync(path.join(root, name), "utf8");
 const vm = require("node:vm");
 
-function pageFixture(withHints = true, initialSettings = null) {
+function pageFixture(withHints = true, initialSettings = null, topLevel = true) {
   const prototype = { userAgent: "Original UA", appVersion: "Original version", platform: "Original platform", language: "en-US", languages: ["en-US"], hardwareConcurrency: 12, maxTouchPoints: 5, vendor: "Original vendor" };
   if (withHints) { prototype.userAgentData = { platform: "Original platform" }; prototype.deviceMemory = 8; }
   const navigator = Object.create(prototype);
@@ -25,7 +25,7 @@ function pageFixture(withHints = true, initialSettings = null) {
   const window = { navigator, WebGLRenderingContext: GL, HTMLCanvasElement: Canvas, CanvasRenderingContext2D: Canvas2D,
     OfflineAudioContext, RTCPeerConnection, dispatchEvent() {}, addEventListener() {} };
   if (initialSettings) window.__dolaFingerprintInitialSettings = initialSettings;
-  window.top = window;
+  window.top = topLevel ? window : {};
   const context = vm.createContext({ window, DOMException, CustomEvent: function (type, options) { this.type = type; this.detail = options.detail; } });
   vm.runInContext(read("content-main.js"), context);
   return { window, navigator, prototype, api: window.__dolaFingerprintPrivacy };
@@ -49,6 +49,14 @@ test("Android document-start seed blocks fingerprint APIs without identity spoof
   assert.deepEqual(Array.from(await navigator.mediaDevices.enumerateDevices()), []);
   assert.equal(navigator.userAgent, "Original UA");
   assert.equal("__dolaFingerprintInitialSettings" in window, false);
+});
+
+test("Android API reductions initialize in an eligible provider iframe context", () => {
+  const { window, api } = pageFixture(true, { blockCanvasReadback: true, hideWebglDebugInfo: true,
+    blockAudioFingerprint: true, blockWebRTC: true, blockDeviceEnumeration: true }, false);
+  assert.ok(api, "frame should install the privacy API independently");
+  assert.equal(api.getSettings().blockCanvasReadback, true);
+  assert.throws(() => new window.HTMLCanvasElement().toDataURL(), { name: "SecurityError" });
 });
 
 function workerFixture() {
