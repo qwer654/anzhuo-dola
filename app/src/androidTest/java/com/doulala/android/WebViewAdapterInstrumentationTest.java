@@ -284,11 +284,26 @@ public class WebViewAdapterInstrumentationTest {
             });
             view.setWebViewClient(new android.webkit.WebViewClient() {
                 @Override public void onPageFinished(WebView webView, String url) {
-                    webView.evaluateJavascript("(function(){return new Promise(function(resolve){"
-                        + "if(!navigator.geolocation){resolve('unavailable');return;}"
-                        + "navigator.geolocation.getCurrentPosition(function(){resolve('granted');},"
-                        + "function(error){resolve(String(error.code));},{timeout:3000});"
-                        + "});})()", value -> { resultRef.set(value); finished.countDown(); });
+                    webView.evaluateJavascript("(function(){window.__geoResult='';"
+                        + "if(!navigator.geolocation){window.__geoResult='unavailable';return;}"
+                        + "navigator.geolocation.getCurrentPosition(function(){window.__geoResult='granted';},"
+                        + "function(error){window.__geoResult=String(error.code);},{timeout:3000});"
+                        + "})()", ignored -> {});
+                    Runnable poll = new Runnable() {
+                        int attempts;
+                        @Override public void run() {
+                            webView.evaluateJavascript("window.__geoResult||''", value -> {
+                                Object decoded = new JSONTokener(value).nextValue();
+                                if (decoded instanceof String && !((String) decoded).isEmpty()) {
+                                    resultRef.set(value);
+                                    finished.countDown();
+                                } else if (++attempts < 60) {
+                                    webView.postDelayed(this, 100);
+                                }
+                            });
+                        }
+                    };
+                    webView.postDelayed(poll, 100);
                 }
             });
             view.loadDataWithBaseURL("https://privacy-test.example/",
