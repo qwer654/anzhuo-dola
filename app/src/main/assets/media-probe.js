@@ -73,7 +73,6 @@
       pendingFrames.delete(data.nonce);
       if (!pending || pending.expires < Date.now() || event.source !== pending.source || event.origin !== pending.origin ||
           !pending.frame || pending.frame.isConnected === false || pending.frame.contentWindow !== event.source || frameOrigin(pending.frame) !== event.origin) return;
-      try { if (JSON.stringify(data).length > 65536) return; } catch (_) { return; }
       var items = [];
       for (var i = 0; i < data.items.length; i++) {
         var item = data.items[i];
@@ -85,6 +84,9 @@
           source: "frame:" + String(item.source || "page").slice(0, 200),
           title: String(item.title || "").slice(0, 200) });
       }
+      // Serialize only the bounded, normalized copy; never stringify hostile raw message data.
+      var response = { items: items };
+      while (items.length && JSON.stringify(response).length > 65536) items.pop();
       collector.add(items);
     });
   }
