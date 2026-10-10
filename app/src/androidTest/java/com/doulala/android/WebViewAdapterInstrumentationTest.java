@@ -574,6 +574,7 @@ public class WebViewAdapterInstrumentationTest {
                     return super.shouldInterceptRequest(webView, request);
                 }
                 @Override public void onPageFinished(WebView webView, String url) {
+                    if (!"https://www.dola.com/".equals(url)) return;
                     new Handler(Looper.getMainLooper()).postDelayed(() -> webView.evaluateJavascript(
                         "JSON.stringify({items:window.__dolaAndroidDrain(),childOrigin:document.getElementById('same').contentWindow.location.origin})",
                         value -> { resultHolder.set(value); finished.countDown(); }), 1000);
