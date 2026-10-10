@@ -268,7 +268,9 @@ public class BrowserActivity extends Activity {
                 JSONObject o=a.optJSONObject(i);if(o==null)continue;
                 String u=webUrl(o.optString("url",null)),type=o.optString("type","");
                 if(u==null||!(type.equals("image")||type.equals("video")))continue;
-                if(t.mediaKeys.add(type+"|"+u)){String label=o.optString("title","资源");t.media.add(new MediaItem(u,type,label.substring(0,Math.min(label.length(),120))));}
+                String posterUrl=type.equals("video")?webUrl(o.optString("posterUrl",null)):null;
+                if(t.mediaKeys.add(type+"|"+u)){String label=o.optString("title","资源");t.media.add(new MediaItem(u,type,label.substring(0,Math.min(label.length(),120)),posterUrl));}
+                else if(type.equals("video")&&posterUrl!=null){for(MediaItem existing:t.media)if(existing.type.equals("video")&&existing.url.equals(u)){existing.posterUrl=posterUrl;break;}}
             }
             if(t==active)mediaButton.setText("资源 "+t.media.size());
         }catch(Exception ignored){}
@@ -296,6 +298,8 @@ public class BrowserActivity extends Activity {
             LinearLayout actions=Ui.row(this);
             if(MediaPreview.validateImageUrl(item.url,item.type)!=null)
                 addMediaAction(actions,"预览",()->previewImage(item));
+            if(item.type.equals("video")&&MediaPreview.validateImageUrl(item.posterUrl,"image")!=null)
+                addMediaAction(actions,"预览封面",()->previewImage(item.posterUrl,item.title+" · 视频封面"));
             addMediaAction(actions,"复制",()->copyMediaUrl(item.url));
             addMediaAction(actions,"分享",()->shareMediaUrl(item.url));
             addMediaAction(actions,"打开",()->newTab(item.url));
@@ -303,7 +307,7 @@ public class BrowserActivity extends Activity {
             row.addView(actions);list.addView(row);
         }
         list.addView(Ui.button(this,"复制全部资源链接",()->copyMediaUrls(active.media)));
-        list.addView(Ui.text(this,"图片预览仅在点击后请求；不携带 WebView Cookie/授权头/Referer，HTTPS、8 MiB 上限、禁止重定向。视频使用“打开”或“下载”。",12,Ui.MUTED));
+        list.addView(Ui.text(this,"图片及视频封面预览仅在点击后请求；不携带 WebView Cookie/授权头/Referer，HTTPS、8 MiB 上限、禁止重定向。封面预览不播放视频。",12,Ui.MUTED));
         list.addView(Ui.button(this,"重扫当前页",this::rescanMedia));
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("当前标签资源（"+active.media.size()+"）").setView(Ui.scroll(this,list)).setPositiveButton("关闭",null).show();
         list.addView(Ui.button(this,"清空当前标签资源",()->{
@@ -336,14 +340,17 @@ public class BrowserActivity extends Activity {
         row.addView(button,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1));
     }
     private void previewImage(MediaItem item) {
-        java.net.URL url=MediaPreview.validateImageUrl(item.url,item.type);
+        previewImage(item.url,item.title);
+    }
+    private void previewImage(String imageUrl,String imageTitle) {
+        java.net.URL url=MediaPreview.validateImageUrl(imageUrl,"image");
         if(url==null){Ui.toast(this,"仅支持 HTTPS 图片预览");return;}
         LinearLayout body=Ui.column(this);Ui.pad(body,12);
         ProgressBar progress=new ProgressBar(this);body.addView(progress);
         ImageView image=new ImageView(this);image.setAdjustViewBounds(true);image.setMaxHeight(Ui.dp(this,420));image.setScaleType(ImageView.ScaleType.FIT_CENTER);body.addView(image);
         TextView message=Ui.text(this,"正在获取公开图片…",13,Ui.MUTED);body.addView(message);
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("图片预览 · 不使用页面凭据")
-                .setView(body).setNegativeButton("关闭",null).setPositiveButton("在网页打开",(d,w)->newTab(item.url)).create();
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(imageTitle+" · 不使用页面凭据")
+                .setView(body).setNegativeButton("关闭",null).setPositiveButton("在网页打开",(d,w)->newTab(imageUrl)).create();
         dialog.show();
         previewExecutor.execute(()->{
             android.graphics.Bitmap bitmap=null;String error=null;
@@ -629,7 +636,7 @@ public class BrowserActivity extends Activity {
         destroyed=true;handler.removeCallbacksAndMessages(null);previewExecutor.shutdownNow();cancelFile();cookies.close();downloads.close();viewport.removeAllViews();
         for(Tab t:tabs){t.closed=true;if(t.view!=null){t.view.stopLoading();t.view.destroy();t.view=null;}}super.onDestroy();
     }
-    private static final class MediaItem{final String url,type,title;MediaItem(String u,String t,String n){url=u;type=t;title=n;}}
+    private static final class MediaItem{final String url,type,title;String posterUrl;MediaItem(String u,String t,String n){this(u,t,n,null);}MediaItem(String u,String t,String n,String p){url=u;type=t;title=n;posterUrl=p;}}
     public static class Space0 extends BrowserActivity{} public static class Space1 extends BrowserActivity{}
     public static class Space2 extends BrowserActivity{} public static class Space3 extends BrowserActivity{}
     public static class Space4 extends BrowserActivity{} public static class Space5 extends BrowserActivity{}
