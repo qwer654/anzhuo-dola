@@ -31,7 +31,7 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 
 ## 下一阶段验收门槛
 
-- 自动化：最新 `0514cdb` 检查中 Node 28 项、Java 单测 12 项、lint、APK 构建/签名、打包原始资源完整性及 API 35 模拟器 6/6 instrumentation 均通过。
+- 自动化：`f361cc0` Android APK 工作流通过 Node 29 项、Java 单测 12 项、lint、APK 构建/签名和打包原始资源完整性；`05093fc` API 35 模拟器 6/6 instrumentation 通过。新增 Node VM 测试实际执行被注入媒体观察器，确认 fetch/XHR 响应维持原行为而只收集可读媒体 URL。
 - 最新提交 `0189e434`：Node 27 项、11 项 Java 单测、lint、debug/deviceValidation 构建与签名、原始 JS 打包哈希检查以及 API 35 模拟器 instrumentation 均通过。
 - `c6d01ca` 提交对应工作流均通过：Node 28 项、Android 单测/build/lint/APK 签名与原始 JS 完整性检查成功；API 35 模拟器完成 6/6 instrumentation 测试（0 失败）。覆盖原版 duration 脚本 opt-in 初始化、Android adapter 不覆盖其公开 API，以及本地 fetch 与 XHR 夹具中匹配 completion 的 user 时间线变换（system 文本与非目标路径保持不变）。`0514cdb` 后续构建及 API 35 模拟器 6/6 检查均通过，洁净模式 UA/Cookie/网页定位规则有单元测试。
 - 模拟器：API 35 `connectedDeviceValidationAndroidTest` 中空间隔离/标签、document-start 适配与媒体链接剪贴板测试通过；并装验收 APK 不需替换原 app 包。
