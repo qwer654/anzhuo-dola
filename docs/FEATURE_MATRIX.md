@@ -28,6 +28,7 @@
 | 本地自动化 API 17823 | 未实现 | 原桌面接口仅回环绑定，未暴露到手机网络。 |
 
 ## 验证状态
+- 最新 PR head `92d7bdafd0e6507017954d5d5146149c57f1f378`：本次视频 `<source>` 渠道分组代码、46 项 Node 测试与原始资源完整性检查通过；Android APK workflow `38056468273` 成功，Android 15/API 35 instrumentation workflow `38056468304` 成功。来源行与媒体行合并行为由 WebView fixture 验证；真实小米设备仍未连接 ADB。
 
 - 最新已验证代码 head `5cd4228c77c6c441d77f8a03e4dd6c96b8972fd5`：Node 四套共 43 项通过（媒体 17、隐私 14、适配器 11、源文件清单 1）；[Android APK workflow](https://github.com/qwer654/anzhuo-dola/actions/runs/38052851806) 构建/签名/原始资源校验通过，[Android 15/API 35 smoke](https://github.com/qwer654/anzhuo-dola/actions/runs/38052851802) 的 15/15 instrumentation 通过，实测匹配的跨源 provider iframe 中隐私 API 降噪与跨源媒体帧 nonce relay。真实小米手机仍未连接 ADB。
 - 工作流会运行媒体、原始 JS 完整性和 Android 适配层 Node 测试（`tests/media-probe.test.cjs`、`tests/dola30-source.test.cjs`、`tests/dola30-android-adapter.test.cjs`）。
