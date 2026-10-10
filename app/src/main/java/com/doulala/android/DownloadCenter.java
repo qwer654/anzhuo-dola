@@ -13,7 +13,8 @@ import java.util.concurrent.*;
 
 /** Tracks only explicit downloads from this profile. Does not attach cookies or auth headers. */
 final class DownloadCenter {
-    private static final int SAVE=8220, MAX_DOWNLOADS=100;
+    private static final int SAVE=8220, SAVE_DIRECT=8221, MAX_DOWNLOADS=100;
+    static final long DIRECT_MAX_BYTES=512L*1024*1024;
     interface StatusCallback { void accept(String status); }
     private final Activity activity;
     private final SharedPreferences prefs;
@@ -25,6 +26,8 @@ final class DownloadCenter {
     private LinearLayout list;
     private boolean closed, querying, resumed;
     private long pendingSave=-1;
+    private String pendingDirectUrl, pendingDirectMime, pendingDirectName;
+    private volatile HttpURLConnection directConnection;
     private final Runnable refresh=()->refresh();
 
     DownloadCenter(Activity a,SharedPreferences p,String name) {
@@ -146,7 +149,46 @@ final class DownloadCenter {
                 .setType(mime==null?"application/octet-stream":mime).putExtra(Intent.EXTRA_TITLE,e.title),SAVE);
         }catch(Exception ex){pendingSave=-1;tell("无法打开保存位置选择器");}
     }
+    void chooseLocation(String raw,String mime,String title) {
+        String url=UrlRules.normalize(raw);
+        if(url==null||!url.startsWith("https://")){tell("仅支持 HTTPS 资源");return;}
+        try {
+            pendingDirectUrl=url;pendingDirectMime=mime;pendingDirectName=UrlRules.safeFilename(title,"download.bin");
+            activity.startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                .setType(mime!=null&&mime.matches("[A-Za-z0-9.+-]+/[A-Za-z0-9.+-]+")?mime:"application/octet-stream")
+                .putExtra(Intent.EXTRA_TITLE,pendingDirectName),SAVE_DIRECT);
+        } catch(Exception ex){clearDirectPending();tell("无法打开保存位置选择器");}
+    }
+    private void clearDirectPending(){pendingDirectUrl=null;pendingDirectMime=null;pendingDirectName=null;}
+    static long copyDirect(InputStream in,OutputStream out,long declaredLength,long limit)throws IOException {
+        if(declaredLength>limit)throw new IOException("file too large");
+        byte[] buffer=new byte[65536];long copied=0;int n;
+        while((n=in.read(buffer))!=-1){if(copied>limit-n)throw new IOException("file too large");out.write(buffer,0,n);copied+=n;}
+        return copied;
+    }
+    private void streamDirect(String url,Uri dest) {
+        io.execute(()->{
+            boolean ok=false;
+            try {
+                URL parsed=new URL(url);if(!"https".equalsIgnoreCase(parsed.getProtocol())||parsed.getUserInfo()!=null)throw new IOException("unsafe URL");
+                HttpURLConnection conn=(HttpURLConnection)parsed.openConnection();directConnection=conn;
+                conn.setInstanceFollowRedirects(false);conn.setConnectTimeout(15000);conn.setReadTimeout(30000);conn.setRequestMethod("GET");
+                int code=conn.getResponseCode();if(code<200||code>=300)throw new IOException("HTTP "+code);
+                long length=conn.getContentLengthLong();if(length>DIRECT_MAX_BYTES)throw new IOException("too large");
+                try(InputStream in=conn.getInputStream();OutputStream out=activity.getContentResolver().openOutputStream(dest,"wt")){
+                    if(out==null)throw new IOException("destination unavailable");copyDirect(in,out,length,DIRECT_MAX_BYTES);
+                }ok=true;
+            }catch(Exception ignored){}
+            finally {HttpURLConnection c=directConnection;directConnection=null;if(c!=null)c.disconnect();}
+            if(!ok)try{activity.getContentResolver().delete(dest,null,null);}catch(Exception ignored){}
+            final boolean success=ok;activity.runOnUiThread(()->tell(success?"已保存到所选位置":"保存失败；不支持需登录资源或重定向，已尝试清理不完整文件"));
+        });
+    }
     boolean onResult(int request,int result,Intent data) {
+        if(request==SAVE_DIRECT){String url=pendingDirectUrl;clearDirectPending();Uri dest=data==null?null:data.getData();
+            if(result!=Activity.RESULT_OK)return true;
+            if(url==null||dest==null||!"content".equals(dest.getScheme())){tell("保存已中断，请重新选择");return true;}
+            streamDirect(url,dest);return true;}
         if(request!=SAVE)return false;
         long id=pendingSave;pendingSave=-1;Uri dest=data==null?null:data.getData();
         if(result!=Activity.RESULT_OK)return true;
@@ -181,7 +223,7 @@ final class DownloadCenter {
     }
     void resume(){resumed=true;refresh();}
     void pause(){resumed=false;handler.removeCallbacks(refresh);}
-    void close(){closed=true;handler.removeCallbacksAndMessages(null);if(dialog!=null)dialog.dismiss();io.shutdown();}
+    void close(){closed=true;handler.removeCallbacksAndMessages(null);if(dialog!=null)dialog.dismiss();HttpURLConnection c=directConnection;if(c!=null)c.disconnect();io.shutdown();}
     private static final class Entry {
         final long id,done,total;final int status,reason;final String title;
         Entry(Cursor c){id=c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_ID));

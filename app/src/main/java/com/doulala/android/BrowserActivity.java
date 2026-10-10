@@ -328,6 +328,7 @@ public class BrowserActivity extends Activity {
             addMediaAction(actions,"分享",()->shareMediaUrl(item.url));
             addMediaAction(actions,"打开",()->newTab(item.url));
             addMediaAction(actions,"下载",()->confirmMediaDownload(item.url,downloadState));
+            addMediaAction(actions,"选择位置下载",()->chooseMediaDownloadLocation(item.url,item.title));
             if(item.type.equals("video")&&item.channels.size()>1)
                 addMediaAction(actions,"选择渠道（"+item.channels.size()+"）",()->showMediaChannels(item));
             row.addView(actions);list.addView(row);
@@ -355,12 +356,18 @@ public class BrowserActivity extends Activity {
     }
     private void showMediaChannelActions(MediaItem item,int index) {
         String url=mediaChannelAt(item.channels,index);if(url==null)return;
-        new AlertDialog.Builder(this).setTitle("渠道 "+(index+1)).setItems(new String[]{"复制链接","分享链接","在新标签打开","下载"},(d,action)->{
+        new AlertDialog.Builder(this).setTitle("渠道 "+(index+1)).setItems(new String[]{"复制链接","分享链接","在新标签打开","下载","选择位置下载"},(d,action)->{
             if(action==0)copyMediaUrl(url);
             else if(action==1)shareMediaUrl(url);
             else if(action==2)newTab(url);
-            else confirmMediaDownload(url,null);
+            else if(action==3)confirmMediaDownload(url,null);
+            else chooseMediaDownloadLocation(url,item.title);
         }).setNegativeButton("取消",null).show();
+    }
+    private void chooseMediaDownloadLocation(String url,String title) {
+        new AlertDialog.Builder(this).setTitle("选择保存位置？")
+            .setMessage("直接请求 HTTPS 资源并写入你选择的位置。不附带 WebView Cookie、授权头或 Referer；不跟随重定向，最大 512 MiB。需登录的链接通常无法保存。")
+            .setNegativeButton("取消",null).setPositiveButton("选择位置",(d,w)->downloads.chooseLocation(url,null,title)).show();
     }
     private void confirmMediaDownload(String url,TextView statusView) {
         downloads.confirm(url,null,null,state->{if(statusView!=null){Object owner=statusView.getTag();if(owner instanceof AlertDialog&&((AlertDialog)owner).isShowing())statusView.setText(state);}});

@@ -11,9 +11,9 @@
 | 浏览、前进/后退、刷新、上传 | 已实现 | HTTPS WebView；上传使用系统 SAF 文档选择器；不允许 `file://`。 |
 | 多标签 | 已实现（有限） | 每空间最多 6 个按需标签；读取旧版 URL 数组；尽力恢复大小受限的 WebView 前进/后退历史，但不恢复表单、DOM 或 JavaScript 页面状态。 |
 | 书签 | 已实现（有限） | 每空间本地最多 200 条；不可导出、同步或跨空间共享。 |
-| 白名单页面媒体观察 | 已实现（安全子集） | 观察页面已有 JSON/fetch/XHR/DOM/Performance 的图片/视频 URL；对 DOM `<video>` 最多汇集两个页面直接暴露的有效 HTTPS 源，提供用户主动的渠道选择，再复制、分享、在新 HTTPS 标签打开或确认下载；可手动重扫、清空当前标签观察列表。清空不删除下载文件或网页数据；分享不附 Cookie/Referer 或资源字节；不请求 fallback API、不改响应，不保证原图/无水印。 |
-| 资源下载 | 已实现（有限） | Android DownloadManager；每条已观察资源查询并显示本空间内用户显式加入的最新下载状态（等待/进行中/暂停/完成/失败/记录缺失），下载中心支持打开、分享、完成后 SAF 另存、删除；最多保留 100 条记录；不传递 WebView Cookie/认证头，应用私有外部目录卸载时删除。 |
-| 认证下载 | 未实现 | 不自动附加 Cookie 或认证头；需登录或已过期链接可能失败/过期。 |
+| 白名单页面媒体观察 | 已实现（安全子集） | 观察页面已有 JSON/fetch/XHR/DOM/Performance 的图片/视频 URL；对 DOM `<video>` 最多汇集两个页面直接暴露的有效 HTTPS 源，提供用户主动的渠道选择，再复制、分享、在新 HTTPS 标签打开、确认下载或选择 SAF 位置下载；可手动重扫、清空当前标签观察列表。清空不删除下载文件或网页数据；不请求 fallback API、不改响应，不保证原图/无水印。 |
+| 资源下载 | 已实现（有限） | Android DownloadManager；每条已观察资源查询并显示本空间内用户显式加入的最新下载状态（等待/进行中/暂停/完成/失败/记录缺失），下载中心支持打开、分享、完成后 SAF 另存、删除；另提供 HTTPS 直接流式下载至 SAF 所选位置（512 MiB 上限、禁重定向/认证头/Cookie/Referer）；最多保留 100 条 DownloadManager 记录，应用私有外部目录卸载时删除。 |
+| 认证下载 | 未实现 | 两种下载路径均不附加 WebView Cookie 或认证头；需登录或已过期链接可能失败/过期。选择位置下载会拒绝非 2xx 响应/重定向，失败时尽力删除目标文档；需保留 SAF URI 的文件内容由系统文档提供方管理。 |
 | 30 秒/时间码 | 已实现（默认安全适配；原版脚本可选） | 默认 WebView 模式只保存本地状态并提供人工提示词工具；用户可在浏览器菜单显式开启原版 `duration-main.js`，经警告并重载后原样注入 Dola/Doubao 白名单页。Android 默认适配器提供 `setDola30s` / `getDola30sStatus` 及兼容旧 C# 宿主的 `setDoubao30s` / `getDoubao30sStatus` 本地状态 API；其中 `applied: 0` 明确表示未控制页面平台。页面悬浮控件支持拖动，并复用原版面板位置键 `intl_doubao_media_panel_pos_v3`；新增最小化/展开控制并持久化至原版 `intl_doubao_media_panel_minimized_v1` 键。原完整媒体面板和解析 UI 仍未复刻。30S 对话框会说明仅可观察页面已暴露的资源 URL，MV3 Debugger 深度/自动嗅探和 fallback API 解析不可用。原版脚本选项菜单直接读写原脚本既有的 prompt-guard / timeline-rewrite localStorage 键；开启原版模式后，原脚本自行判断是否更改页面状态、提示词或匹配请求中的用户文本；不会由应用自动提交。原 MV3 源文件保持原样。 |
 | 指纹诊断/隐私 | WebView 已实现用户开启的 API 降噪子集；扩展模块部分接入 | 浏览器菜单“隐私洁净模式”保留实际 WebView UA（移除应用专属后缀）、阻止第三方 Cookie、禁用网页 Geolocation，并在受信 Dola/Doubao/千问/剪映顶层页及匹配的 provider iframe 限制 Canvas 像素读取、隐藏 WebGL 调试渲染器、禁用离线音频指纹 API、WebRTC 及设备枚举。未伪造机型/系统身份或高熵请求头，不保证无定向广告；绘图导出、音频处理、通话或设备选择功能可能受影响。Worker 与不匹配/opaque frame、完整身份混淆、页面诊断和 DNR 请求头规则仍未接入 WebView。
 | 快捷文本 | 已实现 | 本地 CRUD、复制或填入当前网页；不会自动发送。 |

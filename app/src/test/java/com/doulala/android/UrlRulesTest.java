@@ -109,5 +109,16 @@ public class UrlRulesTest {
         assertTrue(DownloadCenter.statusLabel(android.app.DownloadManager.STATUS_FAILED,android.app.DownloadManager.ERROR_HTTP_DATA_ERROR).contains("失败"));
         assertEquals("系统记录已不存在",DownloadCenter.statusLabel(-1,0));
     }
+    @Test public void directSaveCopyEnforcesDeclaredAndStreamingByteLimit(){
+        byte[] data="signed-media".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();
+        try {assertEquals(data.length,DownloadCenter.copyDirect(new java.io.ByteArrayInputStream(data),out,-1,64));}
+        catch(java.io.IOException e){fail(e.toString());}
+        assertArrayEquals(data,out.toByteArray());
+        try {DownloadCenter.copyDirect(new java.io.ByteArrayInputStream(data),new java.io.ByteArrayOutputStream(),65,64);fail("declared oversize accepted");}
+        catch(java.io.IOException expected){}
+        try {DownloadCenter.copyDirect(new java.io.ByteArrayInputStream(data),new java.io.ByteArrayOutputStream(),-1,4);fail("stream oversize accepted");}
+        catch(java.io.IOException expected){}
+    }
 }
 
