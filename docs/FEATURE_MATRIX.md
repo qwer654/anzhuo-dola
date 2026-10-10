@@ -39,6 +39,7 @@
 - 后续 Android 适配层增加“原版 Dola30 选项”原生菜单：只在用户已启用原版脚本、且页面为白名单时使用适配器暴露的读写接口操作原有 localStorage 键；Node VM 用例验证默认值、读写与恢复。PR #1 的 `fd7d1ead` 对应 APK 与 Android UI smoke workflows 均通过；API 35 instrumentation 验证选项 API、原版公开 API 不被覆盖，且关闭时间轴选项会阻止匹配请求改写。域名后缀修复也已通过精确 Dola/Doubao 子域名和相似域名排除测试。
 - UI smoke 因前一测试遗留的隔离 BrowserActivity task 偶发回到 launcher；测试现改成 press Home 后以 `NEW_TASK|CLEAR_TASK` 启动主页面。PR #1 的 Android 15/API 35 UI smoke workflow 在该变更后通过，两个 smoke 用例均成功。
 - 后续适配器补齐原版 `duration-main.js` 注释中要求保留的旧 C# 宿主别名 `setDoubao30s` / `getDoubao30sStatus`。默认适配只反映本地开关并明确返回 `applied: 0`；原版脚本 opt-in 时不覆盖两个别名。6 项适配器 Node 测试、原始 JS 清单校验及 head `9be9f10` 的 Android APK/UI smoke 工作流均通过。
+- 30S 工具对话框现明确显示页面资源观察状态，以及 Chrome MV3 Debugger 深度/自动嗅探和 fallback API 解析不可用；纯 Java 单测检查提示文案及探针开/关分支。Android smoke 工作流也加入 `app/src/test/**` 触发路径，确保单测变更会重跑模拟器验收。head `37a82f1` 的 APK 与 Android 15/API 35 UI smoke 均通过。
 - `WebViewAdapterInstrumentationTest` 在 Android WebView 中通过 document-start、本地 30S 状态、提示词转换及 opt-in 原版控制提示段断言、已观察媒体链接复制到系统剪贴板的精确性断言；`BrowserSmokeTest` 通过空间切换、标签/书签及空间隔离烟测。
 - **小米真机基础验收已完成**：`22127RK46C` / Android 16 / `com.google.android.webview 153.0.8010.36`。已校验并安装 CI `0.2.1-debug` APK，打开 `https://www.dola.com/chat/`；屏幕显示本地工具状态及资源计数（5）。本次未登录、未提交提示词或触发生成。
 - **真机安装待确认**：从最新代码提交 `bcf7919` 的 CI artifact 提取 `deviceValidation` APK，并本地复核 SHA-256 `4e6111300ffb50eb10126d275b5479cd7360268041c4bb8f71808d386373a87a`，包含 15 个原始扩展文件。对前一版 APK 执行 `adb install -r` 曾返回 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`；最新 APK 尚未安装。未卸载旧版或更改其数据；需在手机端允许通过调试安装。
