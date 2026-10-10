@@ -360,6 +360,55 @@ public class WebViewAdapterInstrumentationTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
 
+    @Test public void floatingControlMinimizeStatePersistsAndExpandDoesNotToggleDuration() throws Exception {
+        assertTrue("WebView provider lacks document-start JavaScript support",
+            WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
+        String adapter = readAsset("dola30-android-adapter.js");
+        AtomicReference<WebView> viewRef = new AtomicReference<>();
+        AtomicReference<String> resultHolder = new AtomicReference<>();
+        CountDownLatch finished = new CountDownLatch(1);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            WebView view = new WebView(context);
+            view.getSettings().setJavaScriptEnabled(true);
+            view.getSettings().setDomStorageEnabled(true);
+            viewRef.set(view);
+            try {
+                WebViewCompat.addDocumentStartJavaScript(view, adapter,
+                    new HashSet<>(Arrays.asList("https://dola.com", "https://*.dola.com")));
+            } catch (Exception e) { throw new AssertionError("Could not install Android adapter", e); }
+            view.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override public void onPageFinished(WebView webView, String url) {
+                    webView.evaluateJavascript("(function(){"
+                        + "var control=document.getElementById('dola30-android-control');"
+                        + "var minimize=document.getElementById('dola30-android-control-minimize');"
+                        + "if(!control||!minimize)return JSON.stringify({missing:true});"
+                        + "window.setDola30s(false);minimize.click();"
+                        + "var minimized={key:localStorage.getItem('intl_doubao_media_panel_minimized_v1'),text:control.textContent,hidden:minimize.style.display==='none',on:JSON.parse(window.getDola30sStatus()).on};"
+                        + "control.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:7,clientX:300,clientY:600,button:0}));"
+                        + "control.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:7,clientX:300,clientY:600,button:0}));"
+                        + "return JSON.stringify({minimized:minimized,key:localStorage.getItem('intl_doubao_media_panel_minimized_v1'),text:control.textContent,on:JSON.parse(window.getDola30sStatus()).on});"
+                        + "})()", value -> { resultHolder.set(value); finished.countDown(); });
+                }
+            });
+            view.loadDataWithBaseURL("https://www.dola.com/", "<!doctype html><html><body>minimize fixture</body></html>",
+                "text/html", "UTF-8", null);
+        });
+        assertTrue("WebView minimize fixture did not finish", finished.await(20, TimeUnit.SECONDS));
+        Object decoded = new JSONTokener(resultHolder.get()).nextValue();
+        assertTrue(decoded instanceof String);
+        JSONObject result = new JSONObject((String) decoded);
+        assertFalse(result.optBoolean("missing", false));
+        JSONObject minimized = result.getJSONObject("minimized");
+        assertEquals("1", minimized.getString("key"));
+        assertEquals("30S", minimized.getString("text"));
+        assertTrue(minimized.getBoolean("hidden"));
+        assertFalse(minimized.getBoolean("on"));
+        assertEquals("0", result.getString("key"));
+        assertEquals("30S 工具（当前 15S）", result.getString("text"));
+        assertFalse("Expanding must not enable 30S", result.getBoolean("on"));
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
+    }
+
     @Test public void originalDurationScriptCanRunOptInWithoutAdapterOverwritingItsApi() throws Exception {
         assertTrue("WebView provider lacks document-start JavaScript support",
             WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
