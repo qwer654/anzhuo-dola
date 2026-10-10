@@ -31,7 +31,9 @@ public class BrowserSmokeTest {
         waitFor(By.text("账号空间"));
         UiScrollable list=new UiScrollable(new UiSelector().scrollable(true));
         String entryDescription="进入空间："+title;
-        UiObject entry=list.scrollIntoView(new UiSelector().description(entryDescription));
+        UiSelector entrySelector=new UiSelector().description(entryDescription);
+        assertTrue("Space entry button is not reachable: "+title,list.scrollIntoView(entrySelector));
+        UiObject entry=device.findObject(entrySelector);
         assertTrue("Space entry button is not reachable: "+title,entry.exists());entry.click();
         waitFor(By.text(title));waitFor(By.desc("浏览器菜单"));
     }
