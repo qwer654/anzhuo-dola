@@ -389,7 +389,7 @@ public class BrowserActivity extends Activity {
                 .setView(Ui.scroll(this,form)).setNegativeButton("取消",null).setPositiveButton("保存",null).create();
             dialog.setOnShowListener(x->dialog.getButton(-1).setOnClickListener(button->{
                 String js="window.dola30Android&&window.dola30Android.setOriginalOptions?JSON.stringify(window.dola30Android.setOriginalOptions({promptGuard:"+
-                    (guard.isChecked()?"true":"false")+",timelineRewrite:"+(rewrite.isChecked()?"true":"false")})):null";
+                    (guard.isChecked()?"true":"false")+",timelineRewrite:"+(rewrite.isChecked()?"true":"false")+"})):null";
                 t.view.evaluateJavascript(js,result->{
                     if(destroyed||t.closed||t.view==null||t.navigation!=navigation||t!=active){dialog.dismiss();return;}
                     JSONObject actual=parseJsObject(result);
