@@ -139,7 +139,7 @@ public class WebViewAdapterInstrumentationTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
 
-    @Test public void originalDurationScriptRewritesOnlyMatchingUserTimelineInWebView() throws Exception {
+    @Test public void originalDurationScriptRewritesOnlyMatchingUserTimelineInFetchAndXhrInWebView() throws Exception {
         assertTrue(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
         String original = readAsset("dola30-original/duration-main.js");
         String adapter = readAsset("dola30-android-adapter.js");
@@ -154,7 +154,10 @@ public class WebViewAdapterInstrumentationTest {
             Set<String> origins = new HashSet<>(Arrays.asList("https://doubao.com", "https://*.doubao.com"));
             try {
                 WebViewCompat.addDocumentStartJavaScript(view,
-                    "window.__capturedRequests=[];window.fetch=function(url,init){window.__capturedRequests.push({url:String(url),body:init&&init.body});return Promise.resolve({ok:true,status:200})};", origins);
+                    "window.__capturedRequests=[];window.fetch=function(url,init){window.__capturedRequests.push({url:String(url),body:init&&init.body});return Promise.resolve({ok:true,status:200})};"
+                        + "window.__capturedXhrs=[];window.XMLHttpRequest=function(){};"
+                        + "window.XMLHttpRequest.prototype.open=function(method,url){this.__url=url};"
+                        + "window.XMLHttpRequest.prototype.send=function(body){window.__capturedXhrs.push({url:this.__url,body:body})};", origins);
                 WebViewCompat.addDocumentStartJavaScript(view,
                     "window.__dola30ExtOff=false;\n" + original, origins);
                 WebViewCompat.addDocumentStartJavaScript(view, adapter, origins);
@@ -170,7 +173,9 @@ public class WebViewAdapterInstrumentationTest {
                         + "var unrelated=JSON.stringify({messages:[{role:'user',content:'00:00-00:05 不应改写'}]});"
                         + "window.fetch('https://www.doubao.com/api/chat/completion',{method:'POST',body:matching});"
                         + "window.fetch('https://www.doubao.com/api/other',{method:'POST',body:unrelated});"
-                        + "return JSON.stringify({status:JSON.parse(window.getDola30sStatus()),requests:window.__capturedRequests});"
+                        + "var xhrMatch=new XMLHttpRequest();xhrMatch.open('POST','https://www.doubao.com/api/chat/completion');xhrMatch.send(matching);"
+                        + "var xhrOther=new XMLHttpRequest();xhrOther.open('POST','https://www.doubao.com/api/other');xhrOther.send(unrelated);"
+                        + "return JSON.stringify({status:JSON.parse(window.getDola30sStatus()),requests:window.__capturedRequests,xhrs:window.__capturedXhrs});"
                         + "})()";
                     webView.evaluateJavascript(script, value -> { resultHolder.set(value); finished.countDown(); });
                 }
@@ -191,6 +196,14 @@ public class WebViewAdapterInstrumentationTest {
         assertEquals("00:00-00:05 固定指令", messages.getJSONObject(1).getString("content"));
         JSONObject unrelatedPayload = new JSONObject(requests.getJSONObject(1).getString("body"));
         assertEquals("00:00-00:05 不应改写", unrelatedPayload.getJSONArray("messages").getJSONObject(0).getString("content"));
+        JSONArray xhrs = result.getJSONArray("xhrs");
+        assertEquals(2, xhrs.length());
+        JSONObject xhrPayload = new JSONObject(xhrs.getJSONObject(0).getString("body"));
+        JSONArray xhrMessages = xhrPayload.getJSONArray("messages");
+        assertTrue(xhrMessages.getJSONObject(0).getString("content").contains("16.7%"));
+        assertEquals("00:00-00:05 固定指令", xhrMessages.getJSONObject(1).getString("content"));
+        JSONObject xhrUnrelatedPayload = new JSONObject(xhrs.getJSONObject(1).getString("body"));
+        assertEquals("00:00-00:05 不应改写", xhrUnrelatedPayload.getJSONArray("messages").getJSONObject(0).getString("content"));
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
 
