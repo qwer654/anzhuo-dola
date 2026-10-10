@@ -20,6 +20,7 @@ public class BrowserActivity extends Activity {
     private static final int FILE_CHOOSER=8101, PICK_PROMPT=8102;
     private final ArrayList<Tab> tabs=new ArrayList<>();
     private final Handler handler=new Handler(Looper.getMainLooper());
+    private final java.util.concurrent.ExecutorService previewExecutor=java.util.concurrent.Executors.newFixedThreadPool(2);
     private SharedPreferences prefs;
     private Tab active, fileTab, promptTab;
     private int fileNavigation, promptNavigation;
@@ -293,6 +294,8 @@ public class BrowserActivity extends Activity {
             LinearLayout row=Ui.column(this);TextView label=Ui.text(this,item.type+" · "+item.title,13,Ui.INK);
             row.addView(label);
             LinearLayout actions=Ui.row(this);
+            if(MediaPreview.validateImageUrl(item.url,item.type)!=null)
+                addMediaAction(actions,"预览",()->previewImage(item));
             addMediaAction(actions,"复制",()->copyMediaUrl(item.url));
             addMediaAction(actions,"分享",()->shareMediaUrl(item.url));
             addMediaAction(actions,"打开",()->newTab(item.url));
@@ -300,6 +303,7 @@ public class BrowserActivity extends Activity {
             row.addView(actions);list.addView(row);
         }
         list.addView(Ui.button(this,"复制全部资源链接",()->copyMediaUrls(active.media)));
+        list.addView(Ui.text(this,"图片预览仅在点击后请求；不携带 WebView Cookie/授权头/Referer，HTTPS、8 MiB 上限、禁止重定向。视频使用“打开”或“下载”。",12,Ui.MUTED));
         list.addView(Ui.button(this,"重扫当前页",this::rescanMedia));
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("当前标签资源（"+active.media.size()+"）").setView(Ui.scroll(this,list)).setPositiveButton("关闭",null).show();
         list.addView(Ui.button(this,"清空当前标签资源",()->{
@@ -330,6 +334,28 @@ public class BrowserActivity extends Activity {
     private void addMediaAction(LinearLayout row,String label,Runnable action) {
         Button button=Ui.button(this,label,action);
         row.addView(button,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1));
+    }
+    private void previewImage(MediaItem item) {
+        java.net.URL url=MediaPreview.validateImageUrl(item.url,item.type);
+        if(url==null){Ui.toast(this,"仅支持 HTTPS 图片预览");return;}
+        LinearLayout body=Ui.column(this);Ui.pad(body,12);
+        ProgressBar progress=new ProgressBar(this);body.addView(progress);
+        ImageView image=new ImageView(this);image.setAdjustViewBounds(true);image.setMaxHeight(Ui.dp(this,420));image.setScaleType(ImageView.ScaleType.FIT_CENTER);body.addView(image);
+        TextView message=Ui.text(this,"正在获取公开图片…",13,Ui.MUTED);body.addView(message);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("图片预览 · 不使用页面凭据")
+                .setView(body).setNegativeButton("关闭",null).setPositiveButton("在网页打开",(d,w)->newTab(item.url)).create();
+        dialog.show();
+        previewExecutor.execute(()->{
+            android.graphics.Bitmap bitmap=null;String error=null;
+            try { bitmap=MediaPreview.fetch(url); } catch(Exception e) { error="预览失败："+e.getMessage(); }
+            final android.graphics.Bitmap result=bitmap;final String failure=error;
+            handler.post(()->{
+                if(destroyed||isFinishing()||!dialog.isShowing()) { if(result!=null)result.recycle();return; }
+                progress.setVisibility(View.GONE);
+                if(result!=null){image.setImageBitmap(result);message.setText("预览完成（缩放至最长边 512 px）");}
+                else message.setText(failure==null?"预览失败":failure);
+            });
+        });
     }
     static String validatedMediaShareUrl(String rawUrl) {
         if(rawUrl==null||!rawUrl.equals(rawUrl.trim())||!rawUrl.regionMatches(true,0,"https://",0,8))return null;
@@ -600,7 +626,7 @@ public class BrowserActivity extends Activity {
     @Override public void onBackPressed(){goBack();}
     @Override protected void onSaveInstanceState(Bundle out){saveTabs();super.onSaveInstanceState(out);}
     @Override protected void onDestroy(){
-        destroyed=true;handler.removeCallbacksAndMessages(null);cancelFile();cookies.close();downloads.close();viewport.removeAllViews();
+        destroyed=true;handler.removeCallbacksAndMessages(null);previewExecutor.shutdownNow();cancelFile();cookies.close();downloads.close();viewport.removeAllViews();
         for(Tab t:tabs){t.closed=true;if(t.view!=null){t.view.stopLoading();t.view.destroy();t.view=null;}}super.onDestroy();
     }
     private static final class MediaItem{final String url,type,title;MediaItem(String u,String t,String n){url=u;type=t;title=n;}}
