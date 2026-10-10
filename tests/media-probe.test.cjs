@@ -11,6 +11,14 @@ test('only exact allowed hosts and subdomains are enabled', () => {
   assert.equal(probe.isAllowedHost('evil-dola.com'), false);
   assert.equal(probe.isAllowedHost('dola.com.attacker.test'), false);
 });
+test('srcset parser collects bounded HTTPS image candidates without changing signed queries', () => {
+  assert.deepEqual(probe.parseSrcset('https://cdn.example/a.webp 1x, https://cdn.example/b?id=2&sig=a%2Fb 2x'), [
+    'https://cdn.example/a.webp',
+    'https://cdn.example/b?id=2&sig=a%2Fb'
+  ]);
+  assert.deepEqual(probe.parseSrcset('data:image/png;base64,AAAA 1x, javascript:alert(1) 2x'), []);
+  assert.deepEqual(probe.parseSrcset('x'.repeat(probe.LIMITS.bodyBytes + 1)), []);
+});
 test('base64 and URL-safe base64 main_url preserve signed URL bytes', () => {
   const url = 'https://cdn.example/video?id=1&signature=a%2Fb%3D&z=9';
   for (const encoding of ['base64', 'base64url']) {
@@ -104,11 +112,13 @@ test('live observer keeps fetch/XHR responses untouched while collecting readabl
     'https://cdn.example/xhr.jpg?sig=c%3Dd'
   ].sort());
   assert.equal(Array.from(root.__dolaAndroidDrain()).length, 0);
-  domNodes = [{ tagName: 'IMG', currentSrc: 'https://cdn.example/dom.jpg?sig=e%2Ff', src: '' }];
+  domNodes = [{ tagName: 'IMG', currentSrc: 'https://cdn.example/dom.jpg?sig=e%2Ff', src: '',
+    srcset: 'https://cdn.example/dom.jpg?sig=e%2Ff 1x, https://cdn.example/dom2.jpg?sig=g%2Fh 2x' }];
   root.__dolaAndroidScan();
-  assert.deepEqual(Array.from(root.__dolaAndroidDrain(), item => item.url), [
-    'https://cdn.example/dom.jpg?sig=e%2Ff'
-  ]);
+  assert.deepEqual(Array.from(root.__dolaAndroidDrain(), item => item.url).sort(), [
+    'https://cdn.example/dom.jpg?sig=e%2Ff',
+    'https://cdn.example/dom2.jpg?sig=g%2Fh'
+  ].sort());
 });
 test('prompt timeline handles timestamps and English/Chinese seconds', () => {
   assert.equal(prompts.rewriteTimeline('00:00-00:05 开场', 20), '全片进度 0%–25% 开场');
@@ -138,3 +148,4 @@ test('prompt guard is opt-in and preserves the original markers without auto-sub
   assert.match(directOnly, /^【直接生成控制】/);
   assert.doesNotMatch(directOnly, /【单片生成控制】/);
 });
+
