@@ -12,7 +12,7 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 |---|---|---|
 | `duration-main.js` 页面时长 UI、状态和提示词时间轴 | **可选原版运行；条件有限** | 默认用 `dola30-android-adapter.js` 及人工工具；用户显式同意后原样 document-start 注入保留的 `duration-main.js` 到 Dola/Doubao HTTPS 页面，由该脚本自身条件控制页面状态、提示词和匹配请求中的用户文本处理。应用不自动提交；实际网页控件识别与真实平台行为仍需真机逐项验证。 |
 | `content-panel.js` 扩展浮层 | **未运行原件** | Android 原生菜单提供媒体、下载和 30S 工具入口；原面板调用扩展消息 API，WebView 中无 `chrome.runtime`。 |
-| `service-worker.js` 标签、下载、Debugger、资源提取、响应替换 | **安全子集** | 书签/标签/下载由原生 UI 提供；`media-probe.js` 被动观察 DOM、Performance、fetch/XHR 中已暴露的媒体 URL。用户可手动触发当前白名单页重扫；Debugger/CDP、fallback API 获取、解码/请求链和响应替换未移植。 |
+| `service-worker.js` 标签、下载、Debugger、资源提取、响应替换 | **安全子集** | 书签/标签/下载由原生 UI 提供；`media-probe.js` 被动观察 DOM、Performance、fetch/XHR 中已暴露的媒体 URL，用户可手动触发重扫；Debugger/CDP、fallback API 获取、解码/请求链和响应替换未移植。 |
 | `skill-pack-main.js` 能力响应钩子 | **保留、未注入** | 原文件哈希保持不变，但不向站点运行；不伪造/扩大平台返回的模型、会员或生成能力。 |
 | `host-bridge.js` 与 Chrome 消息通道 | **未移植** | 未创建 `chrome.*` 兼容假层，避免出现“看似成功、实际消息丢失”的伪兼容。若实现原生桥，必须限制白名单源、命令集合、消息大小和调用权限，并单测来源校验。 |
 | MV3 `manifest.json` | **仅作为原始资料保留** | Android APK 不会把它当作 Chrome 扩展安装。 |
@@ -27,9 +27,9 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 5. **真机验收边界**：已在 Xiaomi `22127RK46C` / Android 16 / `com.google.android.webview 153.0.8010.36` 安装 CI 校验的 `0.2.1-debug` APK，并打开 `https://www.dola.com/chat/`。页面显示本地工具与资源观察状态，资源计数为 5；本次未登录、未提交提示词、未触发生成，也未读取 Cookie/令牌。该结果证明目标 Provider 与这一 Dola 页面下的基础加载/注入路径可用，但不证明登录、上传、实际下载、Cookie 迁移、跨空间隔离或平台接受 30 秒请求。
 
 6. **隐私洁净开关已按低风险定义接入**：开启时使用 native WebView UA、阻止第三方 Cookie，并明确关闭网页 Geolocation API；单元测试验证 UA 不被伪造、Cookie 策略与定位开关随模式切换。Android 文档指出 Geolocation 在 WebSettings 中默认开启，因此模式现显式控制此信号；此设置不等于全面抗指纹，也不保证防止个性化广告。[Android WebSettings API](https://developer.android.com/reference/android/webkit/WebSettings#setGeolocationEnabled(boolean))
-7. **CI 门禁与设备安装路径已验证**：PR #1 的 Android APK 工作流已对 `debug` 与独立包名 `deviceValidation` 变体运行编译、签名及原始资源完整性检查；API 35 模拟器的 `connectedDeviceValidationAndroidTest` 通过，并上传了可并装 APK 与 instrumentation APK。2026-10-10 代码提交 `9e41d17` 的两项工作流通过，API 35 模拟器运行 9 项 instrumentation。真机侧，旧版签名不兼容问题已通过并装变体绕开；Xiaomi 安装仍返回 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`，未卸载旧版或清除数据，需要设备端确认后再做新版本真机验收。
+7. **CI 门禁与设备安装路径已验证**：PR #1 的 Android APK 工作流已对 `debug` 与独立包名 `deviceValidation` 变体运行编译、签名及原始资源完整性检查；API 35 模拟器的 `connectedDeviceValidationAndroidTest` 通过，并上传了可并装 APK 与 instrumentation APK。提交 `bcf7919` 的 Android APK 与 UI smoke 工作流均通过，API 35 模拟器运行 10 项 instrumentation。真机侧，旧版签名不兼容问题已通过并装变体绕开；Xiaomi 安装仍返回 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`，未卸载旧版或清除数据，需要设备端允许安装后再做新版本真机验收。
 
-8. **媒体重扫与脚本注入边界**：媒体列表新增“重扫当前页”，调用现有 `__dolaAndroidScan()` 并排空观察器队列；原生侧仍仅接收有效 HTTP(S) 图片/视频 URL，且要求当前页面处于白名单。Node VM 集成测试覆盖 DOM 发现与队列排空；API 35 instrumentation 直接加载 Dola fixture，断言重扫保留签名 URL 查询串；默认模式断言原版 fetch/XHR hooks 不变，非白名单 origin 不注入 Dola 脚本。提交 `9e41d17` 上 9 项 instrumentation 全通过。小米真机尚未安装此版本，不能据模拟器结果声称已完成真机验收。
+8. **媒体重扫与脚本注入边界**：媒体列表新增“重扫当前页”，调用现有 `__dolaAndroidScan()` 并排空观察器队列；原生侧仍仅接收有效 HTTP(S) 图片/视频 URL，且要求当前页面处于白名单。Node VM 集成测试覆盖 DOM 发现与队列排空；API 35 instrumentation 直接加载 Dola fixture，断言重扫保留签名 URL 查询串；默认模式断言原版 fetch/XHR hooks 不变，非白名单 origin 不注入 Dola 脚本。`privacyCleanModeRequiresConsentAndCanBeReverted` 验证用户确认、重载与关闭流程；`bcf7919` 上 10 项 instrumentation 全通过。小米真机尚未安装此版本，不能据模拟器结果声称已完成真机验收。
 
 ## 下一阶段验收门槛
 
