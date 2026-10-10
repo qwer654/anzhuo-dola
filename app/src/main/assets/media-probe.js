@@ -43,7 +43,9 @@
         if (!item || (item.type !== "image" && item.type !== "video") ||
             !api.normalizeMediaUrl(item.url) || typeof item.url !== "string" ||
             item.url.length > api.LIMITS.urlLength) continue;
-        items.push({ url: item.url, type: item.type, source: "frame:" + String(item.source || "page").slice(0, 200),
+        items.push({ url: item.url, type: item.type,
+          posterUrl: item.type === "video" ? api.normalizeMediaUrl(item.posterUrl) || "" : "",
+          source: "frame:" + String(item.source || "page").slice(0, 200),
           title: String(item.title || "").slice(0, 200) });
       }
       collector.add(items);
@@ -62,7 +64,8 @@
       var url = api.normalizeMediaUrl(node.currentSrc || "") ||
         api.normalizeMediaUrl(node.src || "") ||
         api.normalizeMediaUrl(node.getAttribute && node.getAttribute("src") || "");
-      if (url) receive([{ url: url, type: type, source: "dom", title: title() }]);
+      var poster = tag === "video" ? api.normalizeMediaUrl(node.poster || (node.getAttribute && node.getAttribute("poster")) || "") : "";
+      if (url) receive([{ url: url, type: type, posterUrl: poster, source: "dom", title: title() }]);
       // Responsive images may expose several useful candidates while currentSrc
       // reports only the one selected for this viewport. Parse candidates without
       // rewriting their URL bytes; descriptors are intentionally ignored.
@@ -74,7 +77,6 @@
         }
       }
       if (tag === "video") {
-        var poster = api.normalizeMediaUrl(node.poster || (node.getAttribute && node.getAttribute("poster")) || "");
         if (poster) receive([{ url: poster, type: "image", source: "dom:poster", title: title() }]);
       }
     }
@@ -239,10 +241,22 @@
           var url = normalizeMediaUrl(item.url), type = item.type;
           if (!url || (type !== "image" && type !== "video")) continue;
           var key = type + ":" + url;
-          if (seen.has(key)) continue;
-          seen.set(key, true);
+          var posterUrl = type === "video" ? normalizeMediaUrl(item.posterUrl) : "";
+          if (seen.has(key)) {
+            // A video may be observed before its poster attribute is populated.
+            // Emit one metadata update without duplicating the media row.
+            if (type === "video" && posterUrl && !seen.get(key)) {
+              seen.set(key, posterUrl);
+              queue.push({ url: url, type: type, posterUrl: posterUrl,
+                source: String(item.source || "page").slice(0, 300), title: String(item.title || "").slice(0, 200) });
+            }
+            continue;
+          }
+          seen.set(key, posterUrl || "");
           if (seen.size > 3000) seen.delete(seen.keys().next().value);
-          queue.push({ url: url, type: type, source: String(item.source || "page").slice(0, 300), title: String(item.title || "").slice(0, 200) });
+          var normalized = { url: url, type: type, source: String(item.source || "page").slice(0, 300), title: String(item.title || "").slice(0, 200) };
+          if (type === "video" && posterUrl) normalized.posterUrl = posterUrl;
+          queue.push(normalized);
         }
       },
       snapshot: function () { return queue.slice(); },
