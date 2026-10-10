@@ -119,20 +119,25 @@ test("adapter reads and writes only the original script's existing option keys",
   });
 });
 
-
 test("read-only page-selection status separates displayed Dola controls from local state", () => {
   function fixture(host, modelText, durationText, shown = true) {
-    const attrs = [], values = new Map();
-    const model = { textContent:modelText,isConnected:shown,getBoundingClientRect(){return {width:100,height:24};} };
-    const duration = { textContent:durationText,isConnected:shown,getBoundingClientRect(){return {width:60,height:24};} };
+    const attrs = [];
+    const values = new Map();
+    const model = { textContent: modelText, isConnected: shown, getBoundingClientRect() { return {width:100,height:24}; } };
+    const duration = { textContent: durationText, isConnected: shown, getBoundingClientRect() { return {width:60,height:24}; } };
     const page = {
-      top:null,location:{hostname:host},
-      getComputedStyle(){return {display:shown?"block":"none",visibility:"visible",opacity:"1"};},
-      document:{documentElement:{setAttribute(k,v){attrs.push([k,v]);}},readyState:"loading",addEventListener(){},dispatchEvent(){},
-        querySelector(selector){return selector.includes("video-model")?model:duration;}},
-      localStorage:{getItem(k){return values.has(k)?values.get(k):null;},setItem(k,v){values.set(k,String(v));}}
+      top: null,
+      location: { hostname: host },
+      getComputedStyle() { return {display:shown?"block":"none",visibility:"visible",opacity:"1"}; },
+      document: {
+        documentElement: { setAttribute(k,v) { attrs.push([k,v]); } },
+        readyState:"loading", addEventListener(){}, dispatchEvent(){},
+        querySelector(selector) { return selector.includes("video-model") ? model : duration; }
+      },
+      localStorage: { getItem(key){return values.has(key)?values.get(key):null;}, setItem(key,value){values.set(key,String(value));} }
     };
-    page.top=page;vm.runInNewContext(source,{window:page,Event:function Event(){}});
+    page.top = page;
+    vm.runInNewContext(source, { window:page, Event:function Event(){} });
     return {page,attrs,model,duration};
   }
   const match=fixture("www.dola.com","Seedance 2.5","30s");
@@ -174,6 +179,7 @@ test("adapter allows exact Dola/Doubao subdomains but not lookalike domains", ()
 test("floating Android control is draggable and persists the original panel position key", () => {
   const values = new Map();
   const listeners = new Map();
+  const elements = new Map();
   let button;
   const page = {
     top: null,
@@ -192,17 +198,13 @@ test("floating Android control is draggable and persists the original panel posi
       readyState: "complete",
       documentElement: { setAttribute() {} },
       dispatchEvent() {},
-      getElementById() { return button || null; },
+      getElementById(id) { return elements.get(id) || null; },
       createElement() {
-        button = {
-          style: {}, offsetWidth: 160, offsetHeight: 40,
-          setAttribute() {},
-          addEventListener(name, callback) { listeners.set(name, callback); },
-          setPointerCapture() {}, releasePointerCapture() {}
-        };
-        return button;
+        return { id: "", style: {}, offsetWidth: 160, offsetHeight: 40,
+          setAttribute() {}, addEventListener(name, callback) { if (this.id === "dola30-android-control") listeners.set(name, callback); },
+          setPointerCapture() {}, releasePointerCapture() {} };
       },
-      body: { appendChild() {} }
+      body: { appendChild(element) { elements.set(element.id, element); if (element.id === "dola30-android-control") button = element; } }
     }
   };
   page.top = page;
@@ -233,6 +235,7 @@ test("floating Android control is draggable and persists the original panel posi
 
 test("floating Android control restores saved position and clamps it to viewport", () => {
   const values = new Map([["intl_doubao_media_panel_pos_v3", JSON.stringify({ left: 310, bottom: 610 })]]);
+  const elements = new Map();
   let button;
   const page = {
     top: null, innerWidth: 360, innerHeight: 640,
@@ -244,15 +247,12 @@ test("floating Android control restores saved position and clamps it to viewport
     setTimeout() {}, Event: function Event() {}, CustomEvent: function CustomEvent() {}, MutationObserver: null,
     document: {
       readyState: "complete", documentElement: { setAttribute() {} }, dispatchEvent() {},
-      getElementById() { return button || null; },
+      getElementById(id) { return elements.get(id) || null; },
       createElement() {
-        button = {
-          style: {}, offsetWidth: 160, offsetHeight: 40, setAttribute() {},
-          addEventListener() {}, setPointerCapture() {}, releasePointerCapture() {}
-        };
-        return button;
+        return { id: "", style: {}, offsetWidth: 160, offsetHeight: 40, setAttribute() {},
+          addEventListener() {}, setPointerCapture() {}, releasePointerCapture() {} };
       },
-      body: { appendChild() {} }
+      body: { appendChild(element) { elements.set(element.id, element); if (element.id === "dola30-android-control") button = element; } }
     }
   };
   page.top = page;
@@ -265,6 +265,7 @@ test("floating Android control restores saved position and clamps it to viewport
 test("floating Android control reclamps and persists after viewport resize", () => {
   const values = new Map([["intl_doubao_media_panel_pos_v3", JSON.stringify({ left: 188, bottom: 12 })]]);
   const listeners = new Map();
+  const elements = new Map();
   let button;
   const page = {
     top: null, innerWidth: 360, innerHeight: 640,
@@ -277,15 +278,12 @@ test("floating Android control reclamps and persists after viewport resize", () 
     setTimeout() {}, Event: function Event() {}, CustomEvent: function CustomEvent() {}, MutationObserver: null,
     document: {
       readyState: "complete", documentElement: { setAttribute() {} }, dispatchEvent() {},
-      getElementById() { return button || null; },
+      getElementById(id) { return elements.get(id) || null; },
       createElement() {
-        button = {
-          style: {}, offsetWidth: 160, offsetHeight: 40, setAttribute() {},
-          addEventListener() {}, setPointerCapture() {}, releasePointerCapture() {}
-        };
-        return button;
+        return { id: "", style: {}, offsetWidth: 160, offsetHeight: 40, setAttribute() {},
+          addEventListener(name, callback) { if (this.id === "dola30-android-control") listeners.set(name, callback); }, setPointerCapture() {}, releasePointerCapture() {} };
       },
-      body: { appendChild() {} }
+      body: { appendChild(element) { elements.set(element.id, element); if (element.id === "dola30-android-control") button = element; } }
     }
   };
   page.top = page;
@@ -299,6 +297,7 @@ test("floating Android control reclamps and persists after viewport resize", () 
 test("floating Android control respects visual viewport offsets and keyboard bounds", () => {
   const values = new Map([["intl_doubao_media_panel_pos_v3", JSON.stringify({ left: 188, bottom: 12 })]]);
   const listeners = new Map();
+  const elements = new Map();
   let button;
   const visualViewport = {
     offsetLeft: 30, offsetTop: 0, width: 240, height: 350,
@@ -315,15 +314,12 @@ test("floating Android control respects visual viewport offsets and keyboard bou
     setTimeout() {}, Event: function Event() {}, CustomEvent: function CustomEvent() {}, MutationObserver: null,
     document: {
       readyState: "complete", documentElement: { setAttribute() {} }, dispatchEvent() {},
-      getElementById() { return button || null; },
+      getElementById(id) { return elements.get(id) || null; },
       createElement() {
-        button = {
-          style: {}, offsetWidth: 160, offsetHeight: 40, setAttribute() {},
-          addEventListener() {}, setPointerCapture() {}, releasePointerCapture() {}
-        };
-        return button;
+        return { id: "", style: {}, offsetWidth: 160, offsetHeight: 40, setAttribute() {},
+          addEventListener(name, callback) { listeners.set(name, callback); }, setPointerCapture() {}, releasePointerCapture() {} };
       },
-      body: { appendChild() {} }
+      body: { appendChild(element) { elements.set(element.id, element); if (element.id === "dola30-android-control") button = element; } }
     }
   };
   page.top = page;
@@ -336,5 +332,41 @@ test("floating Android control respects visual viewport offsets and keyboard bou
   listeners.get("visual:scroll")();
   assert.equal(button.style.left, "108px");
   assert.deepEqual(JSON.parse(values.get("intl_doubao_media_panel_pos_v3")), { left: 108, bottom: 298 });
+});
+
+test("floating 30S control minimizes, persists the supplied key, and expands without changing duration", () => {
+  const values = new Map();
+  const elements = new Map();
+  const listeners = new Map();
+  const page = {
+    top: null, innerWidth: 360, innerHeight: 640,
+    location: { hostname: "www.dola.com" },
+    localStorage: { getItem(key) { return values.has(key) ? values.get(key) : null; }, setItem(key, value) { values.set(key, String(value)); } },
+    setTimeout() {}, Event: function Event() {}, CustomEvent: function CustomEvent() {}, MutationObserver: null,
+    document: {
+      readyState: "complete", documentElement: { setAttribute() {} }, dispatchEvent() {},
+      getElementById(id) { return elements.get(id) || null; },
+      createElement() { return { id: "", style: {}, offsetWidth: 160, offsetHeight: 40, setAttribute() {},
+        addEventListener(name, callback) { listeners.set(this.id + ":" + name, callback); }, setPointerCapture() {}, releasePointerCapture() {} }; },
+      body: { appendChild(element) { elements.set(element.id, element); } }
+    }
+  };
+  page.top = page;
+  vm.runInNewContext(source, { window: page });
+  const control = elements.get("dola30-android-control");
+  const minimize = elements.get("dola30-android-control-minimize");
+  assert.equal(page.dola30Android.isPanelMinimized(), false);
+  assert.equal(minimize.style.display, "block");
+  listeners.get("dola30-android-control-minimize:click")();
+  assert.equal(values.get("intl_doubao_media_panel_minimized_v1"), "1");
+  assert.equal(control.textContent, "30S");
+  assert.equal(control.style.display, undefined);
+  assert.equal(minimize.style.display, "none");
+  assert.equal(page.dola30Android.getDola30sStatus().includes('"on":false'), true);
+  listeners.get("dola30-android-control:pointerdown")({ button: 0, pointerId: 2, clientX: 300, clientY: 620, preventDefault() {} });
+  listeners.get("dola30-android-control:pointerup")({ pointerId: 2 });
+  assert.equal(values.get("intl_doubao_media_panel_minimized_v1"), "0");
+  assert.equal(control.textContent, "30S 工具（当前 15S）");
+  assert.equal(page.dola30Android.getDola30sStatus().includes('"on":false'), true);
 });
 
