@@ -48,9 +48,12 @@
 - **真机安装待确认**：从最新代码提交 `bcf7919` 的 CI artifact 提取 `deviceValidation` APK，并本地复核 SHA-256 `4e6111300ffb50eb10126d275b5479cd7360268041c4bb8f71808d386373a87a`，包含 15 个原始扩展文件。对前一版 APK 执行 `adb install -r` 曾返回 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`；最新 APK 尚未安装。未卸载旧版或更改其数据；需在手机端允许通过调试安装。
 - 真机已验证启动、该 Dola 页面加载、document-start 适配控件及资源观察状态；未验证登录/会话、实际下载、上传、Cookie 快照、不同空间数据隔离或平台是否接受 30 秒请求，仍需逐项真机验收。
 
+## 用户提供的 v1.6.9 JavaScript 基线
+
+用户提供的 `D:\AIDM\dola30-v1.6.9` 是 v1.6.9 源，和随项目已有的 `D:\AIDM\anzhuodoulala\豆啦啦无印浏览器\Extensions\dola30` 基线不是同一版。前者 `manifest.json` 声明了 `media-upload-main.js`；manifest 和四个页面脚本（含该上传脚本）已另存为 `app/src/main/assets/dola30-user-source-v1.6.9/` 下的独立、原字节只读基线，Node 测试及 APK 内哈希验证检查这些文件。该目录不加入扩展 CRX 打包清单、不注入页面；网页标准文件选择仍走 WebView 原生选择器。原上传脚本依赖私有 Webpack/chatIMService 上传/消息管线，Android 不执行它也不宣称等价。原版 background service worker 暂不随公开包发布（已在来源清单明确标为排除），页面上传按钮实际行为仍待设备验证。
+
 ## 安装与升级边界
 
 APK 为 debug 构建，runner 的临时签名可能导致无法覆盖旧 APK。必要时卸载再装会清除应用数据；升级前应先导出工作台 JSON、Cookie 快照（若确有需要）及下载中心中已另存的文件。Cookie 快照包含明文会话凭证，不能作为安全备份或提交到仓库。
 
 - WebView 标签导航历史现支持有界 best-effort 保存/恢复：兼容旧 URL 数组，历史编码 96 KiB 总预算、单标签 36 KiB Parcel 上限、512 KiB 标签 JSON 上限；损坏/超限回退 URL。Android instrumentation 在受控双页 fixture 上验证恢复的返回栈。此功能不恢复 DOM、表单或 JS 堆；PR head `241f2ff1` 的 APK CI 与 Android 15/API 35 UI smoke 已通过；16/16 instrumentation 全绿（run `38054679861`）。
-

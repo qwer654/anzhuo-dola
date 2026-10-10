@@ -24,20 +24,26 @@ class Packaging(unittest.TestCase):
     def test_apk_verification_checks_built_bytes_and_rejects_tampering(self):
         with tempfile.TemporaryDirectory() as tmp:
             apk = Path(tmp) / "fixture.apk"
-            source = ROOT / "app/src/main/assets/dola30-original"
-            manifest = json.loads((source / "SOURCE-MANIFEST.json").read_text(encoding="utf-8"))
+            sources = {
+                "dola30-original": ROOT / "app/src/main/assets/dola30-original",
+                "dola30-user-source-v1.6.9": ROOT / "app/src/main/assets/dola30-user-source-v1.6.9",
+            }
+            manifests = {name: json.loads((source / "SOURCE-MANIFEST.json").read_text(encoding="utf-8")) for name, source in sources.items()}
             for tamper in (False, True):
                 with zipfile.ZipFile(apk, "w") as archive:
-                    for entry in manifest["files"]:
-                        data = (source / entry["path"]).read_bytes()
-                        if tamper and entry["path"] == "manifest.json":
-                            data += b" "
-                        archive.writestr("assets/dola30-original/" + entry["path"], data)
+                    for name, source in sources.items():
+                        for entry in manifests[name]["files"]:
+                            data = (source / entry["path"]).read_bytes()
+                            if tamper and name == "dola30-original" and entry["path"] == "manifest.json":
+                                data += b" "
+                            archive.writestr("assets/" + name + "/" + entry["path"], data)
                 if tamper:
                     with self.assertRaises(ValueError):
                         apk_verify.verify(apk)
                 else:
-                    self.assertEqual(apk_verify.verify(apk)["originalFilesVerified"], len(manifest["files"]))
+                    result = apk_verify.verify(apk)
+                    self.assertEqual(result["originalFilesVerified"], len(manifests["dola30-original"]["files"]))
+                    self.assertEqual(result["additionalSourceFilesVerified"], {"dola30-user-source-v1.6.9": len(manifests["dola30-user-source-v1.6.9"]["files"])})
 
     def test_packages_are_complete_deterministic_and_preserve_sources(self):
         with tempfile.TemporaryDirectory() as tmp:
