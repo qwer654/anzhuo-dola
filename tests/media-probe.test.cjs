@@ -156,39 +156,56 @@ test('live observer keeps fetch/XHR responses untouched while collecting readabl
     'https://cdn.example/dom-attribute.jpg?sig=q%2Fr'
   ].sort());
 });
-test('same-origin child frames relay only bounded normalized media URLs to the top collector', () => {
+test('iframe media relay requires a top-origin nonce challenge and rejects forged or stale replies', () => {
   const script = fs.readFileSync(require.resolve('../app/src/main/assets/media-probe.js'), 'utf8');
-  let topMessage;
+  let request;
+  const childWindow = {};
+  const frame = { isConnected: true, contentWindow: childWindow,
+    getAttribute(name) { return name === 'src' ? 'https://media.dola.com/frame-fixture' : null; },
+    hasAttribute() { return false; }, addEventListener() {} };
   const top = {
     location: { hostname: 'www.dola.com', origin: 'https://www.dola.com' },
-    document: { title: 'top', readyState: 'complete', querySelectorAll() { return []; } },
+    crypto: { getRandomValues(bytes) { bytes.fill(7); return bytes; } },
+    document: { title: 'top', baseURI:'https://www.dola.com/', readyState: 'complete', querySelectorAll(selector) { return selector === 'iframe' ? [frame] : []; } },
     addEventListener(name, listener) { if (name === 'message') this.onMessage = listener; },
     setTimeout(callback) { callback(); return 1; }
   };
   top.top = top;
+  top.postMessage = (data, targetOrigin) => { child.reply = { data, targetOrigin }; };
   vm.runInNewContext(script, { window: top, URL, Map, Set, Uint8Array, Promise });
   const image = { tagName: 'IMG', currentSrc: 'https://cdn.example/frame.jpg?id=x&sig=a%2Fb', srcset: '' };
   const child = {
     top,
-    parent: { postMessage(data, targetOrigin) { topMessage = { data, targetOrigin }; } },
-    location: { hostname: 'www.dola.com', origin: 'https://www.dola.com' },
+    parent: top,
+    addEventListener(name, listener) { if (name === 'message') this.onMessage = listener; },
+    location: { hostname: 'media.dola.com', origin: 'https://media.dola.com' },
     document: { title: 'same-origin frame', readyState: 'complete', querySelectorAll() { return [image]; } },
     setTimeout(callback) { callback(); return 1; }
   };
   vm.runInNewContext(script, { window: child, URL, Map, Set, Uint8Array, Promise });
-  assert.equal(topMessage.targetOrigin, 'https://www.dola.com');
-  assert.equal(topMessage.data.channel, 'dola.android.media');
-  assert.equal(topMessage.data.version, 1);
-  top.onMessage({ origin: 'https://www.dola.com', source: child, data: topMessage.data });
+  // Fake the browser's target-origin checked WindowProxy delivery.
+  childWindow.postMessage = (data, targetOrigin) => {
+    child.lastRequest = { data, targetOrigin };
+    child.onMessage({ origin:'https://www.dola.com', source:top, data });
+  };
+  top.__dolaAndroidScan();
+  request = child.lastRequest;
+  assert.ok(request, 'top document should send a challenge');
+  assert.equal(request.targetOrigin, 'https://media.dola.com');
+  assert.equal(request.data.type, 'scan-request');
+  assert.equal(request.data.channel, 'dola.android.media');
+  assert.equal(request.data.version, 1);
+  assert.equal(child.reply.targetOrigin, 'https://www.dola.com');
+  assert.equal(child.reply.data.type, 'scan-response');
+  top.onMessage({ origin: 'https://media.dola.com', source: childWindow, data: child.reply.data });
   assert.deepEqual(Array.from(top.__dolaAndroidDrain(), item => item.url), ['https://cdn.example/frame.jpg?id=x&sig=a%2Fb']);
-  const reject = data => top.onMessage({ origin: 'https://www.dola.com', source: child, data });
-  reject({ channel: 'other', version: 1, items: [{ url: 'https://cdn.example/no.jpg', type: 'image' }] });
-  top.onMessage({ origin: 'https://evil.example', source: child, data: topMessage.data });
-  reject({ channel: 'dola.android.media', version: 1, items: Array.from({ length: 301 }, () => ({ url: 'https://cdn.example/no.jpg', type: 'image' })) });
-  reject({ channel: 'dola.android.media', version: 1, items: [
-    { url: 'javascript:alert(1)', type: 'image' },
-    { url: 'https://cdn.example/no.jpg', type: 'script' }
-  ] });
+
+  const stale = child.reply.data;
+  top.onMessage({ origin:'https://evil.example', source:childWindow, data:stale });
+  top.onMessage({ origin:'https://media.dola.com', source:{}, data:stale });
+  top.onMessage({ origin:'https://media.dola.com', source:childWindow, data:{...stale, nonce:'forged'} });
+  top.onMessage({ origin:'null', source:childWindow, data:stale });
+  top.onMessage({ origin:'https://media.dola.com', source:childWindow, data:stale }); // already consumed nonce
   assert.deepEqual(Array.from(top.__dolaAndroidDrain()), []);
 });
 test('prompt timeline handles timestamps and English/Chinese seconds', () => {
