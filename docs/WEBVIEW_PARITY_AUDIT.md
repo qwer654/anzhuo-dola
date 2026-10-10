@@ -16,7 +16,7 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 | `skill-pack-main.js` 能力响应钩子 | **保留、未注入** | 原文件哈希保持不变，但不向站点运行；不伪造/扩大平台返回的模型、会员或生成能力。 |
 | `host-bridge.js` 与 Chrome 消息通道 | **未移植** | 未创建 `chrome.*` 兼容假层，避免出现“看似成功、实际消息丢失”的伪兼容。若实现原生桥，必须限制白名单源、命令集合、消息大小和调用权限，并单测来源校验。 |
 | MV3 `manifest.json` | **仅作为原始资料保留** | Android APK 不会把它当作 Chrome 扩展安装。 |
-| MV3 fingerprint-privacy 扩展 | **尚未接入 WebView** | 其扩展 worker/DNR 路径不是 WebView API；不得标记为手机上的隐私防护已生效。 |
+| MV3 fingerprint-privacy 扩展 | **MV3 扩展未接入；Android 原生隐私子集已实现** | WebView 菜单洁净模式保留实际 WebView UA（仅移除应用自标识后缀）并拒收第三方 Cookie；不伪造设备身份或高熵 Client Hints。Canvas/Audio/WebRTC限制和 DNR 请求头规则仍未接入，也不保证无广告。 |
 
 ## 审核发现与改进
 
@@ -26,7 +26,8 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 4. **站点运行风险**：注入只允许受信 HTTPS 域；文件访问关闭、混合内容禁止、外部 scheme 不会直接交给 WebView。资源下载为用户确认的系统下载任务，不自动附加登录 Cookie。Cookie 快照是敏感凭证，只经用户主动 SAF 选择且绑定精确 origin。
 5. **真机验收边界**：已在 Xiaomi `22127RK46C` / Android 16 / `com.google.android.webview 153.0.8010.36` 安装 CI 校验的 `0.2.1-debug` APK，并打开 `https://www.dola.com/chat/`。页面显示本地工具与资源观察状态，资源计数为 5；本次未登录、未提交提示词、未触发生成，也未读取 Cookie/令牌。该结果证明目标 Provider 与这一 Dola 页面下的基础加载/注入路径可用，但不证明登录、上传、实际下载、Cookie 迁移、跨空间隔离或平台接受 30 秒请求。
 
-6. **CI 门禁与设备安装路径已验证**：PR #1 的 Android APK 工作流已对 `debug` 与独立包名 `deviceValidation` 变体运行编译、签名及原始资源完整性检查；API 35 模拟器的 `connectedDeviceValidationAndroidTest` 通过，包含媒体 URL 精确复制到剪贴板的测试，并上传了可并装 APK 与 instrumentation APK。真机侧 `adb install` 曾返回 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`（runner debug 签名不一致）；随后提供并在 CI 验证了并装变体。小米手机本次尝试安装并装变体时返回 `INSTALL_FAILED_USER_RESTRICTED`，旧版数据未卸载或清除，等待设备端安装确认后再做真机 instrumentation。
+6. **隐私洁净开关已按低风险定义接入**：开启时使用 native WebView UA、阻止第三方 Cookie；单位测试验证 UA 不被伪造且 Cookie 策略随模式切换。它不是完整抗指纹，也不保证防止个性化广告。
+7. **CI 门禁与设备安装路径已验证**：PR #1 的 Android APK 工作流已对 `debug` 与独立包名 `deviceValidation` 变体运行编译、签名及原始资源完整性检查；API 35 模拟器的 `connectedDeviceValidationAndroidTest` 通过，包含媒体 URL 精确复制到剪贴板的测试，并上传了可并装 APK 与 instrumentation APK。真机侧 `adb install` 曾返回 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`（runner debug 签名不一致）；随后提供并在 CI 验证了并装变体。小米手机本次尝试安装并装变体时返回 `INSTALL_FAILED_USER_RESTRICTED`，旧版数据未卸载或清除，等待设备端安装确认后再做真机 instrumentation。
 
 ## 下一阶段验收门槛
 

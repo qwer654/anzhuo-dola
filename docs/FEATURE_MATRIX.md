@@ -15,13 +15,13 @@
 | 资源下载 | 已实现（有限） | Android DownloadManager + 下载中心状态、打开、分享、SAF 另存、删除；最多保留 100 条记录，应用私有外部目录卸载时删除。 |
 | 认证下载 | 未实现 | 不自动附加 Cookie 或认证头；需登录或已过期链接可能失败/过期。 |
 | 30 秒/时间码 | 已实现（默认安全适配；原版脚本可选） | 默认 WebView 模式只保存本地状态并提供人工提示词工具；用户可在浏览器菜单显式开启原版 `duration-main.js`，经警告并重载后原样注入 Dola/Doubao 白名单页。开启原版模式后，原脚本自行判断是否更改页面状态、提示词或匹配请求中的用户文本；不会由应用自动提交。原 MV3 源文件保持原样。 |
-| 指纹诊断/隐私 | 已加入扩展模块（待 Cobalt 验收） | `assets/fingerprint-privacy/` 提供本地信号报告、Canvas/WebGL/离线音频/WebRTC/媒体设备限制，以及“洁净模式”（固定低熵移动 UA、通用设备值、删除高熵 Client Hints）；不随机轮换，不改 Cookie/Referer/认证头，不用于绕过风控。 |
+| 指纹诊断/隐私 | WebView 已实现保守洁净子集；扩展模块未接入 | 浏览器菜单“隐私洁净模式”采用实际 WebView 原生 UA（移除应用专属后缀）并阻止第三方 Cookie；不伪造机型/系统身份或高熵请求头，可能影响跨站登录，不保证无定向广告。MV3 模块的 Canvas/Audio/WebRTC 限制、页面诊断与 DNR 请求头规则仍未接入 WebView。
 | 快捷文本 | 已实现 | 本地 CRUD、复制或填入当前网页；不会自动发送。 |
 | 分镜工作台 | 已实现（手动） | UTF-8 文本按空行导入、编辑、三态手动状态、JSON 备份；不代表平台生成状态。 |
 | Cookie 导入/导出 | 已实现（有限快照） | 用户主动 SAF 操作；只接受完全相同 origin，快照仅名称和值。导入写根路径、Secure/HttpOnly/SameSite=Lax 会话 Cookie；Domain/Path/过期时间/其它元数据及网页本地存储不迁移，不是完整登录备份。明文快照需用户自行保管和删除。 |
 | CDP 深度嗅探/Fetch.fulfillRequest | 未实现 | Android WebView 没有桌面 WebView2 等价能力。 |
 | HTTP/SOCKS5 认证、链式代理 | 未实现 | 需要重新设计 Android 网络层。 |
-| UA/时区/Canvas/Audio/WebRTC 完整指纹 | 未完成（仅部分扩展源码） | 洁净模式含固定 UA/通用页面设备值、请求头规则及可选 API 限制；尚未接入 Android 运行时，不修改系统设备 ID，不覆盖 iframe/Worker/时区等信号，也不保证无广告。 |
+| UA/时区/Canvas/Audio/WebRTC 完整指纹 | 未完成（仅部分保护） | 隐私洁净模式保留真实 WebView UA 并移除 app 后缀，阻止第三方 Cookie；未改时区、系统身份或 Client Hints，也未接入 iframe/Worker/Canvas/Audio/WebRTC 完整保护。
 | 批量自动生成、发送、后台任务 | 未实现 | 目前仅提供用户确认后的网页填入。 |
 | 遮罩、人脸、参考音频、创作中心、百宝箱 | 未实现 | 桌面发布包只有入口线索或组件源码不完整。 |
 | Windows 机器码、注册表、WPF API、DLL/Chrome 扩展 | 不适用/未实现 | Android 无对应运行时。 |

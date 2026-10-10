@@ -6,7 +6,7 @@
 
 用户提供的 Dola30 MV3 JavaScript 已原样纳入 APK 资源目录 [`app/src/main/assets/dola30-original/`](app/src/main/assets/dola30-original/)；`duration-main.js`、`skill-pack-main.js`、`content-panel.js`、`host-bridge.js`、`service-worker.js`、`manifest.json`、`rules.json` 与响应样例均未改写或删除，`SOURCE-MANIFEST.json` 保存字节数和 SHA-256。
 
-Android WebView 没有 Chrome MV3 的 `chrome.runtime`、`chrome.debugger`、`webRequest` 和桌面 WebView2 host bridge，因此这些原脚本会作为编译资源保留，但不会假装已经等价执行。当前运行时继续使用 Android 安全子集；原脚本中涉及拦截平台请求、移除水印或绕过平台能力限制的部分不会被自动启用。
+Android WebView 没有 Chrome MV3 的 `chrome.runtime`、`chrome.debugger`、`webRequest` 和桌面 WebView2 host bridge，因此不能假装原扩展全量等价运行。当前以 Android 安全子集为默认；Dola30 页面脚本可由用户显式确认后按原件注入，默认不开启。涉及平台能力改变或水印处理不作为 Android 功能承诺。
 
 ### Android WebView 适配层
 
@@ -20,7 +20,7 @@ APK 额外注入 [`app/src/main/assets/dola30-android-adapter.js`](app/src/main/
 
 首个独立扩展模块已加入 [`app/src/main/assets/fingerprint-privacy/`](app/src/main/assets/fingerprint-privacy/)：提供本地指纹诊断，以及用户可选的 Canvas、WebGL、离线音频、WebRTC 和媒体设备隐私限制。新增“洁净模式”后，扩展使用固定的低熵移动 UA/通用设备值，并删除高熵 Client Hints；不会随机轮换，也不修改 Cookie、Referer 或认证头。“严格隐私”可一次开启高影响限制。
 
-**当前状态：洁净模式只是独立 MV3 扩展源码，尚未在 Android WebView 中运行，Cobalt 尚未接入。** 开关与网络规则已有 Node VM 测试；不等于浏览器或真机验收通过。它不修改系统设备 ID，也不保证匿名或消除广告。覆盖范围和限制见扩展目录 README。
+**Android WebView 隐私开关已实现一个保守子集**：菜单中的“隐私洁净模式”会移除应用专属 UA 后缀并阻止第三方 Cookie；保留系统 WebView 实际 UA，不伪造机型、系统身份或高熵请求头。需确认后重载，可能影响跨站登录；它不保证匿名或消除广告。MV3 独立扩展中的 Canvas/Audio/WebRTC 限制与请求头规则仍未接入 WebView，Cobalt 也尚未接入。
 
 新增真实 Chromium 回显测试和独立扩展打包流水线；Cobalt 构建入口已固定上游版本并接入原有扩展安装 stager，但需专用 Linux runner 才能执行。详见 [`docs/COBALT_BUILD_GATE.md`](docs/COBALT_BUILD_GATE.md)。内核验证 APK 与现有 WebView 应用分开，未完成全功能回归前不替换现有应用。
 

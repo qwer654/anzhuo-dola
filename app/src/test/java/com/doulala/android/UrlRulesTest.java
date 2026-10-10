@@ -22,6 +22,13 @@ public class UrlRulesTest {
         assertFalse(UrlRules.trusted("https://user@dola.com"));
         assertFalse(UrlRules.trusted(null));
     }
+    @Test public void privacyModeKeepsNativeUserAgentAndBlocksThirdPartyCookies() {
+        String nativeAgent="Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/153.0.0.0 Mobile Safari/537.36";
+        assertEquals(nativeAgent,BrowserActivity.userAgentForPrivacyMode(nativeAgent,true));
+        assertFalse(BrowserActivity.acceptThirdPartyCookiesInPrivacyMode(true));
+        assertEquals(nativeAgent+" DoulalaAndroid/0.2",BrowserActivity.userAgentForPrivacyMode(nativeAgent,false));
+        assertTrue(BrowserActivity.acceptThirdPartyCookiesInPrivacyMode(false));
+    }
     @Test public void filenamesAreBoundedAndFlat() {
         String file = UrlRules.safeFilename("../../secret:?.mp4", "media.mp4");
         assertFalse(file.contains("/"));
