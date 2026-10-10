@@ -188,7 +188,8 @@ test('iframe media relay requires a top-origin nonce challenge and rejects forge
     child.lastRequest = { data, targetOrigin };
     child.onMessage({ origin:'https://www.dola.com', source:top, data });
   };
-  top.__dolaAndroidScan();
+  // BrowserActivity's periodic scanner drives this drain entry point.
+  top.__dolaAndroidDrain();
   request = child.lastRequest;
   assert.ok(request, 'top document should send a challenge');
   assert.equal(request.targetOrigin, 'https://media.dola.com');
