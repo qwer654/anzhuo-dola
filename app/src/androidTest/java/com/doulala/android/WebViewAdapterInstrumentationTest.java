@@ -220,6 +220,41 @@ public class WebViewAdapterInstrumentationTest {
             clipboard.clearPrimaryClip();
         }
     }
+
+    @Test public void manualRescanFindsDomMediaInTrustedWebViewPage() throws Exception {
+        assertTrue("WebView provider lacks document-start JavaScript support",
+            WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
+        String probe = readAsset("media-probe.js");
+        AtomicReference<WebView> viewRef = new AtomicReference<>();
+        AtomicReference<String> resultHolder = new AtomicReference<>();
+        CountDownLatch finished = new CountDownLatch(1);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            WebView view = new WebView(context);
+            view.getSettings().setJavaScriptEnabled(true);
+            viewRef.set(view);
+            try {
+                WebViewCompat.addDocumentStartJavaScript(view, probe,
+                    new HashSet<>(Arrays.asList("https://dola.com", "https://*.dola.com")));
+            } catch (Exception e) {
+                throw new AssertionError("Could not install the media observer", e);
+            }
+            view.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override public void onPageFinished(WebView webView, String url) {
+                    webView.evaluateJavascript("(function(){window.__dolaAndroidScan();return window.__dolaAndroidDrain()})()",
+                        value -> { resultHolder.set(value); finished.countDown(); });
+                }
+            });
+            view.loadDataWithBaseURL("https://www.dola.com/", "<!doctype html><img src=\"https://cdn.example.test/media.jpg?sig=a%2Fb\">",
+                "text/html", "UTF-8", null);
+        });
+        assertTrue("Trusted media fixture did not finish", finished.await(20, TimeUnit.SECONDS));
+        JSONArray media = new JSONArray(resultHolder.get());
+        assertEquals(1, media.length());
+        assertEquals("https://cdn.example.test/media.jpg?sig=a%2Fb", media.getJSONObject(0).getString("url"));
+        assertEquals("image", media.getJSONObject(0).getString("type"));
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
+    }
+
     private String readAsset(String name) throws Exception {
         try (InputStream in = context.getAssets().open(name); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[8192];
@@ -262,3 +297,4 @@ public class WebViewAdapterInstrumentationTest {
     }
 
 }
+
