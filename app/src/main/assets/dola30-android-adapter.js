@@ -164,7 +164,6 @@
       control.addEventListener("pointercancel", function (event) { finishDrag(event, control); });
       control.addEventListener("click", function (event) {
         if (Date.now() < suppressClickUntil) {
-          suppressClickUntil = 0;
           if (event && event.preventDefault) event.preventDefault();
           if (event && event.stopPropagation) event.stopPropagation();
           return;
