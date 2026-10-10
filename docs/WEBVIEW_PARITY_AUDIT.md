@@ -62,4 +62,4 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 - 等价声明：没有覆盖的 MV3 API 必须继续标“未移植/非等价”，尤其 debugger、下载认证头、Worker/不匹配或 opaque iframe 注入、响应替换和扩展弹窗/Service Worker 生命周期。匹配 provider iframe 的 API 降噪不是完整 MV3 frame/worker 覆盖。
 
 
-17. **标签导航历史恢复（PR head `7704490b`）**：多标签偏好设置继续读取旧版 URL 字符串数组，并支持写入 URL + 有界 WebView `saveState` 序列化数据。全部历史编码预算 96 KiB，单标签状态原始 Parcel 上限 36 KiB，JSON 上限 512 KiB；无法保存、损坏或超限时退回 URL 加载。API 35 instrumentation 使用本地两页 fixture 验证恢复后仍有返回历史；表单、DOM、JavaScript 堆和网页内状态仍不恢复。新增 CI 运行正在执行，未通过前不把该行为当成已验证发布能力。
+17. **标签导航历史恢复（PR head `7704490b`）**：多标签偏好设置继续读取旧版 URL 字符串数组，并支持写入 URL + 有界 WebView `saveState` 序列化数据。全部历史编码预算 96 KiB，单标签状态原始 Parcel 上限 36 KiB，JSON 上限 512 KiB；无法保存、损坏或超限时退回 URL 加载。API 35 instrumentation 使用本地两页 fixture 验证恢复后仍有返回历史；表单、DOM、JavaScript 堆和网页内状态仍不恢复。PR head `241f2ff1` 的 Android APK 构建/资源哈希门禁通过，Android 15/API 35 UI smoke 为 16/16 instrumentation 全通过（run `38054679861`）；历史恢复项由本地双页 HTTPS 拦截 fixture 覆盖。
