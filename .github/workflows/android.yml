@@ -12,6 +12,16 @@ on:
       - 'tools/verify_apk_assets.py'
       - '.gitattributes'
       - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'app/**'
+      - '*.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'tests/**'
+      - 'tools/verify_apk_assets.py'
+      - '.gitattributes'
+      - '.github/workflows/android.yml'
 
 permissions:
   contents: read

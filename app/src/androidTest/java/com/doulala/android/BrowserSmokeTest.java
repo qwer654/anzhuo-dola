@@ -31,23 +31,13 @@ public class BrowserSmokeTest {
     @After public void captureFinalState() throws Exception {screenshot("final");}
     private void openSpace(String title) throws Exception {
         waitFor(By.text("账号空间"));
-        UiScrollable list=new UiScrollable(new UiSelector().scrollable(true));
-        list.scrollTextIntoView(title);
+        new UiScrollable(new UiSelector().scrollable(true)).scrollTextIntoView(title);
         UiObject2 target=waitFor(By.text(title));Rect titleBounds=target.getVisibleBounds();
-        UiObject2 enter=findEnterBelow(titleBounds);
-        if(enter==null) {
-            // scrollTextIntoView may align the title at the viewport bottom and leave
-            // the card's buttons clipped; advance the list once to expose the card.
-            list.scrollForward();target=waitFor(By.text(title));titleBounds=target.getVisibleBounds();
-            enter=findEnterBelow(titleBounds);
-        }
-        assertNotNull("No visible enter button below space title: "+title,enter);enter.click();
-        waitFor(By.text(title));waitFor(By.desc("浏览器菜单"));
-    }
-    private UiObject2 findEnterBelow(Rect titleBounds) {
-        return device.findObjects(By.text("进入空间")).stream()
+        UiObject2 enter=device.findObjects(By.text("进入空间")).stream()
             .filter(button->button.getVisibleBounds().top>titleBounds.bottom)
             .min(Comparator.comparingInt(button->button.getVisibleBounds().top-titleBounds.bottom)).orElse(null);
+        assertNotNull("No visible enter button below space title: "+title,enter);enter.click();
+        waitFor(By.text(title));waitFor(By.desc("浏览器菜单"));
     }
     @Test public void tabsBookmarksDownloadsAndSpaceIsolation() throws Exception {
         // Follow the real entry/return path. Starting a finishing singleTask activity
