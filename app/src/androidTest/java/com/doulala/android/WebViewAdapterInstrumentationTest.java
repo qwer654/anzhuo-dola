@@ -401,6 +401,7 @@ public class WebViewAdapterInstrumentationTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             WebView view = new WebView(context);
             view.getSettings().setJavaScriptEnabled(true);
+            view.getSettings().setBlockNetworkLoads(true)
             viewRef.set(view);
             try {
                 WebViewCompat.addDocumentStartJavaScript(view, probe,
@@ -414,14 +415,24 @@ public class WebViewAdapterInstrumentationTest {
                         value -> { resultHolder.set(value); finished.countDown(); });
                 }
             });
-            view.loadDataWithBaseURL("https://www.dola.com/", "<!doctype html><img src=\"https://cdn.example.test/media.jpg?sig=a%2Fb\">",
+            view.loadDataWithBaseURL("https://www.dola.com/", "<!doctype html><picture>"
+                    + "<source srcset=\"https://www.dola.com/picture-1.avif?sig=c%2Fd 1x, "
+                    + "https://www.dola.com/picture-2.avif?sig=e%2Ff 2x\">"
+                    + "<img src=\"https://www.dola.com/media.jpg?sig=a%2Fb\"></picture>",
                 "text/html", "UTF-8", null);
         });
         assertTrue("Trusted media fixture did not finish", finished.await(20, TimeUnit.SECONDS));
         JSONArray media = new JSONArray(resultHolder.get());
-        assertEquals(1, media.length());
-        assertEquals("https://cdn.example.test/media.jpg?sig=a%2Fb", media.getJSONObject(0).getString("url"));
-        assertEquals("image", media.getJSONObject(0).getString("type"));
+        Set<String> urls = new HashSet<>();
+        for (int i = 0; i < media.length(); i++) {
+            JSONObject item = media.getJSONObject(i);
+            assertEquals("image", item.getString("type"));
+            urls.add(item.getString("url"));
+        }
+        assertEquals(new HashSet<>(Arrays.asList(
+                "https://www.dola.com/media.jpg?sig=a%2Fb",
+                "https://www.dola.com/picture-1.avif?sig=c%2Fd",
+                "https://www.dola.com/picture-2.avif?sig=e%2Ff")), urls);
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
 
