@@ -204,7 +204,7 @@ public class WebViewAdapterInstrumentationTest {
                     webView.evaluateJavascript("(function(){"
                         + "var button=document.getElementById('dola30-android-control');"
                         + "if(!button)return JSON.stringify({missing:true});"
-                        + "var original=JSON.parse(window.getDola30sStatus());"
+                        + "window.setDola30s(false);var original=JSON.parse(window.getDola30sStatus());"
                         + "var left=parseFloat(button.style.left),bottom=parseFloat(button.style.bottom);"
                         + "function fire(type,x,y){button.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:9,clientX:x,clientY:y,button:0}));}"
                         + "fire('pointerdown',200,600);fire('pointermove',150,560);fire('pointerup',150,560);"
