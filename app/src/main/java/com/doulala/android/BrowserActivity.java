@@ -250,7 +250,7 @@ public class BrowserActivity extends Activity {
     }
     static String privacyFingerprintBootstrap(String script,boolean enabled) {
         if(!enabled||script==null||script.isEmpty())return null;
-        return "window.__dolaFingerprintInitialSettings={hideWebglDebugInfo:true};\n"+script;
+        return "window.__dolaFingerprintInitialSettings={blockCanvasReadback:true,hideWebglDebugInfo:true,blockAudioFingerprint:true,blockWebRTC:true,blockDeviceEnumeration:true};\n"+script;
     }
     private void scan(Tab t) {
         if(destroyed||t==null||t.closed||t.view==null||!UrlRules.trusted(t.view.getUrl()))return;
@@ -454,7 +454,7 @@ public class BrowserActivity extends Activity {
     }
     private void confirmPrivacyCleanMode(boolean enabled) {
         String detail=enabled
-            ?"开启后使用 Android WebView 原生 UA（不伪造机型/系统身份），阻止第三方 Cookie，关闭网页定位 API；并仅在豆包/Dola/千问/剪映页面隐藏 WebGL 调试渲染器标识。不会改 Canvas、音频或 WebRTC，也不会保证阻止定向广告或实现匿名。可能导致依赖跨站 Cookie 或定位的功能失效；确认后所有标签重载，未提交输入会丢失。"
+            ?"开启后使用 Android WebView 原生 UA（不伪造机型/系统身份），阻止第三方 Cookie、关闭网页定位 API；并在豆包/Dola/千问/剪映页面阻断 Canvas 像素读取、隐藏 WebGL 调试渲染器、限制离线音频指纹、禁用 WebRTC 和设备枚举。不是匿名保证，也不保证阻止定向广告。绘图导出、音频处理、会议/通话、设备选择或依赖第三方 Cookie/定位的功能可能失效；确认后所有标签重载，未提交输入会丢失。"
             :"关闭后恢复应用标识 UA 并允许第三方 Cookie。所有标签重载，未提交输入会丢失。";
         new AlertDialog.Builder(this).setTitle(enabled?"开启隐私洁净模式？":"关闭隐私洁净模式？")
             .setMessage(detail).setNegativeButton("取消",null).setPositiveButton(enabled?"开启并重载":"关闭并重载",(d,w)->{
@@ -481,7 +481,7 @@ public class BrowserActivity extends Activity {
             tab.navigation++;tab.probe=false;tab.androidTools=false;tab.failed=false;tab.media.clear();tab.mediaKeys.clear();
         }
         if(active!=null&&!active.closed)select(active);
-        Ui.toast(this,prefs.getBoolean("privacyCleanMode",false)?"隐私洁净模式已开启（原生 UA / 阻止第三方 Cookie / 禁用网页定位 / 隐藏支持页面的 WebGL 调试渲染器标识）":
+        Ui.toast(this,prefs.getBoolean("privacyCleanMode",false)?"隐私洁净模式已开启（原生 UA / 第三方 Cookie / 定位 / Canvas、WebGL、离线音频、WebRTC、设备枚举保护）":
             (prefs.getBoolean("originalDola30",false)?"原版 Dola30 JS 已开启":"已恢复 Android 默认适配"));
     }
     private JSONArray bookmarks(){try{return new JSONArray(prefs.getString("bookmarks","[]"));}catch(Exception e){return new JSONArray();}}
