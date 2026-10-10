@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'app/src/main/**'
+      - 'app/src/test/**'
       - 'app/src/androidTest/**'
       - 'app/build.gradle'
       - 'build.gradle'
@@ -15,6 +16,7 @@ on:
   pull_request:
     paths:
       - 'app/src/main/**'
+      - 'app/src/test/**'
       - 'app/src/androidTest/**'
       - 'app/build.gradle'
       - 'build.gradle'
@@ -70,3 +72,4 @@ jobs:
             app/build/smoke-diagnostics/
           if-no-files-found: ignore
           retention-days: 7
+
