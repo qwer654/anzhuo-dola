@@ -185,9 +185,10 @@ test("floating Android control is draggable and persists the original panel posi
   assert.equal(button.style.left, "68px");
   assert.equal(button.style.bottom, "122px");
   assert.deepEqual(JSON.parse(values.get("intl_doubao_media_panel_pos_v3")), { left: 68, bottom: 122 });
-  let prevented = false;
-  listeners.get("click")({ preventDefault() { prevented = true; }, stopPropagation() {} });
-  assert.equal(prevented, true, "drag release must not toggle the 30S state");
+  listeners.get("click")({ detail: 1, isTrusted: true });
   assert.equal(page.dola30Android.getDola30sStatus().includes('"on":false'), true);
+  listeners.get("pointerdown")({ button: 0, pointerId: 5, clientX: 80, clientY: 500, preventDefault() {} });
+  listeners.get("pointerup")({ pointerId: 5 });
+  assert.equal(page.dola30Android.getDola30sStatus().includes('"on":true'), true, "tap must toggle 30S");
 });
 
