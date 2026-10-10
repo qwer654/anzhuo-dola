@@ -321,9 +321,12 @@ public class BrowserActivity extends Activity {
         Button button=Ui.button(this,label,action);
         row.addView(button,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1));
     }
-    static Intent mediaShareIntent(String rawUrl) {
+    static String validatedMediaShareUrl(String rawUrl) {
         if(rawUrl==null||!rawUrl.equals(rawUrl.trim())||!rawUrl.regionMatches(true,0,"https://",0,8))return null;
-        String url=webUrl(rawUrl);
+        return webUrl(rawUrl);
+    }
+    static Intent mediaShareIntent(String rawUrl) {
+        String url=validatedMediaShareUrl(rawUrl);
         if(url==null)return null;
         Intent intent=new Intent(Intent.ACTION_SEND);
         intent.setType("text/plain");
