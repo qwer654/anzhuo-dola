@@ -41,6 +41,8 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 
 13. **运行中功能边界提示**：30S 原生工具对话框补充当前页面媒体探针状态，并明确指出 Android WebView 没有 Chrome MV3 Debugger 深度/自动嗅探，fallback API 解析未实现；能力报告按 probe 是否注入区分。Java 单元测试锁定正/负状态下的提示文案，避免 UI 把页面可见 URL 观察包装成原版扩展的深度嗅探。APK 与模拟器验收在 workflow-trigger commit `37a82f1b` 均通过。
 
+14. **最新 APK 的真机并装尝试**：通过的 run `38029307145` 上传了 `deviceValidation` variant；下载后的本地 APK SHA-256 为 `0fef409e982b777740e79b527fc8981eb8a804c9022cfda3d6e826cf1265d072`，`verify_apk_assets.py` 确认 15 个原始扩展资源匹配。对连接设备 `22127RK46C` 执行未覆盖安装时，ADB 返回 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`。未重试、未关闭安全限制、未卸载或更改已安装的 `com.doulala.android.debug`；最新 variant 尚未运行于真机。
+
 ## 下一阶段验收门槛
 
 - 自动化：`f361cc0` Android APK 工作流通过 Node 29 项、Java 单测 12 项、lint、APK 构建/签名和打包原始资源完整性；`05093fc` API 35 模拟器 6/6 instrumentation 通过。新增 Node VM 测试实际执行被注入媒体观察器，确认 fetch/XHR 响应维持原行为而只收集可读媒体 URL。
