@@ -9,19 +9,19 @@
 | 豆包/Dola/即梦/千问/云雀入口 | 已实现 | 可编辑 HTTPS 首页；第三方网站可能拒绝 WebView 登录，需真机验证。 |
 | 8 个隔离账号空间 | 已实现 | 8 个独立 Android 进程/Chromium 数据目录；空间内共享登录，空间之间不共享 Cookie/网页存储。 |
 | 浏览、前进/后退、刷新、上传 | 已实现 | HTTPS WebView；上传使用系统 SAF 文档选择器；不允许 `file://`。 |
-| 多标签 | 已实现（有限） | 每空间最多 6 个按需标签；保留旧版 URL 数组格式读取，并尽力保存/恢复受大小限制的 WebView 前进/后退历史（总编码预算 96 KiB，超限/损坏退回 URL 加载）；不恢复 DOM、表单、JavaScript 堆或登录态页面状态。 |
+| 多标签 | 已实现（有限） | 每空间最多 6 个按需标签；读取旧版 URL 数组；尽力恢复大小受限的 WebView 前进/后退历史，但不恢复表单、DOM 或 JavaScript 页面状态。 |
 | 书签 | 已实现（有限） | 每空间本地最多 200 条；不可导出、同步或跨空间共享。 |
-| 白名单页面媒体观察 | 已实现（安全子集） | 观察页面已有 JSON/fetch/XHR/DOM/Performance 的图片/视频 URL；顶层页还会对 `*.dola.com` 的直接 HTTPS iframe 发起带一次性 nonce 的精确源 challenge（排除 srcdoc/opaque origin），但不扫描嵌套 iframe 或未受信来源；可手动重扫当前页、复制链接、通过 Android 系统分享发送单个 HTTPS URL、在新 HTTPS 标签打开或确认下载；分享不附 Cookie/Referer 或资源字节；不请求 fallback API、不改响应，不保证原图/无水印。 |
+| 白名单页面媒体观察 | 已实现（安全子集） | 观察页面已有 JSON/fetch/XHR/DOM/Performance 的图片/视频 URL；可手动重扫当前页、复制链接、通过 Android 系统分享发送单个 HTTPS URL、在新 HTTPS 标签打开或确认下载，并清空当前标签的观察列表；清空不删除下载文件或网页数据；分享不附 Cookie/Referer 或资源字节；不请求 fallback API、不改响应，不保证原图/无水印。 |
 | 资源下载 | 已实现（有限） | Android DownloadManager + 下载中心状态、打开、分享、SAF 另存、删除；最多保留 100 条记录，应用私有外部目录卸载时删除。 |
 | 认证下载 | 未实现 | 不自动附加 Cookie 或认证头；需登录或已过期链接可能失败/过期。 |
-| 30 秒/时间码 | 已实现（默认安全适配；原版脚本可选） | 默认 WebView 模式只保存本地状态并提供人工提示词工具；用户可在浏览器菜单显式开启原版 `duration-main.js`，经警告并重载后原样注入 Dola/Doubao 白名单页。Android 默认适配器提供 `setDola30s` / `getDola30sStatus` 及兼容旧 C# 宿主的 `setDoubao30s` / `getDoubao30sStatus` 本地状态 API；其中 `applied: 0` 明确表示未控制页面平台。页面悬浮控件支持拖动，并复用原版面板位置键 `intl_doubao_media_panel_pos_v3`；原面板最小化/解析界面仍未复刻。30S 对话框会说明仅可观察页面已暴露的资源 URL，MV3 Debugger 深度/自动嗅探和 fallback API 解析不可用。原版脚本选项菜单直接读写原脚本既有的 prompt-guard / timeline-rewrite localStorage 键；开启原版模式后，原脚本自行判断是否更改页面状态、提示词或匹配请求中的用户文本；不会由应用自动提交。原 MV3 源文件保持原样。 |
+| 30 秒/时间码 | 已实现（默认安全适配；原版脚本可选） | 默认 WebView 模式只保存本地状态并提供人工提示词工具；用户可在浏览器菜单显式开启原版 `duration-main.js`，经警告并重载后原样注入 Dola/Doubao 白名单页。Android 默认适配器提供 `setDola30s` / `getDola30sStatus` 及兼容旧 C# 宿主的 `setDoubao30s` / `getDoubao30sStatus` 本地状态 API；其中 `applied: 0` 明确表示未控制页面平台。页面悬浮控件支持拖动，并复用原版面板位置键 `intl_doubao_media_panel_pos_v3`；新增最小化/展开控制并持久化至原版 `intl_doubao_media_panel_minimized_v1` 键。原完整媒体面板和解析 UI 仍未复刻。30S 对话框会说明仅可观察页面已暴露的资源 URL，MV3 Debugger 深度/自动嗅探和 fallback API 解析不可用。原版脚本选项菜单直接读写原脚本既有的 prompt-guard / timeline-rewrite localStorage 键；开启原版模式后，原脚本自行判断是否更改页面状态、提示词或匹配请求中的用户文本；不会由应用自动提交。原 MV3 源文件保持原样。 |
 | 指纹诊断/隐私 | WebView 已实现用户开启的 API 降噪子集；扩展模块部分接入 | 浏览器菜单“隐私洁净模式”保留实际 WebView UA（移除应用专属后缀）、阻止第三方 Cookie、禁用网页 Geolocation，并在受信 Dola/Doubao/千问/剪映顶层页及匹配的 provider iframe 限制 Canvas 像素读取、隐藏 WebGL 调试渲染器、禁用离线音频指纹 API、WebRTC 及设备枚举。未伪造机型/系统身份或高熵请求头，不保证无定向广告；绘图导出、音频处理、通话或设备选择功能可能受影响。Worker 与不匹配/opaque frame、完整身份混淆、页面诊断和 DNR 请求头规则仍未接入 WebView。
 | 快捷文本 | 已实现 | 本地 CRUD、复制或填入当前网页；不会自动发送。 |
 | 分镜工作台 | 已实现（手动） | UTF-8 文本按空行导入、编辑、三态手动状态、JSON 备份；不代表平台生成状态。 |
 | Cookie 导入/导出 | 已实现（有限快照） | 用户主动 SAF 操作；只接受完全相同 origin，快照仅名称和值。导入写根路径、Secure/HttpOnly/SameSite=Lax 会话 Cookie；Domain/Path/过期时间/其它元数据及网页本地存储不迁移，不是完整登录备份。明文快照需用户自行保管和删除。 |
 | CDP 深度嗅探/Fetch.fulfillRequest | 未实现 | Android WebView 没有桌面 WebView2 等价能力。 |
 | HTTP/SOCKS5 认证、链式代理 | 未实现 | 需要重新设计 Android 网络层。 |
-| UA/时区/Canvas/Audio/WebRTC 完整指纹 | 未完成（仅部分保护） | 隐私洁净模式保留真实 WebView UA 并移除 app 后缀，阻止第三方 Cookie；未改时区、系统身份或 Client Hints；Canvas/Audio/WebRTC 等 API 降噪覆盖顶层页及匹配 provider iframe，Worker、opaque/未匹配 iframe 与完整跨页面指纹保护仍未实现。
+| UA/时区/Canvas/Audio/WebRTC 完整指纹 | 未完成（仅部分保护） | 隐私洁净模式保留真实 WebView UA 并移除 app 后缀，阻止第三方 Cookie；Canvas/Audio/WebRTC 等 API 降噪也应用于匹配的 provider iframe。未改时区、系统身份或 Client Hints；Worker、opaque/未匹配 iframe 与完整跨页面指纹保护仍未实现。
 | 批量自动生成、发送、后台任务 | 未实现 | 目前仅提供用户确认后的网页填入。 |
 | 遮罩、人脸、参考音频、创作中心、百宝箱 | 未实现 | 桌面发布包只有入口线索或组件源码不完整。 |
 | Windows 机器码、注册表、WPF API、DLL/Chrome 扩展 | 不适用/未实现 | Android 无对应运行时。 |
@@ -29,8 +29,7 @@
 
 ## 验证状态
 
-- 最新代码 head `5cd4228c77c6c441d77f8a03e4dd6c96b8972fd5`：Node 四套共 43 项通过（媒体 17、隐私 14、适配器 11、源文件清单 1）；[Android APK workflow](https://github.com/qwer654/anzhuo-dola/actions/runs/38052851806) 构建/签名/原始资源校验通过，[Android 15/API 35 smoke](https://github.com/qwer654/anzhuo-dola/actions/runs/38052851802) 的 15/15 instrumentation 通过，实测匹配的跨源 provider iframe 中隐私 API 降噪与跨源媒体帧 nonce relay。真实小米手机仍未连接 ADB。
-
+- 最新已验证代码 head `5cd4228c77c6c441d77f8a03e4dd6c96b8972fd5`：Node 四套共 43 项通过（媒体 17、隐私 14、适配器 11、源文件清单 1）；[Android APK workflow](https://github.com/qwer654/anzhuo-dola/actions/runs/38052851806) 构建/签名/原始资源校验通过，[Android 15/API 35 smoke](https://github.com/qwer654/anzhuo-dola/actions/runs/38052851802) 的 15/15 instrumentation 通过，实测匹配的跨源 provider iframe 中隐私 API 降噪与跨源媒体帧 nonce relay。真实小米手机仍未连接 ADB。
 - 工作流会运行媒体、原始 JS 完整性和 Android 适配层 Node 测试（`tests/media-probe.test.cjs`、`tests/dola30-source.test.cjs`、`tests/dola30-android-adapter.test.cjs`）。
 - 在 2026-10-10 的 PR 检查中，4 个 Node 测试文件共 26 项、11 项 Java 单元测试、`lintDebug`、APK 构建/签名及原始资源打包哈希验证均通过；APK 构件已由 GitHub Actions 上传。
 - 最新提交 `f361cc0` 的 GitHub Actions APK 工作流已通过：29 项 Node 测试、12 项 Java 单元测试、lint、debug/deviceValidation APK 构建与签名、原始资源哈希校验。新增的运行时 VM 夹具验证媒体观察器只读取 fetch/XHR 可读响应副本，维持原 Response 对象、XHR `send` 返回值和 `responseText` 不变。API 35 模拟器 6/6 instrumentation 已在同一 Android 代码状态的 `05093fc` 通过；Dola30 原版匹配请求的 fetch/XHR 转换测试也通过。
@@ -52,5 +51,5 @@
 
 APK 为 debug 构建，runner 的临时签名可能导致无法覆盖旧 APK。必要时卸载再装会清除应用数据；升级前应先导出工作台 JSON、Cookie 快照（若确有需要）及下载中心中已另存的文件。Cookie 快照包含明文会话凭证，不能作为安全备份或提交到仓库。
 
+- WebView 标签导航历史现支持有界 best-effort 保存/恢复：兼容旧 URL 数组，历史编码 96 KiB 总预算、单标签 36 KiB Parcel 上限、512 KiB 标签 JSON 上限；损坏/超限回退 URL。Android instrumentation 在受控双页 fixture 上验证恢复的返回栈。此功能不恢复 DOM、表单或 JS 堆；PR head `241f2ff1` 的 APK CI 与 Android 15/API 35 UI smoke 已通过；16/16 instrumentation 全绿（run `38054679861`）。
 
-- WebView 标签现在以兼容旧 URL 数组的 JSON 对象格式保存导航历史；Parcel/Base64 总预算限制为 96 KiB，标签 JSON 总上限 512 KiB，单标签原始状态限制 36 KiB，损坏或过大状态安全回退到 URL。新增 instrumentation 使用本地受控页面检查两步历史可恢复和返回栈；这不代表恢复表单/DOM/JavaScript 页面状态。此次本地尚无 Android SDK/Gradle 环境，需 GitHub Actions 结果验证。
