@@ -11,6 +11,11 @@ test('only exact allowed hosts and subdomains are enabled', () => {
   assert.equal(probe.isAllowedHost('evil-dola.com'), false);
   assert.equal(probe.isAllowedHost('dola.com.attacker.test'), false);
 });
+test('recognized media URL extension wins over a misleading resource initiator hint', () => {
+  assert.equal(probe.mediaType('https://cdn.example/poster.jpg?sig=x', 'video'), 'image');
+  assert.equal(probe.mediaType('https://cdn.example/clip.mp4?sig=x', 'image'), 'video');
+  assert.equal(probe.mediaType('https://cdn.example/opaque?id=1', 'video'), 'video');
+});
 test('srcset parser collects bounded HTTPS image candidates without changing signed queries', () => {
   assert.deepEqual(probe.parseSrcset('https://cdn.example/a.webp 1x, https://cdn.example/b?id=2&sig=a%2Fb 2x'), [
     'https://cdn.example/a.webp',
