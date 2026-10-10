@@ -37,7 +37,7 @@
         }
       }
       if (tag === "video") {
-        var poster = api.normalizeMediaUrl(node.poster || "");
+        var poster = api.normalizeMediaUrl(node.poster || (node.getAttribute && node.getAttribute("poster")) || "");
         if (poster) receive([{ url: poster, type: "image", source: "dom:poster", title: title() }]);
       }
     }
