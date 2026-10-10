@@ -20,6 +20,11 @@
 
   var ENABLE_KEY = "intl_doubao_enable_30s_v1";
   var TARGET_KEY = "intl_doubao_target_duration_v1";
+  // These keys are consumed by the supplied duration-main.js source. Keep its
+  // implementation untouched; expose its existing optional switches to the
+  // Android-native settings UI when that original script is opted in.
+  var PROMPT_GUARD_KEY = "intl_doubao_prompt_guard_inject_v1";
+  var TIMELINE_REWRITE_KEY = "intl_doubao_timeline_rewrite_v1";
   var STATE_ATTRIBUTE = "data-watermark-free-duration-30";
   var STATE_EVENT = "watermark-free-duration-30-change";
   var CONTROL_ID = "dola30-android-control";
@@ -47,6 +52,18 @@
       autoSubmit: false,
       platformCapability: "page-controlled"
     };
+  }
+  function getOriginalOptions() {
+    return {
+      promptGuard: storageGet(PROMPT_GUARD_KEY, "0") === "1",
+      timelineRewrite: storageGet(TIMELINE_REWRITE_KEY, "1") !== "0"
+    };
+  }
+  function setOriginalOptions(options) {
+    options = options && typeof options === "object" ? options : {};
+    storageSet(PROMPT_GUARD_KEY, options.promptGuard === true ? "1" : "0");
+    storageSet(TIMELINE_REWRITE_KEY, options.timelineRewrite === false ? "0" : "1");
+    return getOriginalOptions();
   }
   function publish() {
     var on = isEnabled();
@@ -99,6 +116,8 @@
       setDola30s: root.setDola30s,
       getDola30sStatus: root.getDola30sStatus,
       rewriteDolaTimeline: rewriteDolaTimeline,
+      getOriginalOptions: getOriginalOptions,
+      setOriginalOptions: setOriginalOptions,
       limitations: Object.freeze({ networkRewrite: true, autoSubmit: false, watermarkBypass: false })
     });
     return;
@@ -110,6 +129,8 @@
     setDola30s: setDola30s,
     getDola30sStatus: getDola30sStatus,
     rewriteDolaTimeline: rewriteDolaTimeline,
+    getOriginalOptions: getOriginalOptions,
+    setOriginalOptions: setOriginalOptions,
     limitations: Object.freeze({ networkRewrite: false, autoSubmit: false, watermarkBypass: false })
   });
 
@@ -126,3 +147,4 @@
     }).observe(root.document.documentElement, { childList: true, subtree: true });
   }
 })(typeof window === "undefined" ? null : window);
+
