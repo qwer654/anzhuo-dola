@@ -127,5 +127,28 @@ public class UrlRulesTest {
         assertFalse(BrowserActivity.mediaDialogMayRefresh(true,true,false,true));
         assertFalse(BrowserActivity.mediaDialogMayRefresh(true,true,true,false));
     }
+    @Test public void mediaFingerprintDeduplicatesRotatingSignaturesAndKeepsLatestRawUrl(){
+        String oldUrl="https://cdn.example.test/v.mp4?id=42&X-Amz-Signature=old%2Bsig&Expires=100&quality=hd";
+        String freshUrl="https://cdn.example.test/v.mp4?quality=hd&id=42&X-Amz-Signature=new%2Bsig&Expires=200";
+        assertEquals(BrowserActivity.mediaFingerprint(oldUrl),BrowserActivity.mediaFingerprint(freshUrl));
+        assertNotEquals(BrowserActivity.mediaFingerprint(oldUrl),BrowserActivity.mediaFingerprint("https://cdn.example.test/v.mp4?id=43&quality=hd&Expires=200"));
+        java.util.ArrayList<BrowserActivity.MediaItem> items=new java.util.ArrayList<>();
+        java.util.Set<String> keys=new java.util.HashSet<>();
+        assertTrue(BrowserActivity.mergeObservedMedia(items,keys,oldUrl,"video","clip",null,java.util.Collections.singletonList(oldUrl)));
+        assertTrue(BrowserActivity.mergeObservedMedia(items,keys,freshUrl,"video","clip","https://cdn.example.test/poster.jpg",java.util.Arrays.asList(freshUrl,"https://cdn.example.test/alternate.mp4?sig=alt")));
+        assertEquals(1,items.size());
+        assertEquals(freshUrl,items.get(0).url);
+        assertEquals(freshUrl,items.get(0).channels.get(0));
+        assertEquals("https://cdn.example.test/alternate.mp4?sig=alt",items.get(0).channels.get(1));
+        assertEquals("https://cdn.example.test/poster.jpg",items.get(0).posterUrl);
+        assertEquals(1,keys.size());assertTrue(keys.iterator().next().contains("id=42"));
+        assertEquals("https://cdn.example.test/i.png?id=5&signature=two%2Fthree",itemsRawSignatureUnchanged());
+    }
+    private static String itemsRawSignatureUnchanged(){
+        String raw="https://cdn.example.test/i.png?id=5&signature=two%2Fthree";
+        java.util.ArrayList<BrowserActivity.MediaItem> items=new java.util.ArrayList<>();
+        BrowserActivity.mergeObservedMedia(items,new java.util.HashSet<>(),raw,"image","image",null,java.util.Collections.emptyList());
+        return items.get(0).url;
+    }
 }
 

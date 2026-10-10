@@ -12,6 +12,8 @@ import android.widget.*;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 import org.json.*;
+import java.net.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /** Each Space runs in its own process/data directory. Tabs within a Space share its login. */
@@ -291,18 +293,14 @@ public class BrowserActivity extends Activity {
         try {
             JSONArray a=new JSONArray(value);
             boolean changed=false;
-            for(int i=0;i<a.length()&&t.media.size()<MAX_MEDIA;i++){
+            for(int i=0;i<a.length()&&i<1200;i++){
                 JSONObject o=a.optJSONObject(i);if(o==null)continue;
                 String u=webUrl(o.optString("url",null)),type=o.optString("type","");
                 if(u==null||!(type.equals("image")||type.equals("video")))continue;
                 String posterUrl=type.equals("video")?webUrl(o.optString("posterUrl",null)):null;
                 List<String> channels=type.equals("video")?normalizeMediaChannels(o.optJSONArray("channels"),u):Collections.emptyList();
-                if(t.mediaKeys.add(type+"|"+u)){String label=o.optString("title","资源");t.media.add(new MediaItem(u,type,label.substring(0,Math.min(label.length(),120)),posterUrl,channels));changed=true;}
-                else if(type.equals("video")){for(MediaItem existing:t.media)if(existing.type.equals("video")&&existing.url.equals(u)){
-                    int oldChannels=existing.channels.size();String oldPoster=existing.posterUrl;
-                    if(posterUrl!=null)existing.posterUrl=posterUrl;existing.mergeChannels(channels);
-                    if(!Objects.equals(oldPoster,existing.posterUrl)||oldChannels!=existing.channels.size())changed=true;break;
-                }}
+                String label=o.optString("title","资源");
+                if(mergeObservedMedia(t.media,t.mediaKeys,u,type,label,posterUrl,channels))changed=true;
             }
             if(t==active)mediaButton.setText("资源 "+t.media.size());
             if(changed&&t==active&&t==mediaDialogOwner&&navigation==mediaDialogNavigation&&mediaDialog!=null&&mediaDialog.isShowing())
@@ -371,6 +369,42 @@ public class BrowserActivity extends Activity {
     }
     static boolean mediaDialogMayRefresh(boolean showing,boolean ownerActive,boolean navigationMatches,boolean sameOwner){
         return showing&&ownerActive&&navigationMatches&&sameOwner;
+    }
+    static String mediaFingerprint(String rawUrl){
+        String normalized=webUrl(rawUrl);if(normalized==null)return rawUrl==null?"":rawUrl.split("#",2)[0];
+        try{
+            URI uri=new URI(normalized);String rawQuery=uri.getRawQuery();
+            ArrayList<String[]> kept=new ArrayList<>();
+            if(rawQuery!=null&&!rawQuery.isEmpty())for(String part:rawQuery.split("&",-1)){
+                int eq=part.indexOf('=');String rawKey=eq<0?part:part.substring(0,eq);String decoded=URLDecoder.decode(rawKey,StandardCharsets.UTF_8);
+                if(!isVolatileMediaQueryKey(decoded.toLowerCase(Locale.ROOT)))kept.add(new String[]{decoded,part});
+            }
+            kept.sort(Comparator.comparing(pair->pair[0]));
+            StringBuilder result=new StringBuilder();result.append(uri.getScheme().toLowerCase(Locale.ROOT)).append("://").append(uri.getHost().toLowerCase(Locale.ROOT));
+            if(uri.getPort()!=-1&&!("https".equalsIgnoreCase(uri.getScheme())&&uri.getPort()==443))result.append(':').append(uri.getPort());
+            result.append(uri.getRawPath()==null||uri.getRawPath().isEmpty()?"/":uri.getRawPath());
+            if(!kept.isEmpty()){result.append('?');for(int i=0;i<kept.size();i++){if(i>0)result.append('&');result.append(kept.get(i)[1]);}}
+            return result.toString();
+        }catch(Exception ignored){return normalized.split("#",2)[0];}
+    }
+    private static boolean isVolatileMediaQueryKey(String key){
+        return key.startsWith("x-amz-")||key.startsWith("x-oss-")||key.startsWith("x-cos-")||key.startsWith("x-qn-")||
+            Arrays.asList("sign","signature","token","access_token","auth","auth_key","authorization","expire","expires","expire_at","timestamp","ts","wssecret","wstime","policy","key-pair-id").contains(key);
+    }
+    static boolean mergeObservedMedia(List<MediaItem> items,Set<String> keys,String rawUrl,String type,String title,String posterUrl,List<String> channels){
+        String url=webUrl(rawUrl);if(url==null||items==null||keys==null||!("image".equals(type)||"video".equals(type)))return false;
+        String fingerprint=mediaFingerprint(url),key=type+"|"+fingerprint;MediaItem existing=null;
+        for(MediaItem item:items)if(item.type.equals(type)&&mediaFingerprint(item.url).equals(fingerprint)){existing=item;break;}
+        if(existing==null){if(items.size()>=MAX_MEDIA)return false;String label=title==null?"资源":title;items.add(new MediaItem(url,type,label.substring(0,Math.min(label.length(),120)),posterUrl,channels));keys.add(key);return true;}
+        boolean changed=!existing.url.equals(url);String oldUrl=existing.url;existing.url=url;
+        if("video".equals(type)){
+            if(posterUrl!=null&&!Objects.equals(existing.posterUrl,posterUrl)){existing.posterUrl=posterUrl;changed=true;}
+            ArrayList<String> merged=new ArrayList<>();addMediaChannel(merged,url);
+            if(channels!=null)for(String value:channels)addMediaChannel(merged,value);
+            for(String value:existing.channels)if(!oldUrl.equals(value))addMediaChannel(merged,value);
+            if(!existing.channels.equals(merged)){existing.channels.clear();existing.channels.addAll(merged);changed=true;}
+        }
+        keys.remove(type+"|"+mediaFingerprint(oldUrl));keys.add(key);return changed;
     }
     private void dismissMediaDialog(){AlertDialog current=mediaDialog;if(current!=null)current.dismiss();}
     private void showMediaChannels(MediaItem item) {
@@ -729,7 +763,7 @@ public class BrowserActivity extends Activity {
         destroyed=true;dismissMediaDialog();handler.removeCallbacksAndMessages(null);previewExecutor.shutdownNow();cancelFile();cookies.close();downloads.close();viewport.removeAllViews();
         for(Tab t:tabs){t.closed=true;if(t.view!=null){t.view.stopLoading();t.view.destroy();t.view=null;}}super.onDestroy();
     }
-    private static final class MediaItem{final String url,type,title;String posterUrl;final ArrayList<String> channels=new ArrayList<>();MediaItem(String u,String t,String n){this(u,t,n,null,Collections.emptyList());}MediaItem(String u,String t,String n,String p){this(u,t,n,p,Collections.emptyList());}MediaItem(String u,String t,String n,String p,List<String> c){url=u;type=t;title=n;posterUrl=p;mergeChannels(c);}void mergeChannels(Collection<String> values){if(values==null)return;for(String value:values)addMediaChannel(channels,value);}}
+    static final class MediaItem{String url;final String type,title;String posterUrl;final ArrayList<String> channels=new ArrayList<>();MediaItem(String u,String t,String n){this(u,t,n,null,Collections.emptyList());}MediaItem(String u,String t,String n,String p){this(u,t,n,p,Collections.emptyList());}MediaItem(String u,String t,String n,String p,List<String> c){url=u;type=t;title=n;posterUrl=p;mergeChannels(c);}void mergeChannels(Collection<String> values){if(values==null)return;for(String value:values)addMediaChannel(channels,value);}}
     public static class Space0 extends BrowserActivity{} public static class Space1 extends BrowserActivity{}
     public static class Space2 extends BrowserActivity{} public static class Space3 extends BrowserActivity{}
     public static class Space4 extends BrowserActivity{} public static class Space5 extends BrowserActivity{}
