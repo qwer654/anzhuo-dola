@@ -29,6 +29,7 @@
 
 ## 验证状态
 
+- 最新洁净模式 WebGL 子集代码提交 `f87f8e1` 的 APK workflow `38041152167` 与 Android 15/API 35 UI smoke `38041152221` 均通过；Android 模拟器 12/12 instrumentation 全通过，包含隐私模式开启时 WebGL debug 信息隐藏、原生 WebView UA 保持一致的断言。APK 工作流完成 Node/Java 测试、lint、debug/deviceValidation 构建签名及原始资源哈希校验。
 - 工作流会运行媒体、原始 JS 完整性和 Android 适配层 Node 测试（`tests/media-probe.test.cjs`、`tests/dola30-source.test.cjs`、`tests/dola30-android-adapter.test.cjs`）。
 - 在 2026-10-10 的 PR 检查中，4 个 Node 测试文件共 26 项、11 项 Java 单元测试、`lintDebug`、APK 构建/签名及原始资源打包哈希验证均通过；APK 构件已由 GitHub Actions 上传。
 - 最新提交 `f361cc0` 的 GitHub Actions APK 工作流已通过：29 项 Node 测试、12 项 Java 单元测试、lint、debug/deviceValidation APK 构建与签名、原始资源哈希校验。新增的运行时 VM 夹具验证媒体观察器只读取 fetch/XHR 可读响应副本，维持原 Response 对象、XHR `send` 返回值和 `responseText` 不变。API 35 模拟器 6/6 instrumentation 已在同一 Android 代码状态的 `05093fc` 通过；Dola30 原版匹配请求的 fetch/XHR 转换测试也通过。
