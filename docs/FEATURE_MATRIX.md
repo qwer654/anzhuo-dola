@@ -9,7 +9,7 @@
 | 豆包/Dola/即梦/千问/云雀入口 | 已实现 | 可编辑 HTTPS 首页；第三方网站可能拒绝 WebView 登录，需真机验证。 |
 | 8 个隔离账号空间 | 已实现 | 8 个独立 Android 进程/Chromium 数据目录；空间内共享登录，空间之间不共享 Cookie/网页存储。 |
 | 浏览、前进/后退、刷新、上传 | 已实现 | HTTPS WebView；上传使用系统 SAF 文档选择器；不允许 `file://`。 |
-| 多标签 | 已实现（有限） | 每空间最多 6 个按需标签；只保存/恢复标签 URL 与当前选中标签，不恢复表单、历史记录或页面内状态。 |
+| 多标签 | 已实现（有限） | 每空间最多 6 个按需标签；保留旧版 URL 数组格式读取，并尽力保存/恢复受大小限制的 WebView 前进/后退历史（总编码预算 96 KiB，超限/损坏退回 URL 加载）；不恢复 DOM、表单、JavaScript 堆或登录态页面状态。 |
 | 书签 | 已实现（有限） | 每空间本地最多 200 条；不可导出、同步或跨空间共享。 |
 | 白名单页面媒体观察 | 已实现（安全子集） | 观察页面已有 JSON/fetch/XHR/DOM/Performance 的图片/视频 URL；顶层页还会对 `*.dola.com` 的直接 HTTPS iframe 发起带一次性 nonce 的精确源 challenge（排除 srcdoc/opaque origin），但不扫描嵌套 iframe 或未受信来源；可手动重扫当前页、复制链接、通过 Android 系统分享发送单个 HTTPS URL、在新 HTTPS 标签打开或确认下载；分享不附 Cookie/Referer 或资源字节；不请求 fallback API、不改响应，不保证原图/无水印。 |
 | 资源下载 | 已实现（有限） | Android DownloadManager + 下载中心状态、打开、分享、SAF 另存、删除；最多保留 100 条记录，应用私有外部目录卸载时删除。 |
@@ -52,3 +52,5 @@
 
 APK 为 debug 构建，runner 的临时签名可能导致无法覆盖旧 APK。必要时卸载再装会清除应用数据；升级前应先导出工作台 JSON、Cookie 快照（若确有需要）及下载中心中已另存的文件。Cookie 快照包含明文会话凭证，不能作为安全备份或提交到仓库。
 
+
+- WebView 标签现在以兼容旧 URL 数组的 JSON 对象格式保存导航历史；Parcel/Base64 总预算限制为 96 KiB，单标签原始状态限制 36 KiB，损坏或过大状态安全回退到 URL。新增 instrumentation 使用本地受控页面检查两步历史可恢复和返回栈；这不代表恢复表单/DOM/JavaScript 页面状态。此次本地尚无 Android SDK/Gradle 环境，需 GitHub Actions 结果验证。
