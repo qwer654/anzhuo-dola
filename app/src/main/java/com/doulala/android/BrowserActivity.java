@@ -113,7 +113,7 @@ public class BrowserActivity extends Activity {
             if(t.view!=null&&stateBudget>0){
                 Bundle state=new Bundle();try{
                     if(t.view.saveState(state)!=null){String encoded=TabStateCodec.encode(state,stateBudget);if(encoded!=null){item.put("state",encoded);stateBudget-=encoded.length();}}
-                }catch(RuntimeException ignored){}
+                }catch(Exception ignored){}
             }else if(t.savedState!=null&&stateBudget>0){try{item.put("state",t.savedState);stateBudget-=t.savedState.length();}catch(JSONException ignored){}}
             a.put(item);
         }
