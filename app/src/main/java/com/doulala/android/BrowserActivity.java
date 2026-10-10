@@ -125,7 +125,7 @@ public class BrowserActivity extends Activity {
         if(tab.view==null){
             tab.view=new WebView(this);configure(tab);installProbe(tab);
             Bundle restored=TabStateCodec.decode(tab.savedState);
-            WebBackForwardList history=restored==null?null:tab.view.restoreState(restored);
+            WebBackForwardList history=null;try{if(restored!=null)history=tab.view.restoreState(restored);}catch(RuntimeException ignored){}
             if(history==null||history.getSize()==0)tab.view.loadUrl(tab.url);
             else {String restoredUrl=webUrl(tab.view.getUrl());if(restoredUrl!=null)tab.url=restoredUrl;}
             tab.savedState=null;
