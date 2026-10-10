@@ -140,6 +140,41 @@ test('live observer keeps fetch/XHR responses untouched while collecting readabl
     'https://cdn.example/dom-attribute.jpg?sig=q%2Fr'
   ].sort());
 });
+test('same-origin child frames relay only bounded normalized media URLs to the top collector', () => {
+  const script = fs.readFileSync(require.resolve('../app/src/main/assets/media-probe.js'), 'utf8');
+  let topMessage;
+  const top = {
+    location: { hostname: 'www.dola.com', origin: 'https://www.dola.com' },
+    document: { title: 'top', readyState: 'complete', querySelectorAll() { return []; } },
+    addEventListener(name, listener) { if (name === 'message') this.onMessage = listener; },
+    setTimeout(callback) { callback(); return 1; }
+  };
+  top.top = top;
+  vm.runInNewContext(script, { window: top, URL, Map, Set, Uint8Array, Promise });
+  const image = { tagName: 'IMG', currentSrc: 'https://cdn.example/frame.jpg?id=x&sig=a%2Fb', srcset: '' };
+  const child = {
+    top,
+    parent: { postMessage(data, targetOrigin) { topMessage = { data, targetOrigin }; } },
+    location: { hostname: 'www.dola.com', origin: 'https://www.dola.com' },
+    document: { title: 'same-origin frame', readyState: 'complete', querySelectorAll() { return [image]; } },
+    setTimeout(callback) { callback(); return 1; }
+  };
+  vm.runInNewContext(script, { window: child, URL, Map, Set, Uint8Array, Promise });
+  assert.equal(topMessage.targetOrigin, 'https://www.dola.com');
+  assert.equal(topMessage.data.channel, 'dola.android.media');
+  assert.equal(topMessage.data.version, 1);
+  top.onMessage({ origin: 'https://www.dola.com', source: child, data: topMessage.data });
+  assert.deepEqual(Array.from(top.__dolaAndroidDrain(), item => item.url), ['https://cdn.example/frame.jpg?id=x&sig=a%2Fb']);
+  const reject = data => top.onMessage({ origin: 'https://www.dola.com', source: child, data });
+  reject({ channel: 'other', version: 1, items: [{ url: 'https://cdn.example/no.jpg', type: 'image' }] });
+  top.onMessage({ origin: 'https://evil.example', source: child, data: topMessage.data });
+  reject({ channel: 'dola.android.media', version: 1, items: Array.from({ length: 301 }, () => ({ url: 'https://cdn.example/no.jpg', type: 'image' })) });
+  reject({ channel: 'dola.android.media', version: 1, items: [
+    { url: 'javascript:alert(1)', type: 'image' },
+    { url: 'https://cdn.example/no.jpg', type: 'script' }
+  ] });
+  assert.deepEqual(Array.from(top.__dolaAndroidDrain()), []);
+});
 test('prompt timeline handles timestamps and English/Chinese seconds', () => {
   assert.equal(prompts.rewriteTimeline('00:00-00:05 开场', 20), '全片进度 0%–25% 开场');
   assert.equal(prompts.rewriteTimeline('第十五秒转场，持续半秒', 30), '全片进度约 50% 处转场，持续约占全片 1.7% 的时长');
