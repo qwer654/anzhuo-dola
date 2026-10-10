@@ -98,6 +98,15 @@
     return statusObject();
   }
   function getDola30sStatus() { return JSON.stringify(statusObject()); }
+  // Compatibility for the legacy WebView2/C# host. `applied` stays 0 because
+  // this WebView adapter only stores local state and does not control the site.
+  function setDoubao30s(on) { return setDola30s(!!on).on; }
+  function getDoubao30sStatus() {
+    try {
+      var status = JSON.parse(getDola30sStatus());
+      return JSON.stringify({ on: !!status.on, applied: 0, duration: status.duration, ready: status.ready });
+    } catch (_) { return JSON.stringify({ on: false, applied: 0 }); }
+  }
   function rewriteDolaTimeline(text, totalSeconds, includeControlInstructions) {
     if (!root.DolaPromptTools || typeof root.DolaPromptTools.rewriteTimeline !== "function") {
       throw new Error("prompt-tools.js 尚未加载");
@@ -125,9 +134,13 @@
   // Default WebView mode exposes local helpers under the original public names.
   root.setDola30s = setDola30s;
   root.getDola30sStatus = getDola30sStatus;
+  root.setDoubao30s = setDoubao30s;
+  root.getDoubao30sStatus = getDoubao30sStatus;
   root.dola30Android = Object.freeze({
     setDola30s: setDola30s,
     getDola30sStatus: getDola30sStatus,
+    setDoubao30s: setDoubao30s,
+    getDoubao30sStatus: getDoubao30sStatus,
     rewriteDolaTimeline: rewriteDolaTimeline,
     getOriginalOptions: getOriginalOptions,
     setOriginalOptions: setOriginalOptions,
