@@ -31,6 +31,16 @@ public class UrlRulesTest {
         assertTrue(BrowserActivity.acceptThirdPartyCookiesInPrivacyMode(false));
         assertTrue(BrowserActivity.geolocationEnabledInPrivacyMode(false));
     }
+    @Test public void durationToolExplainsAvailableAndUnavailableParityWithoutOverclaiming() {
+        String available=BrowserActivity.durationToolCapabilitySummary(true);
+        assertTrue(available.contains("页面资源观察：已注入，仅观察页面已暴露的 URL"));
+        assertTrue(available.contains("Debugger 深度/自动嗅探：不可用"));
+        assertTrue(available.contains("Android WebView 不提供 Chrome MV3 Debugger"));
+        assertTrue(available.contains("fallback API 解析：未实现"));
+        String unavailable=BrowserActivity.durationToolCapabilitySummary(false);
+        assertTrue(unavailable.contains("页面资源观察：未启用"));
+        assertTrue(unavailable.contains("fallback API 解析：未实现"));
+    }
     @Test public void filenamesAreBoundedAndFlat() {
         String file = UrlRules.safeFilename("../../secret:?.mp4", "media.mp4");
         assertFalse(file.contains("/"));
@@ -49,3 +59,4 @@ public class UrlRulesTest {
         assertNull(UrlRules.normalize("https://example.com\r\n"));
     }
 }
+
