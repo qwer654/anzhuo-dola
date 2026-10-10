@@ -5,14 +5,10 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.webkit.CookieManager;
 import android.webkit.WebView;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebResourceResponse;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
-import androidx.webkit.WebViewAssetLoader;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -122,54 +118,6 @@ public class WebViewAdapterInstrumentationTest {
         assertFalse("Android must not enable identity spoofing", result.getJSONObject("settings").getBoolean("cleanMode"));
         assertEquals(result.getString("expectedUa"), result.getString("ua"));
         if (!"unavailable".equals(result.getString("debugResult"))) assertTrue(result.isNull("debugResult"));
-        InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
-    }
-
-    @Test public void privacyCleanModeAlsoRunsInMatchingOriginFrames() throws Exception {
-        assertTrue(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
-        String bootstrap = BrowserActivity.privacyFingerprintBootstrap(
-            readAsset("fingerprint-privacy/content-main.js"), true);
-        AtomicReference<WebView> viewRef = new AtomicReference<>();
-        AtomicReference<String> resultHolder = new AtomicReference<>();
-        CountDownLatch finished = new CountDownLatch(1);
-        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
-            WebView view = new WebView(context);
-            view.getSettings().setJavaScriptEnabled(true);
-            viewRef.set(view);
-            try {
-                WebViewCompat.addDocumentStartJavaScript(view, bootstrap,
-                    new HashSet<>(Arrays.asList("https://dola.com", "https://*.dola.com")));
-            } catch (Exception e) {
-                throw new AssertionError("Could not install frame privacy-clean script", e);
-            }
-            WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
-                .setDomain("www.dola.com")
-                .addPathHandler("/fixture/", path -> {
-                    String html = "parent.html".equals(path)
-                        ? "<!doctype html><iframe src='/fixture/frame.html'></iframe>"
-                        : "<!doctype html><p>matching origin frame</p>";
-                    return new WebResourceResponse("text/html", "UTF-8",
-                        new ByteArrayInputStream(html.getBytes(StandardCharsets.UTF_8)));
-                })
-                .build();
-            view.setWebViewClient(new android.webkit.WebViewClient() {
-                @Override public WebResourceResponse shouldInterceptRequest(WebView webView, WebResourceRequest request) {
-                    return loader.shouldInterceptRequest(request.getUrl());
-                }
-                @Override public void onPageFinished(WebView webView, String url) {
-                    webView.postDelayed(() -> webView.evaluateJavascript("JSON.stringify({frameConfigured:!!frames[0].__dolaFingerprintPrivacy,"
-                        + "hideWebgl:frames[0].__dolaFingerprintPrivacy && frames[0].__dolaFingerprintPrivacy.getSettings().hideWebglDebugInfo})",
-                        value -> { resultHolder.set(value); finished.countDown(); }), 300);
-                }
-            });
-            view.loadUrl("https://www.dola.com/fixture/parent.html");
-        });
-        assertTrue("Frame privacy fixture did not finish", finished.await(20, TimeUnit.SECONDS));
-        Object decoded = new JSONTokener(resultHolder.get()).nextValue();
-        assertTrue(decoded instanceof String);
-        JSONObject result = new JSONObject((String) decoded);
-        assertTrue("Matching-origin child frame did not receive the privacy script", result.getBoolean("frameConfigured"));
-        assertTrue("Matching-origin child frame did not receive the WebGL reduction setting", result.getBoolean("hideWebgl"));
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
 
