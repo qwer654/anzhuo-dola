@@ -5,7 +5,13 @@
 
   var CLEAN_USER_AGENT = "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36";
   var defaults = { cleanMode: false, blockCanvasReadback: false, hideWebglDebugInfo: true, blockAudioFingerprint: false, blockWebRTC: false, blockDeviceEnumeration: false };
-  var settings = { cleanMode: false, blockCanvasReadback: false, hideWebglDebugInfo: true, blockAudioFingerprint: false, blockWebRTC: false, blockDeviceEnumeration: false };
+  // Android document-start can seed the WebGL-only setting without enabling identity spoofing.
+  var initialSettings = root.__dolaFingerprintInitialSettings;
+  if (initialSettings && typeof initialSettings === "object") {
+    if (typeof initialSettings.hideWebglDebugInfo === "boolean") defaults.hideWebglDebugInfo = initialSettings.hideWebglDebugInfo;
+    try { delete root.__dolaFingerprintInitialSettings; } catch (_) {}
+  }
+  var settings = copy(defaults);
   var originals = {};
   var navigatorOriginals = {};
 
