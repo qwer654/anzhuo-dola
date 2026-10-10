@@ -31,6 +31,10 @@ public class BrowserActivity extends Activity {
     private ValueCallback<Uri[]> fileCallback;
     private DownloadCenter downloads;
     private CookieTransfer cookies;
+    private AlertDialog mediaDialog;
+    private LinearLayout mediaDialogList;
+    private Tab mediaDialogOwner;
+    private int mediaDialogNavigation=-1;
     private boolean destroyed,resumed;
     private final Runnable scanLoop=new Runnable(){public void run(){scan(active);if(resumed&&!destroyed)handler.postDelayed(this,3000);}};
 
@@ -121,6 +125,7 @@ public class BrowserActivity extends Activity {
     }
     private void select(Tab tab) {
         if(tab==null||tab.closed)return;
+        if(active!=tab)dismissMediaDialog();
         if(active!=null&&active.view!=null)active.view.onPause();viewport.removeAllViews();active=tab;
         if(tab.view==null){
             tab.view=new WebView(this);configure(tab);installProbe(tab);
@@ -182,6 +187,7 @@ public class BrowserActivity extends Activity {
             }
             @Override public boolean shouldOverrideUrlLoading(WebView v,String u){return external(t,Uri.parse(u));}
             @Override public void onPageStarted(WebView v,String u,Bitmap icon){
+                if(t==mediaDialogOwner)dismissMediaDialog();
                 t.navigation++;t.failed=false;t.media.clear();t.mediaKeys.clear();String valid=webUrl(u);if(valid!=null)t.url=valid;
                 t.message="正在加载…";if(t==active)updateUi();saveTabs();
             }
@@ -284,16 +290,23 @@ public class BrowserActivity extends Activity {
         if(destroyed||t.closed||t.view==null||navigation!=t.navigation||!UrlRules.trusted(t.view.getUrl())||value==null||value.length()>4*1024*1024)return;
         try {
             JSONArray a=new JSONArray(value);
+            boolean changed=false;
             for(int i=0;i<a.length()&&t.media.size()<MAX_MEDIA;i++){
                 JSONObject o=a.optJSONObject(i);if(o==null)continue;
                 String u=webUrl(o.optString("url",null)),type=o.optString("type","");
                 if(u==null||!(type.equals("image")||type.equals("video")))continue;
                 String posterUrl=type.equals("video")?webUrl(o.optString("posterUrl",null)):null;
                 List<String> channels=type.equals("video")?normalizeMediaChannels(o.optJSONArray("channels"),u):Collections.emptyList();
-                if(t.mediaKeys.add(type+"|"+u)){String label=o.optString("title","资源");t.media.add(new MediaItem(u,type,label.substring(0,Math.min(label.length(),120)),posterUrl,channels));}
-                else if(type.equals("video")){for(MediaItem existing:t.media)if(existing.type.equals("video")&&existing.url.equals(u)){if(posterUrl!=null)existing.posterUrl=posterUrl;existing.mergeChannels(channels);break;}}
+                if(t.mediaKeys.add(type+"|"+u)){String label=o.optString("title","资源");t.media.add(new MediaItem(u,type,label.substring(0,Math.min(label.length(),120)),posterUrl,channels));changed=true;}
+                else if(type.equals("video")){for(MediaItem existing:t.media)if(existing.type.equals("video")&&existing.url.equals(u)){
+                    int oldChannels=existing.channels.size();String oldPoster=existing.posterUrl;
+                    if(posterUrl!=null)existing.posterUrl=posterUrl;existing.mergeChannels(channels);
+                    if(!Objects.equals(oldPoster,existing.posterUrl)||oldChannels!=existing.channels.size())changed=true;break;
+                }}
             }
             if(t==active)mediaButton.setText("资源 "+t.media.size());
+            if(changed&&t==active&&t==mediaDialogOwner&&navigation==mediaDialogNavigation&&mediaDialog!=null&&mediaDialog.isShowing())
+                renderMediaDialog(mediaDialog,t,navigation,mediaDialogList);
         }catch(Exception ignored){}
     }
     private void rescanMedia() {
@@ -312,9 +325,18 @@ public class BrowserActivity extends Activity {
             new AlertDialog.Builder(this).setTitle("当前标签资源").setMessage("尚未观察到图片或视频。可重新扫描当前白名单页面；只观察页面已经暴露的 URL，不请求 fallback_api，不保证原图或无水印结果。")
                 .setNegativeButton("关闭",null).setPositiveButton("重扫当前页",(d,w)->rescanMedia()).show();return;
         }
+        Tab owner=active;int navigation=owner.navigation;
         LinearLayout list=Ui.column(this);Ui.pad(list,8);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("当前标签资源（"+owner.media.size()+"）").setView(Ui.scroll(this,list)).setPositiveButton("关闭",null).create();
+        mediaDialog=dialog;mediaDialogList=list;mediaDialogOwner=owner;mediaDialogNavigation=navigation;
+        dialog.setOnDismissListener(d->{if(mediaDialog==dialog){mediaDialog=null;mediaDialogList=null;mediaDialogOwner=null;mediaDialogNavigation=-1;}});
+        dialog.show();renderMediaDialog(dialog,owner,navigation,list);
+    }
+    private void renderMediaDialog(AlertDialog dialog,Tab owner,int navigation,LinearLayout list) {
+        if(dialog==null||list==null||!mediaDialogMayRefresh(dialog.isShowing(),owner==active,owner.navigation==navigation,owner==mediaDialogOwner))return;
+        list.removeAllViews();dialog.setTitle("当前标签资源（"+owner.media.size()+"）");
         LinkedHashMap<TextView,String> downloadRequests=new LinkedHashMap<>();
-        for(MediaItem item:new ArrayList<>(active.media)){
+        for(MediaItem item:new ArrayList<>(owner.media)){
             LinearLayout row=Ui.column(this);TextView label=Ui.text(this,item.type+" · "+item.title,13,Ui.INK);
             row.addView(label);
             TextView downloadState=Ui.text(this,"正在读取本空间下载状态…",11,Ui.MUTED);row.addView(downloadState);
@@ -333,12 +355,11 @@ public class BrowserActivity extends Activity {
                 addMediaAction(actions,"选择渠道（"+item.channels.size()+"）",()->showMediaChannels(item));
             row.addView(actions);list.addView(row);
         }
-        list.addView(Ui.button(this,"复制全部资源链接",()->copyMediaUrls(active.media)));
+        list.addView(Ui.button(this,"复制全部资源链接",()->copyMediaUrls(owner.media)));
         list.addView(Ui.text(this,"图片及视频封面预览仅在点击后请求；不携带 WebView Cookie/授权头/Referer，HTTPS、8 MiB 上限、禁止重定向。封面预览不播放视频。",12,Ui.MUTED));
         list.addView(Ui.button(this,"重扫当前页",this::rescanMedia));
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("当前标签资源（"+active.media.size()+"）").setView(Ui.scroll(this,list)).setPositiveButton("关闭",null).show();
         list.addView(Ui.button(this,"清空当前标签资源",()->{
-            clearObservedMedia(active.media,active.mediaKeys);
+            clearObservedMedia(owner.media,owner.mediaKeys);
             updateUi();
             dialog.dismiss();
             showMedia();
@@ -348,6 +369,10 @@ public class BrowserActivity extends Activity {
             downloads.statusForUrl(request.getValue(),value->{Object owner=stateView.getTag();if(owner instanceof AlertDialog&&((AlertDialog)owner).isShowing())stateView.setText(value);});
         }
     }
+    static boolean mediaDialogMayRefresh(boolean showing,boolean ownerActive,boolean navigationMatches,boolean sameOwner){
+        return showing&&ownerActive&&navigationMatches&&sameOwner;
+    }
+    private void dismissMediaDialog(){AlertDialog current=mediaDialog;if(current!=null)current.dismiss();}
     private void showMediaChannels(MediaItem item) {
         if(item==null||item.channels.size()<2)return;
         String[] labels=new String[item.channels.size()];
@@ -701,7 +726,7 @@ public class BrowserActivity extends Activity {
     @Override public void onBackPressed(){goBack();}
     @Override protected void onSaveInstanceState(Bundle out){saveTabs();super.onSaveInstanceState(out);}
     @Override protected void onDestroy(){
-        destroyed=true;handler.removeCallbacksAndMessages(null);previewExecutor.shutdownNow();cancelFile();cookies.close();downloads.close();viewport.removeAllViews();
+        destroyed=true;dismissMediaDialog();handler.removeCallbacksAndMessages(null);previewExecutor.shutdownNow();cancelFile();cookies.close();downloads.close();viewport.removeAllViews();
         for(Tab t:tabs){t.closed=true;if(t.view!=null){t.view.stopLoading();t.view.destroy();t.view=null;}}super.onDestroy();
     }
     private static final class MediaItem{final String url,type,title;String posterUrl;final ArrayList<String> channels=new ArrayList<>();MediaItem(String u,String t,String n){this(u,t,n,null,Collections.emptyList());}MediaItem(String u,String t,String n,String p){this(u,t,n,p,Collections.emptyList());}MediaItem(String u,String t,String n,String p,List<String> c){url=u;type=t;title=n;posterUrl=p;mergeChannels(c);}void mergeChannels(Collection<String> values){if(values==null)return;for(String value:values)addMediaChannel(channels,value);}}

@@ -64,3 +64,5 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 
 
 19. **已观察资源的下载生命周期状态**：用户明确确认后，DownloadManager 的任务 ID 仅与当前 BrowserActivity profile 的规范化 HTTPS URL 关联；资源列表显示本空间内最新匹配任务状态与字节进度。取消/移除会清理映射；旧版未记录来源 URL 的下载不虚构关联。失败提示需要用户回网页获取新链接，未自动重试或转发 Cookie/认证头。状态文案纯 Java 单测覆盖等待、运行、暂停、完成、失败与缺失；head `b262e11ffe2c6829cbaad68238923ccf0c9a0bcb` 的 APK 与 Android 15/API 35 UI smoke 通过。
+20. **打开的媒体资源列表实时更新**：原版 `content-panel.js` 收到 `MEDIA_FOUND` / `MEDIA_STATUS` 后立即刷新浮层；Android 原先扫描循环只更新资源计数，已打开列表仍是静态快照。本版按资源新增或视频 poster/channel 合并触发原生列表重绘；只允许同一可见标签、相同 navigation generation、相同 dialog owner 的更新，页面导航及标签切换/关闭即关闭会话，不增加扫描或网络请求。Java 单测覆盖可见性/标签/导航/owner guard；Android APK 与 API 35 smoke 验证整合仍待当前 commit CI。
+

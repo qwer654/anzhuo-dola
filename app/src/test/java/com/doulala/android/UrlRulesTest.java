@@ -120,5 +120,12 @@ public class UrlRulesTest {
         try {DownloadCenter.copyDirect(new java.io.ByteArrayInputStream(data),new java.io.ByteArrayOutputStream(),-1,4);fail("stream oversize accepted");}
         catch(java.io.IOException expected){}
     }
+    @Test public void liveMediaDialogRefreshIsBoundToVisibleOwnerAndNavigation(){
+        assertTrue(BrowserActivity.mediaDialogMayRefresh(true,true,true,true));
+        assertFalse(BrowserActivity.mediaDialogMayRefresh(false,true,true,true));
+        assertFalse(BrowserActivity.mediaDialogMayRefresh(true,false,true,true));
+        assertFalse(BrowserActivity.mediaDialogMayRefresh(true,true,false,true));
+        assertFalse(BrowserActivity.mediaDialogMayRefresh(true,true,true,false));
+    }
 }
 
