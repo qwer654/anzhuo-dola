@@ -21,14 +21,15 @@
     for (var i = 0; i < Math.min(nodes.length, 300); i++) {
       var node = nodes[i];
       var tag = node.tagName.toLowerCase();
-      if (tag === "source" && (!node.parentElement || node.parentElement.tagName.toLowerCase() !== "video")) continue;
-      var type = tag === "img" ? "image" : "video";
+      var parentTag = node.parentElement && node.parentElement.tagName.toLowerCase();
+      if (tag === "source" && parentTag !== "video" && parentTag !== "picture") continue;
+      var type = tag === "img" || (tag === "source" && parentTag === "picture") ? "image" : "video";
       var url = api.normalizeMediaUrl(node.currentSrc || node.src || "");
       if (url) receive([{ url: url, type: type, source: "dom", title: title() }]);
       // Responsive images may expose several useful candidates while currentSrc
       // reports only the one selected for this viewport. Parse candidates without
       // rewriting their URL bytes; descriptors are intentionally ignored.
-      if (tag === "img") {
+      if (type === "image" && (tag === "img" || tag === "source")) {
         var srcset = node.srcset || (node.getAttribute && node.getAttribute("srcset")) || "";
         var candidates = api.parseSrcset(srcset);
         for (var c = 0; c < candidates.length; c++) {
