@@ -6,16 +6,49 @@
     module.exports = api;
     return;
   }
-  if (!root || !root.document || root.top !== root || !api.isAllowedHost(root.location.hostname)) return;
+  if (!root || !root.document || !api.isAllowedHost(root.location.hostname)) return;
   if (root.__dolaAndroidProbeInstalled) return;
+  var isTop = root.top === root;
+  var origin = String(root.location.origin || "");
+  if (!/^https?:\\/\\//i.test(origin)) return;
   root.__dolaAndroidProbeInstalled = true;
 
   var collector = api.createCollector();
   var document = root.document;
   var bodyJobs = 0;
   var pendingScan = false;
+  var pendingRelay = false;
   function title() { return String(document.title || "").slice(0, 200); }
-  function receive(items) { collector.add(items); }
+  function receive(items) {
+    collector.add(items);
+    if (isTop || pendingRelay || !root.parent || typeof root.parent.postMessage !== "function") return;
+    pendingRelay = true;
+    root.setTimeout(function () {
+      pendingRelay = false;
+      var batch = collector.drain();
+      if (!batch.length) return;
+      try { root.parent.postMessage({ channel: "dola.android.media", version: 1, items: batch }, origin); }
+      catch (_) { /* A cross-origin or detached frame must not affect the page. */ }
+    }, 0);
+  }
+  if (isTop && typeof root.addEventListener === "function") {
+    root.addEventListener("message", function (event) {
+      var data = event && event.data;
+      if (!event || event.origin !== origin || !event.source || event.source === root ||
+          !data || data.channel !== "dola.android.media" || data.version !== 1 ||
+          !Array.isArray(data.items) || data.items.length > 300) return;
+      var items = [];
+      for (var i = 0; i < data.items.length; i++) {
+        var item = data.items[i];
+        if (!item || (item.type !== "image" && item.type !== "video") ||
+            !api.normalizeMediaUrl(item.url) || typeof item.url !== "string" ||
+            item.url.length > api.LIMITS.urlLength) continue;
+        items.push({ url: item.url, type: item.type, source: "frame:" + String(item.source || "page").slice(0, 200),
+          title: String(item.title || "").slice(0, 200) });
+      }
+      collector.add(items);
+    });
+  }
   function scanDom() {
     var nodes = document.querySelectorAll("img,video,source");
     for (var i = 0; i < Math.min(nodes.length, 300); i++) {
