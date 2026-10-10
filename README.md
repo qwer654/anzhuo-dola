@@ -37,7 +37,7 @@ APK 额外注入 [`app/src/main/assets/dola30-android-adapter.js`](app/src/main/
 
 ## 用 GitHub Actions 编译
 
-仓库为 `qwer654/anzhuo-dola`。在 **Actions → Android APK → Run workflow** 手动运行，或推送 `app/`、Gradle 文件、测试或工作流后自动运行。构建完成后从 workflow run 的 **Artifacts** 下载 `doulala-android-debug`，解压后安装 `app-debug.apk`，并可用同目录 SHA-256 文件校验完整性。
+仓库为 `qwer654/anzhuo-dola`。在 **Actions → Android APK → Run workflow** 手动运行，或推送 `app/`、Gradle 文件、测试或工作流后自动运行。构建完成后从 workflow run 的 **Artifacts** 下载 `doulala-android-debug`，解压后可安装 `app-debug.apk`。构件还提供独立包名的 `app-deviceValidation.apk` 和对应 instrumentation APK，可与已有 debug 安装并存，供真机回归使用而无需卸载清除原应用数据；`app-deviceValidation-androidTest.apk` 可由 Android instrumentation runner 执行；两个 app APK 均附 SHA-256 文件。
 
 主工作流使用 GitHub 托管的 Android SDK、JDK 17、Gradle 8.9 和 Node.js 20，执行 Node 测试，随后运行 `testDebugUnitTest lintDebug assembleDebug`、APK 签名验证并检查 APK 内原始 JS SHA-256。`Android UI smoke` 会在 Android 相关源码或测试变更的 push / pull request 时运行，也可手动触发；它在 Android 15/API 35 模拟器执行 `connectedDebugAndroidTest`，包括 UI 隔离检查和 WebView document-start 适配测试。未运行前不视为通过。审核和逐项差距见 [`docs/WEBVIEW_PARITY_AUDIT.md`](docs/WEBVIEW_PARITY_AUDIT.md)。
 

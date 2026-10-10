@@ -26,6 +26,12 @@ android {
             applicationIdSuffix '.debug'
             versionNameSuffix '-debug'
         }
+        deviceValidation {
+            initWith debug
+            applicationIdSuffix '.validation'
+            versionNameSuffix '-validation'
+            matchingFallbacks = ['debug']
+        }
         release {
             minifyEnabled false
         }
