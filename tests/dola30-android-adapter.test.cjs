@@ -26,7 +26,7 @@ test("opt-in adapter preserves the original script's public controls", () => {
   const originalGet = () => "original-get";
   const page = {
     top: null,
-    location: { hostname: "www.dola.com" },
+    location: { hostname: "www.doubao.com" },
     document: { documentElement: {}, readyState: "loading", addEventListener() {} },
     localStorage: { getItem() { return null; }, setItem() {} },
     __watermarkFreeDuration30Installed: true,
@@ -76,5 +76,27 @@ test("adapter reads and writes only the original script's existing option keys",
     promptGuard: false,
     timelineRewrite: true
   });
+});
+
+test("adapter allows exact Dola/Doubao subdomains but not lookalike domains", () => {
+  function createPage(hostname) {
+    const page = {
+      top: null,
+      location: { hostname },
+      document: {
+        documentElement: { setAttribute() {} },
+        readyState: "loading",
+        addEventListener() {}
+      },
+      localStorage: { getItem() { return null; }, setItem() {} }
+    };
+    page.top = page;
+    vm.runInNewContext(source, { window: page });
+    return page;
+  }
+  assert.ok(createPage("www.doubao.com").dola30Android);
+  assert.ok(createPage("chat.dola.com").dola30Android);
+  assert.equal(createPage("notdoubao.com").dola30Android, undefined);
+  assert.equal(createPage("dola.com.attacker.test").dola30Android, undefined);
 });
 
