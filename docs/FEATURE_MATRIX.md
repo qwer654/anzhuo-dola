@@ -21,13 +21,15 @@
 | Cookie 导入/导出 | 已实现（有限快照） | 用户主动 SAF 操作；只接受完全相同 origin，快照仅名称和值。导入写根路径、Secure/HttpOnly/SameSite=Lax 会话 Cookie；Domain/Path/过期时间/其它元数据及网页本地存储不迁移，不是完整登录备份。明文快照需用户自行保管和删除。 |
 | CDP 深度嗅探/Fetch.fulfillRequest | 未实现 | Android WebView 没有桌面 WebView2 等价能力。 |
 | HTTP/SOCKS5 认证、链式代理 | 未实现 | 需要重新设计 Android 网络层。 |
-| UA/时区/Canvas/Audio/WebRTC 完整指纹 | 未完成（仅部分保护） | 隐私洁净模式保留真实 WebView UA 并移除 app 后缀，阻止第三方 Cookie；未改时区、系统身份或 Client Hints，Canvas/Audio/WebRTC API 降噪仅覆盖匹配 provider iframe，Worker、opaque/未匹配 iframe 与完整跨页面指纹保护仍未实现。
+| UA/时区/Canvas/Audio/WebRTC 完整指纹 | 未完成（仅部分保护） | 隐私洁净模式保留真实 WebView UA 并移除 app 后缀，阻止第三方 Cookie；未改时区、系统身份或 Client Hints；Canvas/Audio/WebRTC 等 API 降噪覆盖顶层页及匹配 provider iframe，Worker、opaque/未匹配 iframe 与完整跨页面指纹保护仍未实现。
 | 批量自动生成、发送、后台任务 | 未实现 | 目前仅提供用户确认后的网页填入。 |
 | 遮罩、人脸、参考音频、创作中心、百宝箱 | 未实现 | 桌面发布包只有入口线索或组件源码不完整。 |
 | Windows 机器码、注册表、WPF API、DLL/Chrome 扩展 | 不适用/未实现 | Android 无对应运行时。 |
 | 本地自动化 API 17823 | 未实现 | 原桌面接口仅回环绑定，未暴露到手机网络。 |
 
 ## 验证状态
+
+- 最新 PR head `d44e432e9cf294558bc031d0ae8190f54cc81575`：本地 Node 4 套共 43 项通过（媒体 17、隐私 14、适配器 11、源文件清单 1）；GitHub APK 构建/签名/原始资源校验通过，Android 15/API 35 模拟器 15/15 instrumentation 通过，新增验证匹配 provider iframe 中指纹 API 降噪与跨源媒体帧 nonce relay。真实小米手机仍未连接 ADB。
 
 - 工作流会运行媒体、原始 JS 完整性和 Android 适配层 Node 测试（`tests/media-probe.test.cjs`、`tests/dola30-source.test.cjs`、`tests/dola30-android-adapter.test.cjs`）。
 - 在 2026-10-10 的 PR 检查中，4 个 Node 测试文件共 26 项、11 项 Java 单元测试、`lintDebug`、APK 构建/签名及原始资源打包哈希验证均通过；APK 构件已由 GitHub Actions 上传。
