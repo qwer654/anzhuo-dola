@@ -60,5 +60,5 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 
 17. **标签导航历史恢复**：兼容读取旧版 URL 字符串数组，新增 URL + 有界 WebView saveState 序列化状态；总编码预算 96 KiB、单标签原始 Parcel 上限 36 KiB、标签 JSON 上限 512 KiB。损坏、超限、恢复异常回退 URL。API 35 instrumentation 以本地受控两页 fixture 验证可恢复返回栈；表单、DOM、JavaScript 堆与站点状态不保证恢复，PR head `241f2ff1` 的 APK CI 与 Android 15/API 35 UI smoke 已通过；16/16 instrumentation 全绿（run `38054679861`）。
 
-18. **DOM 视频渠道选择（待本次 CI 验证）**：对 `<video>` 仅从 `currentSrc`/`src` 及其 `<source src>` 收集至多两个已暴露的 HTTP(S) 地址，去重、校验并保留签名查询字节；不请求额外 URL、不读 `fallback_api`、不附凭证、不改 fetch/XHR。原生资源列表汇总为单条视频并由用户选渠道，然后显式选择复制/分享/打开/下载。Node 覆盖候选规范化、上限和响应透传；API 35 WebView fixture 检查两条渠道保序，Android model helper 检查第二条链接精确性。原 `dola30-original/` 资产由 manifest 测试校验未变；Android runner 结果待本改动推送后确认。
+18. **DOM 视频渠道选择（CI 已验证）**：对 `<video>` 仅从 `currentSrc`/`src` 及其 `<source src>` 收集至多两个已暴露的 HTTP(S) 地址，去重、校验并保留签名查询字节；不请求额外 URL、不读 `fallback_api`、不附凭证、不改 fetch/XHR。原生资源列表汇总为单条视频并由用户选渠道，然后显式选择复制/分享/打开/下载。Node 覆盖候选规范化、上限和响应透传；API 35 WebView fixture 检查两条渠道保序，Android model helper 检查第二条链接精确性。原 `dola30-original/` 资产由 manifest 测试校验未变。PR head `92d7bdafd0e6507017954d5d5146149c57f1f378` 的 Android APK workflow 与 Android 15/API 35 instrumentation 通过（runs `38056468273`、`38056468304`）；真机渠道选择尚未验证。
 
