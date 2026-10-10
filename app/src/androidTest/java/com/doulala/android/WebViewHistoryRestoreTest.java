@@ -1,11 +1,14 @@
 package com.doulala.android;
 
 import android.os.Bundle;
+import android.content.Intent;
+import android.app.Activity;
 import android.webkit.WebView;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import android.content.Context;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import static org.junit.Assert.*;
@@ -14,17 +17,24 @@ import static org.junit.Assert.*;
 @RunWith(AndroidJUnit4.class)
 public class WebViewHistoryRestoreTest {
     @Test public void boundedStateRestoresBackForwardHistory() throws Exception {
+        final Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        final Activity activity = InstrumentationRegistry.getInstrumentation().startActivitySync(
+            new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
         final WebView[] first = new WebView[1];
-        final CountDownLatch loaded = new CountDownLatch(2);
+        final CountDownLatch loaded = new CountDownLatch(1);
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
-            first[0] = new WebView(InstrumentationRegistry.getInstrumentation().getTargetContext());
+            first[0] = new WebView(context);
             first[0].setWebViewClient(new android.webkit.WebViewClient() {
                 @Override public void onPageFinished(WebView view, String url) { loaded.countDown(); }
             });
+            activity.setContentView(first[0]);
             first[0].loadDataWithBaseURL("https://fixture.invalid/one", "one", "text/html", "UTF-8", null);
-            first[0].postDelayed(() -> first[0].loadDataWithBaseURL("https://fixture.invalid/two", "two", "text/html", "UTF-8", null), 250);
         });
-        assertTrue("fixture pages did not finish", loaded.await(15, TimeUnit.SECONDS));
+        assertTrue("fixture page did not finish", loaded.await(15, TimeUnit.SECONDS));
+        final CountDownLatch pushed = new CountDownLatch(1);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() ->
+            first[0].evaluateJavascript("history.pushState({}, '', '/two'); location.pathname", value -> pushed.countDown()));
+        assertTrue("history fixture did not update", pushed.await(5, TimeUnit.SECONDS));
         final Bundle[] saved = new Bundle[1];
         final String[] encoded = new String[1];
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
@@ -35,13 +45,14 @@ public class WebViewHistoryRestoreTest {
         });
         final WebView[] second = new WebView[1];
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
-            second[0] = new WebView(InstrumentationRegistry.getInstrumentation().getTargetContext());
+            second[0] = new WebView(context);
+            activity.setContentView(second[0]);
             Bundle decoded = TabStateCodec.decode(encoded[0]);
             assertNotNull(decoded);
             assertNotNull(second[0].restoreState(decoded));
             assertTrue(second[0].canGoBack());
             assertTrue(second[0].getUrl().endsWith("/two"));
-            second[0].destroy();first[0].destroy();
+            second[0].destroy();first[0].destroy();activity.finish();
         });
     }
 }
