@@ -61,3 +61,5 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 - 洁净模式 WebGL 子集提交 `f87f8e1`：Android APK 工作流 `38041152167` 与 UI smoke `38041152221` 均成功。CI 运行 12/12 instrumentation（0 skipped/0 failed），APK 路径验证 Node/Java 测试、lint、打包签名和原始资源完整性。工作流 commit 是 PR merge ref，代码改动以 PR head `0a51423` 为准；纯 docs 后续更新不影响运行代码。
 - 等价声明：没有覆盖的 MV3 API 必须继续标“未移植/非等价”，尤其 debugger、下载认证头、Worker/不匹配或 opaque iframe 注入、响应替换和扩展弹窗/Service Worker 生命周期。匹配 provider iframe 的 API 降噪不是完整 MV3 frame/worker 覆盖。
 
+
+17. **标签导航历史恢复（PR head `7704490b`）**：多标签偏好设置继续读取旧版 URL 字符串数组，并支持写入 URL + 有界 WebView `saveState` 序列化数据。全部历史编码预算 96 KiB，单标签状态原始 Parcel 上限 36 KiB，JSON 上限 512 KiB；无法保存、损坏或超限时退回 URL 加载。API 35 instrumentation 使用本地两页 fixture 验证恢复后仍有返回历史；表单、DOM、JavaScript 堆和网页内状态仍不恢复。新增 CI 运行正在执行，未通过前不把该行为当成已验证发布能力。
