@@ -59,13 +59,15 @@
       var parentTag = node.parentElement && node.parentElement.tagName.toLowerCase();
       if (tag === "source" && parentTag !== "video" && parentTag !== "picture") continue;
       var type = tag === "img" || (tag === "source" && parentTag === "picture") ? "image" : "video";
-      // A non-empty but unusable currentSrc (for example a placeholder/data URL)
-      // must not mask a valid authored src attribute.
-      var url = api.normalizeMediaUrl(node.currentSrc || "") ||
-        api.normalizeMediaUrl(node.src || "") ||
-        api.normalizeMediaUrl(node.getAttribute && node.getAttribute("src") || "");
+      // Keep both the selected currentSrc and authored src where they differ
+      // (notably <picture><source srcset> + <img src="fallback">).
+      var urls = [], candidates = [node.currentSrc || "", node.src || "", node.getAttribute && node.getAttribute("src") || ""];
+      for (var u = 0; u < candidates.length; u++) {
+        var candidate = api.normalizeMediaUrl(candidates[u]);
+        if (candidate && urls.indexOf(candidate) < 0) urls.push(candidate);
+      }
       var poster = tag === "video" ? api.normalizeMediaUrl(node.poster || (node.getAttribute && node.getAttribute("poster")) || "") : "";
-      if (url) receive([{ url: url, type: type, posterUrl: poster, source: "dom", title: title() }]);
+      for (var m = 0; m < urls.length; m++) receive([{ url: urls[m], type: type, posterUrl: poster, source: "dom", title: title() }]);
       // Responsive images may expose several useful candidates while currentSrc
       // reports only the one selected for this viewport. Parse candidates without
       // rewriting their URL bytes; descriptors are intentionally ignored.
