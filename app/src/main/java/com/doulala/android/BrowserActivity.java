@@ -289,8 +289,12 @@ public class BrowserActivity extends Activity {
         if(context==null||url==null||url.trim().isEmpty())return false;
         ClipboardManager clipboard=(ClipboardManager)context.getSystemService(CLIPBOARD_SERVICE);
         if(clipboard==null)return false;
-        clipboard.setPrimaryClip(ClipData.newPlainText("媒体链接",url));
+        clipboard.setPrimaryClip(mediaUrlClip(url));
         return true;
+    }
+    static ClipData mediaUrlClip(String url) {
+        if(url==null||url.trim().isEmpty())return null;
+        return ClipData.newPlainText("媒体链接",url);
     }
     private void copyMediaUrl(String url) {
         Ui.toast(this,writeMediaUrlToClipboard(this,url)?"资源链接已复制":"资源链接复制失败");
@@ -485,3 +489,4 @@ public class BrowserActivity extends Activity {
     public static class Space4 extends BrowserActivity{} public static class Space5 extends BrowserActivity{}
     public static class Space6 extends BrowserActivity{} public static class Space7 extends BrowserActivity{}
 }
+
