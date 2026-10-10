@@ -31,7 +31,7 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 
 8. **媒体重扫与脚本注入边界**：媒体列表新增“重扫当前页”，调用现有 `__dolaAndroidScan()` 并排空观察器队列；原生侧仍仅接收有效 HTTP(S) 图片/视频 URL，且要求当前页面处于白名单。Node VM 集成测试覆盖 DOM 发现与队列排空；API 35 instrumentation 直接加载 Dola fixture，断言重扫保留签名 URL 查询串；默认模式断言原版 fetch/XHR hooks 不变，非白名单 origin 不注入 Dola 脚本。`privacyCleanModeRequiresConsentAndCanBeReverted` 验证用户确认、重载与关闭流程；`bcf7919` 上 10 项 instrumentation 全通过。小米真机尚未安装此版本，不能据模拟器结果声称已完成真机验收。
 
-9. **原版脚本可选项映射**：新增 Android 原生“原版 Dola30 选项”入口，仅在原版脚本明确启用且当前页为信任站点时出现可保存功能。适配器只暴露原脚本已消费的 `intl_doubao_prompt_guard_inject_v1` 与 `intl_doubao_timeline_rewrite_v1` 两个 localStorage 选项，默认语义分别为关闭与开启；不会重写 `duration-main.js`。Node VM 测试覆盖默认值、读写、恢复，API 35 instrumentation 在原脚本 opt-in 夹具中检查适配 API 和原公开 setter 保持不变。该新增 instrumentation 仍待 CI 验证，不能先行记为通过。
+9. **原版脚本可选项映射**：新增 Android 原生“原版 Dola30 选项”入口，仅在原版脚本明确启用且当前页为信任站点时出现可保存功能。适配器只暴露原脚本已消费的 `intl_doubao_prompt_guard_inject_v1` 与 `intl_doubao_timeline_rewrite_v1` 两个 localStorage 选项，默认语义分别为关闭与开启；不会重写 `duration-main.js`。Node VM 测试覆盖默认值、读写、恢复；API 35 instrumentation 在原脚本 opt-in 夹具中检查适配 API、原公开 setter 保持不变，并验证关闭时间轴选项后匹配请求不再改写。该新增 instrumentation 仍待 CI 验证，不能先行记为通过。
 
 ## 下一阶段验收门槛
 
