@@ -32,7 +32,7 @@
   // remains compatible with the original content-panel.js state.
   var PANEL_POS_KEY = "intl_doubao_media_panel_pos_v3";
   var drag = null;
-  var suppressClick = false;
+  var suppressClickUntil = 0;
 
   function viewportSize() {
     return {
@@ -94,11 +94,13 @@
     drag = null;
     try { control.releasePointerCapture(event.pointerId); } catch (_) {}
     if (!moved) return;
-    suppressClick = true;
+    // Suppress the click synthesized by a completed pointer drag. Use a short
+    // deadline instead of a zero-delay timer: WebView may dispatch click after
+    // the pointer callback stack has unwound.
+    suppressClickUntil = Date.now() + 500;
     try { root.localStorage.setItem(PANEL_POS_KEY, JSON.stringify({
       left: parseFloat(control.style.left), bottom: parseFloat(control.style.bottom)
     })); } catch (_) {}
-    root.setTimeout(function () { suppressClick = false; }, 0);
   }
 
   function storageGet(key, fallback) {
@@ -161,8 +163,8 @@
       control.addEventListener("pointerup", function (event) { finishDrag(event, control); });
       control.addEventListener("pointercancel", function (event) { finishDrag(event, control); });
       control.addEventListener("click", function (event) {
-        if (suppressClick) {
-          suppressClick = false;
+        if (Date.now() < suppressClickUntil) {
+          suppressClickUntil = 0;
           if (event && event.preventDefault) event.preventDefault();
           if (event && event.stopPropagation) event.stopPropagation();
           return;
