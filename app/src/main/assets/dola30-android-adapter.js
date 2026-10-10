@@ -115,6 +115,12 @@
       left: parseFloat(control.style.left), bottom: parseFloat(control.style.bottom)
     })); } catch (_) {}
   }
+  function keepControlInView(control) {
+    if (drag) return;
+    var left = parseFloat(control.style.left), bottom = parseFloat(control.style.bottom);
+    var position = applyPosition(control, left, bottom);
+    if (position.left !== left || position.bottom !== bottom) persistPosition(control);
+  }
 
   function storageGet(key, fallback) {
     try {
@@ -180,6 +186,14 @@
         // activation. Keep keyboard activation available for accessibility.
         if (event && event.detail === 0 && event.isTrusted) root.setDola30s(!isEnabled());
       });
+      // Match the original panel's keep-in-view behavior when rotation,
+      // split-screen, zoom, or the on-screen keyboard changes the viewport.
+      function reposition() { keepControlInView(control); }
+      if (root.addEventListener) root.addEventListener("resize", reposition);
+      if (root.visualViewport && root.visualViewport.addEventListener) {
+        root.visualViewport.addEventListener("resize", reposition);
+        root.visualViewport.addEventListener("scroll", reposition);
+      }
       root.document.body.appendChild(control);
     }
     control.textContent = isEnabled() ? "30S 已启用" : "30S 工具（当前 15S）";
