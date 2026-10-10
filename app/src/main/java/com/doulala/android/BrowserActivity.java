@@ -282,6 +282,7 @@ public class BrowserActivity extends Activity {
             LinearLayout row=Ui.row(this);TextView label=Ui.text(this,item.type+" · "+item.title,13,Ui.INK);
             row.addView(label,new LinearLayout.LayoutParams(0,-2,1));row.addView(Ui.button(this,"复制链接",()->copyMediaUrl(item.url)));row.addView(Ui.button(this,"打开",()->newTab(item.url)));row.addView(Ui.button(this,"下载",()->downloads.confirm(item.url,null,null)));list.addView(row);
         }
+        list.addView(Ui.button(this,"复制全部资源链接",()->copyMediaUrls(active.media)));
         list.addView(Ui.button(this,"重扫当前页",this::rescanMedia));
         new AlertDialog.Builder(this).setTitle("当前标签资源（"+active.media.size()+"）").setView(Ui.scroll(this,list)).setPositiveButton("关闭",null).show();
     }
@@ -298,6 +299,22 @@ public class BrowserActivity extends Activity {
     }
     private void copyMediaUrl(String url) {
         Ui.toast(this,writeMediaUrlToClipboard(this,url)?"资源链接已复制":"资源链接复制失败");
+    }
+    static String joinMediaUrls(Collection<String> urls) {
+        StringBuilder result=new StringBuilder();
+        if(urls==null)return "";
+        for(String raw:urls) {
+            String url=webUrl(raw);
+            if(url==null)continue;
+            if(result.length()>0)result.append('\n');
+            result.append(url);
+        }
+        return result.toString();
+    }
+    private void copyMediaUrls(List<MediaItem> items) {
+        ArrayList<String> urls=new ArrayList<>();for(MediaItem item:items)urls.add(item.url);
+        String text=joinMediaUrls(urls);
+        Ui.toast(this,writeMediaUrlToClipboard(this,text)?"已复制全部 HTTPS 资源链接":"没有可复制的资源链接");
     }
     private void showDurationTool() {
         if(active==null||active.view==null||!UrlRules.trusted(active.view.getUrl())){
