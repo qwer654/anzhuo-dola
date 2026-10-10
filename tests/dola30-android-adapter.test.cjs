@@ -42,4 +42,39 @@ test("opt-in adapter preserves the original script's public controls", () => {
   assert.equal(page.dola30Android.getDola30sStatus, originalGet);
   assert.equal(page.dola30Android.limitations.networkRewrite, true);
   assert.equal(page.dola30Android.limitations.autoSubmit, false);
+  assert.equal(typeof page.dola30Android.getOriginalOptions, "function");
+  assert.equal(typeof page.dola30Android.setOriginalOptions, "function");
 });
+
+test("adapter reads and writes only the original script's existing option keys", () => {
+  const values = new Map();
+  const page = {
+    top: null,
+    location: { hostname: "www.dola.com" },
+    document: {
+      documentElement: { setAttribute() {} },
+      readyState: "loading",
+      addEventListener() {},
+      dispatchEvent() {}
+    },
+    localStorage: {
+      getItem(key) { return values.has(key) ? values.get(key) : null; },
+      setItem(key, value) { values.set(key, String(value)); }
+    }
+  };
+  page.top = page;
+  vm.runInNewContext(source, { window: page });
+  assert.deepEqual(JSON.parse(JSON.stringify(page.dola30Android.getOriginalOptions())), {
+    promptGuard: false,
+    timelineRewrite: true
+  });
+  const saved = page.dola30Android.setOriginalOptions({ promptGuard: true, timelineRewrite: false });
+  assert.deepEqual(JSON.parse(JSON.stringify(saved)), { promptGuard: true, timelineRewrite: false });
+  assert.equal(values.get("intl_doubao_prompt_guard_inject_v1"), "1");
+  assert.equal(values.get("intl_doubao_timeline_rewrite_v1"), "0");
+  assert.deepEqual(JSON.parse(JSON.stringify(page.dola30Android.setOriginalOptions({}))), {
+    promptGuard: false,
+    timelineRewrite: true
+  });
+});
+
