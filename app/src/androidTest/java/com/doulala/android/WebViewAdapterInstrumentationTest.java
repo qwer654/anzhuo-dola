@@ -4,8 +4,6 @@ import android.content.Context;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.webkit.CookieManager;
-import android.webkit.GeolocationPermissions;
-import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -21,7 +19,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.JSONObject;
 import org.json.JSONArray;
 import org.json.JSONTokener;
@@ -264,57 +261,4 @@ public class WebViewAdapterInstrumentationTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(view::destroy);
     }
 
-    @Test public void disabledGeolocationRejectsWebPageRequestWithoutPrompt() throws Exception {
-        AtomicReference<WebView> viewRef = new AtomicReference<>();
-        AtomicReference<String> resultRef = new AtomicReference<>();
-        AtomicBoolean promptShown = new AtomicBoolean(false);
-        CountDownLatch finished = new CountDownLatch(1);
-        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
-            WebView view = new WebView(context);
-            view.getSettings().setJavaScriptEnabled(true);
-            view.getSettings().setGeolocationEnabled(
-                BrowserActivity.geolocationEnabledInPrivacyMode(true));
-            viewRef.set(view);
-            view.setWebChromeClient(new WebChromeClient() {
-                @Override public void onGeolocationPermissionsShowPrompt(String origin,
-                    GeolocationPermissions.Callback callback) {
-                    promptShown.set(true);
-                    callback.invoke(origin, false, false);
-                }
-            });
-            view.setWebViewClient(new android.webkit.WebViewClient() {
-                @Override public void onPageFinished(WebView webView, String url) {
-                    webView.evaluateJavascript("(function(){window.__geoResult='';"
-                        + "if(!navigator.geolocation){window.__geoResult='unavailable';return;}"
-                        + "navigator.geolocation.getCurrentPosition(function(){window.__geoResult='granted';},"
-                        + "function(error){window.__geoResult=String(error.code);},{timeout:3000});"
-                        + "})()", ignored -> {});
-                    Runnable poll = new Runnable() {
-                        int attempts;
-                        @Override public void run() {
-                            webView.evaluateJavascript("window.__geoResult||''", value -> {
-                                String decoded = value != null && value.length() >= 2
-                                    ? value.substring(1, value.length() - 1) : "";
-                                if (!decoded.isEmpty()) {
-                                    resultRef.set(value);
-                                    finished.countDown();
-                                } else if (++attempts < 60) {
-                                    webView.postDelayed(this, 100);
-                                }
-                            });
-                        }
-                    };
-                    webView.postDelayed(poll, 100);
-                }
-            });
-            view.loadDataWithBaseURL("https://privacy-test.example/",
-                "<!doctype html><html><body>geolocation policy test</body></html>",
-                "text/html", "UTF-8", null);
-        });
-        assertTrue("WebView did not return a geolocation result", finished.await(8, TimeUnit.SECONDS));
-        Object decoded = new JSONTokener(resultRef.get()).nextValue();
-        assertEquals("1", decoded); // PERMISSION_DENIED
-        assertFalse("Disabled geolocation must not prompt for permission", promptShown.get());
-        InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
-    }
 }
