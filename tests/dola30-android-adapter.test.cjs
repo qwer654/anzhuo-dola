@@ -266,3 +266,45 @@ test("floating Android control reclamps and persists after viewport resize", () 
   assert.deepEqual(JSON.parse(values.get("intl_doubao_media_panel_pos_v3")), { left: 8, bottom: 12 });
 });
 
+test("floating Android control respects visual viewport offsets and keyboard bounds", () => {
+  const values = new Map([["intl_doubao_media_panel_pos_v3", JSON.stringify({ left: 188, bottom: 12 })]]);
+  const listeners = new Map();
+  let button;
+  const visualViewport = {
+    offsetLeft: 30, offsetTop: 0, width: 240, height: 350,
+    addEventListener(name, callback) { listeners.set("visual:" + name, callback); }
+  };
+  const page = {
+    top: null, innerWidth: 360, innerHeight: 640, visualViewport,
+    location: { hostname: "www.dola.com" },
+    addEventListener(name, callback) { listeners.set(name, callback); },
+    localStorage: {
+      getItem(key) { return values.has(key) ? values.get(key) : null; },
+      setItem(key, value) { values.set(key, String(value)); }
+    },
+    setTimeout() {}, Event: function Event() {}, CustomEvent: function CustomEvent() {}, MutationObserver: null,
+    document: {
+      readyState: "complete", documentElement: { setAttribute() {} }, dispatchEvent() {},
+      getElementById() { return button || null; },
+      createElement() {
+        button = {
+          style: {}, offsetWidth: 160, offsetHeight: 40, setAttribute() {},
+          addEventListener() {}, setPointerCapture() {}, releasePointerCapture() {}
+        };
+        return button;
+      },
+      body: { appendChild() {} }
+    }
+  };
+  page.top = page;
+  vm.runInNewContext(source, { window: page });
+  assert.equal(button.style.left, "102px");
+  assert.equal(button.style.bottom, "298px", "control should remain above the keyboard-sized visual viewport");
+  visualViewport.offsetLeft = 100;
+  visualViewport.width = 200;
+  visualViewport.height = 640;
+  listeners.get("visual:scroll")();
+  assert.equal(button.style.left, "108px");
+  assert.deepEqual(JSON.parse(values.get("intl_doubao_media_panel_pos_v3")), { left: 108, bottom: 298 });
+});
+
