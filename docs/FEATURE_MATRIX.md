@@ -15,7 +15,7 @@
 | 资源下载 | 已实现（有限） | Android DownloadManager + 下载中心状态、打开、分享、SAF 另存、删除；最多保留 100 条记录，应用私有外部目录卸载时删除。 |
 | 认证下载 | 未实现 | 不自动附加 Cookie 或认证头；需登录或已过期链接可能失败/过期。 |
 | 30 秒/时间码 | 已实现（默认安全适配；原版脚本可选） | 默认 WebView 模式只保存本地状态并提供人工提示词工具；用户可在浏览器菜单显式开启原版 `duration-main.js`，经警告并重载后原样注入 Dola/Doubao 白名单页。Android 默认适配器提供 `setDola30s` / `getDola30sStatus` 及兼容旧 C# 宿主的 `setDoubao30s` / `getDoubao30sStatus` 本地状态 API；其中 `applied: 0` 明确表示未控制页面平台。页面悬浮控件支持拖动，并复用原版面板位置键 `intl_doubao_media_panel_pos_v3`；原面板最小化/解析界面仍未复刻。30S 对话框会说明仅可观察页面已暴露的资源 URL，MV3 Debugger 深度/自动嗅探和 fallback API 解析不可用。原版脚本选项菜单直接读写原脚本既有的 prompt-guard / timeline-rewrite localStorage 键；开启原版模式后，原脚本自行判断是否更改页面状态、提示词或匹配请求中的用户文本；不会由应用自动提交。原 MV3 源文件保持原样。 |
-| 指纹诊断/隐私 | WebView 已实现保守洁净子集；扩展模块未接入 | 浏览器菜单“隐私洁净模式”采用实际 WebView 原生 UA（移除应用专属后缀）、阻止第三方 Cookie，并禁用网页 Geolocation API；不伪造机型/系统身份或高熵请求头，可能影响跨站登录/定位功能，不保证无定向广告。MV3 模块的 Canvas/Audio/WebRTC 限制、页面诊断与 DNR 请求头规则仍未接入 WebView。
+| 指纹诊断/隐私 | WebView 已实现保守洁净子集；扩展模块部分接入 | 浏览器菜单“隐私洁净模式”采用实际 WebView 原生 UA（移除应用专属后缀）、阻止第三方 Cookie、禁用网页 Geolocation API，并在豆包/Dola/千问/剪映白名单页面隐藏 WebGL 调试渲染器标识；不伪造机型/系统身份或高熵请求头，可能影响跨站登录/定位功能，不保证无定向广告。MV3 模块的 Canvas/Audio/WebRTC 限制、iframe/Worker 覆盖、页面诊断与 DNR 请求头规则仍未接入 WebView。
 | 快捷文本 | 已实现 | 本地 CRUD、复制或填入当前网页；不会自动发送。 |
 | 分镜工作台 | 已实现（手动） | UTF-8 文本按空行导入、编辑、三态手动状态、JSON 备份；不代表平台生成状态。 |
 | Cookie 导入/导出 | 已实现（有限快照） | 用户主动 SAF 操作；只接受完全相同 origin，快照仅名称和值。导入写根路径、Secure/HttpOnly/SameSite=Lax 会话 Cookie；Domain/Path/过期时间/其它元数据及网页本地存储不迁移，不是完整登录备份。明文快照需用户自行保管和删除。 |
