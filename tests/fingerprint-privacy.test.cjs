@@ -10,17 +10,46 @@ const vm = require("node:vm");
 function pageFixture(withHints = true, initialSettings = null) {
   const prototype = { userAgent: "Original UA", appVersion: "Original version", platform: "Original platform", language: "en-US", languages: ["en-US"], hardwareConcurrency: 12, maxTouchPoints: 5, vendor: "Original vendor" };
   if (withHints) { prototype.userAgentData = { platform: "Original platform" }; prototype.deviceMemory = 8; }
-  const navigator = Object.create(prototype);\n  navigator.mediaDevices = { enumerateDevices: function () { return Promise.resolve(["camera", "microphone"]); } };
+  const navigator = Object.create(prototype);
+  navigator.mediaDevices = { enumerateDevices: function () { return Promise.resolve(["camera", "microphone"]); } };
   Object.defineProperty(navigator, "language", { configurable: true, enumerable: false, value: "ja-JP" });
   function GL() {}
   GL.prototype.getExtension = function (name) { return "native:" + name; };
-  function Canvas() {}\n  Canvas.prototype.toDataURL = function () { return "data:image/png;base64,AA=="; };\n  Canvas.prototype.toBlob = function () {};\n  function Canvas2D() {}\n  Canvas2D.prototype.getImageData = function () { return { data: [] }; };\n  function OfflineAudioContext() {}\n  function RTCPeerConnection() {}\n  const window = { navigator, WebGLRenderingContext: GL, HTMLCanvasElement: Canvas, CanvasRenderingContext2D: Canvas2D,\n    OfflineAudioContext, RTCPeerConnection, dispatchEvent() {}, addEventListener() {} };
+  function Canvas() {}
+  Canvas.prototype.toDataURL = function () { return "data:image/png;base64,AA=="; };
+  Canvas.prototype.toBlob = function () {};
+  function Canvas2D() {}
+  Canvas2D.prototype.getImageData = function () { return { data: [] }; };
+  function OfflineAudioContext() {}
+  function RTCPeerConnection() {}
+  const window = { navigator, WebGLRenderingContext: GL, HTMLCanvasElement: Canvas, CanvasRenderingContext2D: Canvas2D,
+    OfflineAudioContext, RTCPeerConnection, dispatchEvent() {}, addEventListener() {} };
   if (initialSettings) window.__dolaFingerprintInitialSettings = initialSettings;
   window.top = window;
   const context = vm.createContext({ window, DOMException, CustomEvent: function (type, options) { this.type = type; this.detail = options.detail; } });
   vm.runInContext(read("content-main.js"), context);
   return { window, navigator, prototype, api: window.__dolaFingerprintPrivacy };
 }
+
+test("Android document-start seed blocks fingerprint APIs without identity spoofing", async () => {
+  const { window, navigator, api } = pageFixture(true, { blockCanvasReadback: true, hideWebglDebugInfo: true,
+    blockAudioFingerprint: true, blockWebRTC: true, blockDeviceEnumeration: true });
+  const gl = new window.WebGLRenderingContext();
+  assert.equal(api.getSettings().hideWebglDebugInfo, true);
+  assert.equal(api.getSettings().blockCanvasReadback, true);
+  assert.equal(api.getSettings().blockAudioFingerprint, true);
+  assert.equal(api.getSettings().blockWebRTC, true);
+  assert.equal(api.getSettings().blockDeviceEnumeration, true);
+  assert.equal(api.getSettings().cleanMode, false);
+  assert.equal(gl.getExtension("WEBGL_debug_renderer_info"), null);
+  assert.throws(() => new window.HTMLCanvasElement().toDataURL(), { name: "SecurityError" });
+  assert.throws(() => new window.CanvasRenderingContext2D().getImageData(), { name: "SecurityError" });
+  assert.throws(() => new window.OfflineAudioContext(), { name: "SecurityError" });
+  assert.throws(() => new window.RTCPeerConnection(), { name: "SecurityError" });
+  assert.deepEqual(Array.from(await navigator.mediaDevices.enumerateDevices()), []);
+  assert.equal(navigator.userAgent, "Original UA");
+  assert.equal("__dolaFingerprintInitialSettings" in window, false);
+});
 
 function workerFixture() {
   const listeners = {};
@@ -39,16 +68,6 @@ function workerFixture() {
   vm.runInContext(read("service-worker.js"), context);
   return { chrome, state, updates, listeners, sync: () => vm.runInContext("syncCleanRules()", context) };
 }
-
-test("Android document-start seed can opt into WebGL-only reduction without enabling identity spoofing", () => {
-  const { window, navigator, api } = pageFixture(true, { hideWebglDebugInfo: true });
-  const gl = new window.WebGLRenderingContext();
-  assert.equal(api.getSettings().hideWebglDebugInfo, true);\n  assert.equal(api.getSettings().blockCanvasReadback, true);\n  assert.equal(api.getSettings().blockAudioFingerprint, true);\n  assert.equal(api.getSettings().blockWebRTC, true);\n  assert.equal(api.getSettings().blockDeviceEnumeration, true);
-  assert.equal(api.getSettings().cleanMode, false);
-  assert.equal(gl.getExtension("WEBGL_debug_renderer_info"), null);\n  assert.throws(() => new window.HTMLCanvasElement().toDataURL(), { name: "SecurityError" });\n  assert.throws(() => new window.CanvasRenderingContext2D().getImageData(), { name: "SecurityError" });\n  assert.throws(() => new window.OfflineAudioContext(), { name: "SecurityError" });\n  assert.throws(() => new window.RTCPeerConnection(), { name: "SecurityError" });\n  assert.deepEqual(Array.from(await navigator.mediaDevices.enumerateDevices()), []);
-  assert.equal(navigator.userAgent, "Original UA");
-  assert.equal("__dolaFingerprintInitialSettings" in window, false);
-});
 
 test("fingerprint privacy extension declares required MV3 host and network permissions", () => {
   const manifest = JSON.parse(read("manifest.json"));
@@ -240,3 +259,4 @@ test("popup does not claim success when network rules fail", async () => {
   assert.match(popup.elements.output.textContent, /旧请求头规则可能仍存在/);
   assert.equal(popup.elements.save.disabled, false);
 });
+
