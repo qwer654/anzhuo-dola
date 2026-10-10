@@ -139,8 +139,11 @@ public class WebViewAdapterInstrumentationTest {
             view.setWebViewClient(new android.webkit.WebViewClient() {
                 @Override public android.webkit.WebResourceResponse shouldInterceptRequest(
                         WebView webView, android.webkit.WebResourceRequest request) {
-                    if ("https://www.dola.com/privacy-frame".equals(request.getUrl().toString())) {
-                        String html = "<!doctype html><html><body>privacy frame</body></html>";
+                    if ("https://media.dola.com/privacy-frame".equals(request.getUrl().toString())) {
+                        String html = "<!doctype html><html><body><script>"
+                            + "var r={source:'privacy-frame-test',api:!!window.__dolaFingerprintPrivacy,blocked:(function(){try{document.createElement('canvas').toDataURL();return false}catch(e){return e.name==='SecurityError'}})()};"
+                            + "parent.postMessage(r,'https://www.dola.com');"
+                            + "</script></body></html>";
                         return new android.webkit.WebResourceResponse("text/html", "UTF-8",
                             new java.io.ByteArrayInputStream(html.getBytes(StandardCharsets.UTF_8)));
                     }
@@ -149,20 +152,30 @@ public class WebViewAdapterInstrumentationTest {
                 @Override public void onPageFinished(WebView webView, String url) {
                     if (!"https://www.dola.com/".equals(url)) return;
                     String expectedUa = JSONObject.quote(webView.getSettings().getUserAgentString());
-                    webView.evaluateJavascript("JSON.stringify({"
+                    Handler handler = new Handler(Looper.getMainLooper());
+                    Runnable[] poller = new Runnable[1];
+                    final int[] remaining = {20};
+                    poller[0] = () -> webView.evaluateJavascript("JSON.stringify({"
                         + "settings:window.__dolaFingerprintPrivacy.getSettings(),"
                         + "ua:navigator.userAgent,expectedUa:" + expectedUa + ","
                         + "debugResult:(window.WebGLRenderingContext ? WebGLRenderingContext.prototype.getExtension.call({},'WEBGL_debug_renderer_info') : 'unavailable'),"
                         + "canvasBlocked:(()=>{try{document.createElement('canvas').toDataURL();return false}catch(e){return e.name==='SecurityError'}})(),"
                         + "audioBlocked:(!window.OfflineAudioContext || (()=>{try{new OfflineAudioContext(1,1,44100);return false}catch(e){return e.name==='SecurityError'}})()),"
                         + "rtcBlocked:(!window.RTCPeerConnection || (()=>{try{new RTCPeerConnection();return false}catch(e){return e.name==='SecurityError'}})()),"
-                        + "frameApi:!!document.getElementById('privacy-frame').contentWindow.__dolaFingerprintPrivacy,"
-                        + "frameCanvasBlocked:(()=>{try{document.getElementById('privacy-frame').contentWindow.document.createElement('canvas').toDataURL();return false}catch(e){return e.name==='SecurityError'}})()"
-                        + "})", value -> { resultHolder.set(value); finished.countDown(); });
+                        + "frameApi:!!window.__privacyFrameResult&&!!window.__privacyFrameResult.api,"
+                        + "frameCanvasBlocked:!!window.__privacyFrameResult&&!!window.__privacyFrameResult.blocked"
+                        + "})", value -> {
+                            resultHolder.set(value);
+                            if ((value != null && value.contains("\"frameApi\":true")) || --remaining[0] <= 0) {
+                                finished.countDown();
+                            } else handler.postDelayed(poller[0], 250);
+                        });
+                    handler.post(poller[0]);
                 }
             });
             view.loadDataWithBaseURL("https://www.dola.com/", "<!doctype html><html><body>privacy fixture"
-                + "<iframe id='privacy-frame' src='https://www.dola.com/privacy-frame'></iframe></body></html>",
+                + "<script>window.__privacyFrameResult=null;window.addEventListener('message',function(e){if(e.origin==='https://media.dola.com'&&e.data&&e.data.source==='privacy-frame-test')window.__privacyFrameResult=e.data;});</script>"
+                + "<iframe id='privacy-frame' src='https://media.dola.com/privacy-frame'></iframe></body></html>",
                 "text/html", "UTF-8", null);
         });
         assertTrue("Privacy fixture did not finish", finished.await(20, TimeUnit.SECONDS));
