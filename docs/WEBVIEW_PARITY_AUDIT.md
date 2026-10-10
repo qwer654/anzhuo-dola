@@ -31,13 +31,18 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 
 8. **媒体重扫与脚本注入边界**：媒体列表新增“重扫当前页”，调用现有 `__dolaAndroidScan()` 并排空观察器队列；原生侧仍仅接收有效 HTTP(S) 图片/视频 URL，且要求当前页面处于白名单。Node VM 集成测试覆盖 DOM 发现与队列排空；API 35 instrumentation 直接加载 Dola fixture，断言重扫保留签名 URL 查询串；默认模式断言原版 fetch/XHR hooks 不变，非白名单 origin 不注入 Dola 脚本。`privacyCleanModeRequiresConsentAndCanBeReverted` 验证用户确认、重载与关闭流程；`bcf7919` 上 10 项 instrumentation 全通过。小米真机尚未安装此版本，不能据模拟器结果声称已完成真机验收。
 
-9. **原版脚本可选项映射**：新增 Android 原生“原版 Dola30 选项”入口，仅在原版脚本明确启用且当前页为信任站点时出现可保存功能。适配器只暴露原脚本已消费的 `intl_doubao_prompt_guard_inject_v1` 与 `intl_doubao_timeline_rewrite_v1` 两个 localStorage 选项，默认语义分别为关闭与开启；不会重写 `duration-main.js`。Node VM 测试覆盖默认值、读写、恢复；API 35 instrumentation 在原脚本 opt-in 夹具中检查适配 API、原公开 setter 保持不变，并验证关闭时间轴选项后匹配请求不再改写。该新增 instrumentation 仍待 CI 验证，不能先行记为通过。
+9. **原版脚本可选项映射**：新增 Android 原生“原版 Dola30 选项”入口，仅在原版脚本明确启用且当前页为信任站点时出现可保存功能。适配器只暴露原脚本已消费的 `intl_doubao_prompt_guard_inject_v1` 与 `intl_doubao_timeline_rewrite_v1` 两个 localStorage 选项，默认语义分别为关闭与开启；不会重写 `duration-main.js`。Node VM 测试覆盖默认值、读写、恢复；PR #1 head `fd7d1ead` 的 API 35 instrumentation 检查适配 API、原公开 setter 保持不变，并验证关闭时间轴选项后匹配请求不再改写。相应 Android APK 与 Android UI smoke workflows 已通过。
+
+10. **子域名注入回归**：修正适配器的主机名匹配，改用点边界安全的 `.endsWith()`，覆盖 `www.doubao.com`、`www.dola.com` 等子域，并拒绝 `notdoubao.com` / `evil-dola.com`。该修复已由 Node VM 测试及 PR #1 head `fd7d1ead` 的 Android API 35 instrumentation/CI 验证。
+
+11. **烟测任务前台隔离**：Android UI smoke 测试改为 press Home 后通过 `NEW_TASK|CLEAR_TASK` 启动 `MainActivity`，避免前一次测试的隔离 BrowserActivity task 令后续断言看到 launcher。head `fd7d1ead` 的 Android 15/API 35 UI smoke workflow 已通过。
 
 ## 下一阶段验收门槛
 
 - 自动化：`f361cc0` Android APK 工作流通过 Node 29 项、Java 单测 12 项、lint、APK 构建/签名和打包原始资源完整性；`05093fc` API 35 模拟器 6/6 instrumentation 通过。新增 Node VM 测试实际执行被注入媒体观察器，确认 fetch/XHR 响应维持原行为而只收集可读媒体 URL。
 - 最新提交 `0189e434`：Node 27 项、11 项 Java 单测、lint、debug/deviceValidation 构建与签名、原始 JS 打包哈希检查以及 API 35 模拟器 instrumentation 均通过。
 - `c6d01ca` 提交对应工作流均通过：Node 28 项、Android 单测/build/lint/APK 签名与原始 JS 完整性检查成功；API 35 模拟器完成 6/6 instrumentation 测试（0 失败）。覆盖原版 duration 脚本 opt-in 初始化、Android adapter 不覆盖其公开 API，以及本地 fetch 与 XHR 夹具中匹配 completion 的 user 时间线变换（system 文本与非目标路径保持不变）。`0514cdb` 后续构建及 API 35 模拟器 6/6 检查均通过，洁净模式 UA/Cookie/网页定位规则有单元测试。
+- 最新修复 head `fd7d1ead` 的 GitHub Actions Android APK 与 UI smoke 均通过（runs `38028214325`、`38028214350`）；包括 adapter 主机匹配、原版选项开关测试、apk 及原始资源校验和 Android 15/API 35 UI smoke。
 - 模拟器：API 35 `connectedDeviceValidationAndroidTest` 中空间隔离/标签、document-start 适配与媒体链接剪贴板测试通过；并装验收 APK 不需替换原 app 包。
 - Xiaomi 真机：已在原安装包上确认 `DOCUMENT_START_SCRIPT` 路径及 Dola 页面显示；新版并装包受系统安装限制拒绝，需设备端允许安装后验证提示词转换、资源复制/下载、上传、Cookie 快照及空间隔离。不得因本次 smoke 通过而声称页面请求或平台功能已全面等价。
 - 等价声明：没有覆盖的 MV3 API 必须继续标“未移植/非等价”，尤其 debugger、下载认证头、跨 Worker/iframe 注入、响应替换和扩展弹窗/Service Worker 生命周期。
