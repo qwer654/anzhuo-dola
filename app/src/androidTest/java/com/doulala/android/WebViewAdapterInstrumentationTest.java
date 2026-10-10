@@ -305,7 +305,10 @@ public class WebViewAdapterInstrumentationTest {
         try {
             clipboard.clearPrimaryClip();
             assertTrue(BrowserActivity.writeMediaUrlToClipboard(context, fixture));
-            assertEquals(fixture, clipboard.getPrimaryClip().getItemAt(0).coerceToText(context).toString());
+            ClipData clip = BrowserActivity.mediaUrlClip(fixture);
+            assertNotNull(clip);
+            assertEquals(fixture, clip.getItemAt(0).coerceToText(context).toString());
+            assertNull(BrowserActivity.mediaUrlClip("  "));
             assertFalse(BrowserActivity.writeMediaUrlToClipboard(context, "  "));
         } finally {
             clipboard.clearPrimaryClip();
