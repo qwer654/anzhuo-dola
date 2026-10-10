@@ -144,8 +144,13 @@ public class WebViewAdapterInstrumentationTest {
             }
             WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
                 .setDomain("www.dola.com")
-                .addPathHandler("/fixture/", path -> new WebResourceResponse("text/html", "UTF-8",
-                    new ByteArrayInputStream("<!doctype html><p>matching origin frame</p>".getBytes(StandardCharsets.UTF_8))))
+                .addPathHandler("/fixture/", path -> {
+                    String html = "parent.html".equals(path)
+                        ? "<!doctype html><iframe src='/fixture/frame.html'></iframe>"
+                        : "<!doctype html><p>matching origin frame</p>";
+                    return new WebResourceResponse("text/html", "UTF-8",
+                        new ByteArrayInputStream(html.getBytes(StandardCharsets.UTF_8)));
+                })
                 .build();
             view.setWebViewClient(new android.webkit.WebViewClient() {
                 @Override public WebResourceResponse shouldInterceptRequest(WebView webView, WebResourceRequest request) {
@@ -157,8 +162,7 @@ public class WebViewAdapterInstrumentationTest {
                         value -> { resultHolder.set(value); finished.countDown(); }), 300);
                 }
             });
-            view.loadDataWithBaseURL("https://www.dola.com/fixture/parent.html",
-                "<!doctype html><iframe src='https://www.dola.com/fixture/frame.html'></iframe>", "text/html", "UTF-8", null);
+            view.loadUrl("https://www.dola.com/fixture/parent.html");
         });
         assertTrue("Frame privacy fixture did not finish", finished.await(20, TimeUnit.SECONDS));
         Object decoded = new JSONTokener(resultHolder.get()).nextValue();
