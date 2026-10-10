@@ -16,7 +16,7 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 | `skill-pack-main.js` 能力响应钩子 | **保留、未注入** | 原文件哈希保持不变，但不向站点运行；不伪造/扩大平台返回的模型、会员或生成能力。 |
 | `host-bridge.js` 与 Chrome 消息通道 | **未移植** | 未创建 `chrome.*` 兼容假层，避免出现“看似成功、实际消息丢失”的伪兼容。若实现原生桥，必须限制白名单源、命令集合、消息大小和调用权限，并单测来源校验。 |
 | MV3 `manifest.json` | **仅作为原始资料保留** | Android APK 不会把它当作 Chrome 扩展安装。 |
-| MV3 fingerprint-privacy 扩展 | **Android 保守子集已接入，MV3 运行时未接入** | WebView 菜单洁净模式保留实际 WebView UA（仅移除应用自标识后缀）、拒收第三方 Cookie、禁用网页 Geolocation API，并在豆包/Dola/千问/剪映白名单顶层页面隐藏 WebGL 调试渲染器扩展；不伪造设备身份或高熵 Client Hints。Canvas/Audio/WebRTC 限制、iframe/Worker 覆盖和 DNR 请求头规则仍未接入，也不保证无广告。 |
+| MV3 fingerprint-privacy 扩展 | **Android API 降噪子集已接入，MV3 运行时未接入** | WebView 菜单洁净模式保留实际 WebView UA（仅移除应用自标识后缀）、拒收第三方 Cookie、禁用网页 Geolocation，并在受信 provider 页面阻断 Canvas 像素读取、隐藏 WebGL 调试渲染器、禁用离线音频指纹 API、WebRTC 和设备枚举；不伪造设备身份或高熵 Client Hints。此模式可能让绘图导出、音频处理、通话和设备选择不可用，也不保证无广告。页面诊断、iframe/Worker 覆盖和 DNR 请求头规则仍未接入；API 屏蔽的实际站点兼容性需真机验证。 |
 
 ## 审核发现与改进
 
