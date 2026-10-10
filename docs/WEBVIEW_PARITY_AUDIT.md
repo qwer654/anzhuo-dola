@@ -21,7 +21,7 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 ## 审核发现与改进
 
 1. **版本标签不一致**：应用首页显示 0.2.0、Gradle/功能矩阵为 0.2.1；本次已统一首页标签为 0.2.1。
-2. **设备端适配缺少执行级证明**：已有 `WebViewAdapterInstrumentationTest` 检查 15/30 状态切换、时间轴输出，并确保 Android 状态明确为不改请求、不自动提交。最新修改还验证由用户显式勾选后，原版控制提示段只进入预览/复制文本，不进入自动请求链；新加的 Android instrumentation 与 CI 检查结果待本次提交运行。
+2. **设备端适配缺少执行级证明**：`WebViewAdapterInstrumentationTest` 已通过 15/30 状态切换、时间轴输出、用户显式勾选后加入原版控制提示段的断言；状态仍明确不改请求、不自动提交。该检查随最新 CI 提交通过。
 3. **原始 JS 完整性**：保留检查继续验证全部列出的原文件路径、字节数、SHA-256；APK 工作流还会检查打包后资产。不允许将原件“改成 WebView 版”；新适配放在独立文件并单独测试。
 4. **站点运行风险**：注入只允许受信 HTTPS 域；文件访问关闭、混合内容禁止、外部 scheme 不会直接交给 WebView。资源下载为用户确认的系统下载任务，不自动附加登录 Cookie。Cookie 快照是敏感凭证，只经用户主动 SAF 选择且绑定精确 origin。
 5. **真机验收边界**：已在 Xiaomi `22127RK46C` / Android 16 / `com.google.android.webview 153.0.8010.36` 安装 CI 校验的 `0.2.1-debug` APK，并打开 `https://www.dola.com/chat/`。页面显示本地工具与资源观察状态，资源计数为 5；本次未登录、未提交提示词、未触发生成，也未读取 Cookie/令牌。该结果证明目标 Provider 与这一 Dola 页面下的基础加载/注入路径可用，但不证明登录、上传、实际下载、Cookie 迁移、跨空间隔离或平台接受 30 秒请求。
@@ -31,7 +31,7 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 ## 下一阶段验收门槛
 
 - 自动化：Node 测试 26 项、Java 单测 11 项、lint、APK 构建/签名、打包原始资源完整性均通过（2026-10-10 PR 检查）。
-- 当前工作树本地 Node 回归 27 项通过（包含 opt-in prompt guard 测试）；新代码对应的托管构建与模拟器 instrumentation 结果待 GitHub Actions 本次提交完成后确认。
+- 最新提交 `0189e434`：Node 27 项、11 项 Java 单测、lint、debug/deviceValidation 构建与签名、原始 JS 打包哈希检查以及 API 35 模拟器 instrumentation 均通过。
 - 模拟器：API 35 `connectedDeviceValidationAndroidTest` 中空间隔离/标签、document-start 适配与媒体链接剪贴板测试通过；并装验收 APK 不需替换原 app 包。
 - Xiaomi 真机：已在原安装包上确认 `DOCUMENT_START_SCRIPT` 路径及 Dola 页面显示；新版并装包受系统安装限制拒绝，需设备端允许安装后验证提示词转换、资源复制/下载、上传、Cookie 快照及空间隔离。不得因本次 smoke 通过而声称页面请求或平台功能已全面等价。
 - 等价声明：没有覆盖的 MV3 API 必须继续标“未移植/非等价”，尤其 debugger、下载认证头、跨 Worker/iframe 注入、响应替换和扩展弹窗/Service Worker 生命周期。
