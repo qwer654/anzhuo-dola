@@ -1,6 +1,8 @@
 package com.doulala.android;
 
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.webkit.CookieManager;
@@ -564,7 +566,7 @@ public class WebViewAdapterInstrumentationTest {
             }
             view.setWebViewClient(new android.webkit.WebViewClient() {
                 @Override public void onPageFinished(WebView webView, String url) {
-                    webView.postDelayed(() -> webView.evaluateJavascript(
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> webView.evaluateJavascript(
                         "JSON.stringify({items:window.__dolaAndroidDrain(),childOrigin:document.getElementById('same').contentWindow.location.origin})",
                         value -> { resultHolder.set(value); finished.countDown(); }), 1000);
                 }
