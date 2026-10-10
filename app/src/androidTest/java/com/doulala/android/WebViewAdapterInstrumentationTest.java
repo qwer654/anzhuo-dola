@@ -79,7 +79,7 @@ public class WebViewAdapterInstrumentationTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
 
-    @Test public void privacyCleanModeReducesWebglDebugInfoWithoutSpoofingWebViewUa() throws Exception {
+    @Test public void privacyCleanModeBlocksFingerprintApisWithoutSpoofingWebViewUa() throws Exception {
         assertTrue(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
         String privacy = readAsset("fingerprint-privacy/content-main.js");
         String bootstrap = BrowserActivity.privacyFingerprintBootstrap(privacy, true);
@@ -103,7 +103,7 @@ public class WebViewAdapterInstrumentationTest {
                     webView.evaluateJavascript("JSON.stringify({"
                         + "settings:window.__dolaFingerprintPrivacy.getSettings(),"
                         + "ua:navigator.userAgent,expectedUa:" + expectedUa + ","
-                        + "debugResult:(window.WebGLRenderingContext ? WebGLRenderingContext.prototype.getExtension.call({},'WEBGL_debug_renderer_info') : 'unavailable')"
+                        + "debugResult:(window.WebGLRenderingContext ? WebGLRenderingContext.prototype.getExtension.call({},'WEBGL_debug_renderer_info') : 'unavailable'),"\n                        + "canvasBlocked:(()=>{try{document.createElement('canvas').toDataURL();return false}catch(e){return e.name==='SecurityError'}})(),"\n                        + "audioBlocked:(!window.OfflineAudioContext || (()=>{try{new OfflineAudioContext(1,1,44100);return false}catch(e){return e.name==='SecurityError'}})()),"\n                        + "rtcBlocked:(!window.RTCPeerConnection || (()=>{try{new RTCPeerConnection();return false}catch(e){return e.name==='SecurityError'}})())"
                         + "})", value -> { resultHolder.set(value); finished.countDown(); });
                 }
             });
@@ -114,9 +114,9 @@ public class WebViewAdapterInstrumentationTest {
         Object decoded = new JSONTokener(resultHolder.get()).nextValue();
         assertTrue(decoded instanceof String);
         JSONObject result = new JSONObject((String) decoded);
-        assertTrue(result.getJSONObject("settings").getBoolean("hideWebglDebugInfo"));
+        assertTrue(result.getJSONObject("settings").getBoolean("hideWebglDebugInfo"));\n        assertTrue(result.getJSONObject("settings").getBoolean("blockCanvasReadback"));\n        assertTrue(result.getJSONObject("settings").getBoolean("blockAudioFingerprint"));\n        assertTrue(result.getJSONObject("settings").getBoolean("blockWebRTC"));\n        assertTrue(result.getJSONObject("settings").getBoolean("blockDeviceEnumeration"));
         assertFalse("Android must not enable identity spoofing", result.getJSONObject("settings").getBoolean("cleanMode"));
-        assertEquals(result.getString("expectedUa"), result.getString("ua"));
+        assertEquals(result.getString("expectedUa"), result.getString("ua"));\n        assertTrue("Canvas readback was not disabled", result.getBoolean("canvasBlocked"));\n        assertTrue("Offline audio was not disabled where exposed", result.getBoolean("audioBlocked"));\n        assertTrue("WebRTC was not disabled where exposed", result.getBoolean("rtcBlocked"));
         if (!"unavailable".equals(result.getString("debugResult"))) assertTrue(result.isNull("debugResult"));
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
