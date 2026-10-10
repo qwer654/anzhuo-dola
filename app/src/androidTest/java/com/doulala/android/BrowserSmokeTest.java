@@ -61,4 +61,30 @@ public class BrowserSmokeTest {
         assertFalse("A bookmark from space seven leaked into space eight",device.hasObject(By.text("Smoke bookmark")));
         assertNotNull("Browser menu is missing after switching to space eight",device.findObject(By.desc("浏览器菜单")));
     }
+
+    @Test public void privacyCleanModeRequiresConsentAndCanBeReverted() throws Exception {
+        assertTrue(context.getSharedPreferences("catalog",Context.MODE_PRIVATE).edit().clear()
+            .putBoolean("enabled0",false).putBoolean("enabled7",true)
+            .putString("name7","隐私洁净验收").putString("url7","https://example.com/").commit());
+        context.startActivity(new Intent(context,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        waitFor(By.text("账号空间"));openSpace("隐私洁净验收");
+        waitFor(By.text("标签 1"));
+        menu("隐私洁净模式：关闭");
+        waitFor(By.text("开启隐私洁净模式？"));
+        tap("取消");
+        menu("隐私洁净模式：关闭");
+        waitFor(By.text("开启隐私洁净模式？"));
+        tap("开启并重载");
+        waitFor(By.desc("浏览器菜单"));
+        menu("隐私洁净模式：已启用");
+        waitFor(By.text("关闭隐私洁净模式？"));
+        tap("关闭并重载");
+        waitFor(By.desc("浏览器菜单"));
+        menu("隐私洁净模式：关闭");
+        waitFor(By.text("开启隐私洁净模式？"));
+        tap("取消");
+        menu("回到空间列表");
+        waitFor(By.text("账号空间"));
+    }
 }
+
