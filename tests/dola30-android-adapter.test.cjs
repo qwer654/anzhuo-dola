@@ -201,3 +201,34 @@ test("floating Android control is draggable and persists the original panel posi
   assert.equal(page.dola30Android.getDola30sStatus().includes('"on":false'), true, "cancelled movement must not toggle 30S");
 });
 
+test("floating Android control restores saved position and clamps it to viewport", () => {
+  const values = new Map([["intl_doubao_media_panel_pos_v3", JSON.stringify({ left: 310, bottom: 610 })]]);
+  let button;
+  const page = {
+    top: null, innerWidth: 360, innerHeight: 640,
+    location: { hostname: "www.dola.com" },
+    localStorage: {
+      getItem(key) { return values.has(key) ? values.get(key) : null; },
+      setItem(key, value) { values.set(key, String(value)); }
+    },
+    setTimeout() {}, Event: function Event() {}, CustomEvent: function CustomEvent() {}, MutationObserver: null,
+    document: {
+      readyState: "complete", documentElement: { setAttribute() {} }, dispatchEvent() {},
+      getElementById() { return button || null; },
+      createElement() {
+        button = {
+          style: {}, offsetWidth: 160, offsetHeight: 40, setAttribute() {},
+          addEventListener() {}, setPointerCapture() {}, releasePointerCapture() {}
+        };
+        return button;
+      },
+      body: { appendChild() {} }
+    }
+  };
+  page.top = page;
+  vm.runInNewContext(source, { window: page });
+  assert.equal(button.style.left, "192px");
+  assert.equal(button.style.bottom, "592px");
+  assert.deepEqual(JSON.parse(values.get("intl_doubao_media_panel_pos_v3")), { left: 310, bottom: 610 }, "restoring must not overwrite saved coordinates");
+});
+
