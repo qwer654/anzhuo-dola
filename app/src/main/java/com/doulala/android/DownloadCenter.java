@@ -8,6 +8,7 @@ import android.os.*;
 import android.webkit.URLUtil;
 import android.widget.*;
 import java.io.*;
+import java.net.*;
 import java.util.*;
 import java.util.concurrent.*;
 
