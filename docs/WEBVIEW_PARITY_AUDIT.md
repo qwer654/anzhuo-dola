@@ -11,7 +11,7 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 | 原文件/能力 | WebView 状态 | 审核判断与下一步 |
 |---|---|---|
 | `duration-main.js` 页面时长 UI、状态和提示词时间轴 | **可选原版运行；条件有限** | 默认用 `dola30-android-adapter.js` 及人工工具；用户显式同意后原样 document-start 注入保留的 `duration-main.js` 到 Dola/Doubao HTTPS 页面。默认适配器兼容原版公开的 `setDola30s` / `getDola30sStatus` 和旧宿主别名 `setDoubao30s` / `getDoubao30sStatus`，但只保存本地状态且回报 `applied:0`（不控制平台）；opt-in 下不覆盖原脚本方法。Android 原生菜单可读写原脚本已有的提示段/时间轴开关 localStorage 键；脚本自身判断页面状态、提示词和匹配请求中的用户文本处理。应用不自动提交；实际网页控件识别与真实平台行为仍需真机逐项验证。 |
-| `content-panel.js` 扩展浮层 | **未运行原件** | Android 原生菜单提供媒体、下载和 30S 工具入口；WebView 的 30S 悬浮控件新增触屏拖动，使用原面板 `intl_doubao_media_panel_pos_v3` 位置键并保存左/底坐标。原完整媒体面板、最小化/解析 UI 未复刻；原面板调用扩展消息 API，WebView 中无 `chrome.runtime`。 |
+| `content-panel.js` 扩展浮层 | **未运行原件；有限等价 UI** | Android 原生菜单提供媒体、下载和 30S 工具入口；WebView 的 30S 悬浮控件支持触屏拖动、位置状态与最小化/展开状态，分别复用原版 `intl_doubao_media_panel_pos_v3`、`intl_doubao_media_panel_minimized_v1` 键。原完整媒体面板、最小化后的资源面板与解析 UI 未复刻；原面板调用扩展消息 API，WebView 中无 `chrome.runtime`。 |
 | `service-worker.js` 标签、下载、Debugger、资源提取、响应替换 | **安全子集** | 书签/标签/下载由原生 UI 提供；`media-probe.js` 被动观察 DOM、Performance、fetch/XHR 中已暴露的媒体 URL，用户可手动触发重扫；Debugger/CDP、fallback API 获取、解码/请求链和响应替换未移植。 |
 | `skill-pack-main.js` 能力响应钩子 | **保留、未注入** | 原文件哈希保持不变，但不向站点运行；不伪造/扩大平台返回的模型、会员或生成能力。 |
 | `host-bridge.js` 与 Chrome 消息通道 | **未移植** | 未创建 `chrome.*` 兼容假层，避免出现“看似成功、实际消息丢失”的伪兼容。若实现原生桥，必须限制白名单源、命令集合、消息大小和调用权限，并单测来源校验。 |
@@ -43,11 +43,9 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 
 14. **最新 APK 的真机并装尝试**：通过的 run `38029307145` 上传了 `deviceValidation` variant；下载后的本地 APK SHA-256 为 `0fef409e982b777740e79b527fc8981eb8a804c9022cfda3d6e826cf1265d072`，`verify_apk_assets.py` 确认 15 个原始扩展资源匹配。对连接设备 `22127RK46C` 执行未覆盖安装时，ADB 返回 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`。未重试、未关闭安全限制、未卸载或更改已安装的 `com.doulala.android.debug`；最新 variant 尚未运行于真机。
 
-15. **移动面板触控位置**：Android 30S 悬浮控件新增 Pointer Events 拖动，边界限制在当前 viewport 内；位置写入原版 `content-panel.js` 使用的 `intl_doubao_media_panel_pos_v3` 键，释放拖动不会误触 30S 开关。Node VM 回归测试覆盖坐标更新/持久化和误触抑制；Android WebView instrumentation 验证 Chromium Provider 中 pointer 事件、坐标变更及 localStorage 写入。完整面板、最小化状态和解析 UI 仍未移植。
+15. **移动面板状态**：Android 30S 悬浮控件新增 Pointer Events 拖动，边界限制在当前 viewport 内；位置与最小化/展开分别写入原版 `content-panel.js` 使用的 `intl_doubao_media_panel_pos_v3`、`intl_doubao_media_panel_minimized_v1` 键。释放拖动不会误触 30S 开关；最小化时点悬浮胶囊仅展开，不会意外启用 30S。Node VM 与 Android WebView instrumentation 覆盖拖动、持久化、最小化和展开行为。原完整媒体面板、资源解析 UI 仍未移植。
 
-16. **视频媒体分类与 poster 回归（PR head `9a0062fc`）**：API 35 instrumentation 新增 `<video>`、`<source>` 和 poster fixture。首轮发现 Performance API 可能将 poster 请求标成 `video`，修复为已知 URL 扩展名优先；随后的 WebView 测试发现 DOM poster 属性读取在真实 Provider 下缺失，改为同时回退读取 `getAttribute("poster")`。最终 API 35 smoke run `38040564234` 通过；APK run `38040564223` 完成构建、签名及原始扩展资源完整性检查。Node media probe 15/15、原始来源清单 1/1、Android adapter 10/10 通过。原始 Dola30 包仍由 manifest 校验保持不变。
-
-16. **洁净模式 WebGL 子集**：隐私洁净开关现于 document-start 为受支持 Provider 顶层页面注入独立 fingerprint module，仅启用 `WEBGL_debug_renderer_info` 屏蔽；Android 保留真实 WebView UA，不使用该模块固定的 Chrome 140 identity，不启用 Canvas/Audio/WebRTC 限制。Node VM 覆盖初始 setting seed；Android instrumentation 比对 navigator UA 与 WebView 原生 UA，并验证 WebGL debug API 返回被屏蔽。PR head `0a51423` 所含代码由后续代码提交 `f87f8e1` 触发的 APK workflow `38041152167` 与 API 35 smoke workflow `38041152221` 验证通过，模拟器 instrumentation 12/12 全过。只证明该 WebView Provider/夹具行为，不等于真实站点或完整抗指纹验收。
+16. **洁净模式 API 降噪子集**：隐私洁净开关在受信 Provider 页面 document-start 注入独立 fingerprint module；除第三方 Cookie/Geolocation外，限制 Canvas 像素读取、屏蔽 `WEBGL_debug_renderer_info`、禁用离线音频指纹 API、WebRTC 与设备枚举。保留实际 WebView UA，不使用模块固定的 Chrome 140 identity，也不改 Client Hints/系统设备身份。Node VM 与 Android instrumentation 覆盖 seed、API 行为和 UA 保持。此为显著兼容性取舍，真实网页影响仍待真机验证。
 
 ## 下一阶段验收门槛
 
@@ -58,8 +56,7 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 - 后续功能边界说明代码 head `399c1b6` 曾触发的工作流被紧随其后的文件更新取消；已在包含该代码、单测和路径触发修复的 head `37a82f1b` 重跑完整验证。Android APK run `38029307145` 与 UI smoke run `38029307232` 均成功；APK 流程完成 Node/Java 单测、lint、构建/签名和原始资源哈希校验，UI 流程完成 Android 15/API 35 仿真验收。
 - 模拟器：API 35 `connectedDeviceValidationAndroidTest` 中空间隔离/标签、document-start 适配与媒体链接剪贴板测试通过；并装验收 APK 不需替换原 app 包。
 - Xiaomi 真机：已在原安装包上确认 `DOCUMENT_START_SCRIPT` 路径及 Dola 页面显示；新版并装包受系统安装限制拒绝，需设备端允许安装后验证提示词转换、资源复制/下载、上传、Cookie 快照及空间隔离。不得因本次 smoke 通过而声称页面请求或平台功能已全面等价。
-- 洁净模式 WebGL 子集提交 `f87f8e1`：Android APK 工作流 `38041152167` 与 UI smoke `38041152221` 均成功。CI 运行 12/12 instrumentation（0 skipped/0 failed），APK 路径验证 Node/Java 测试、lint、打包签名和原始资源完整性。工作流 commit 是 PR merge ref，代码改动以 PR head `0a51423` 为准；纯 docs 后续更新不影响运行代码。
 - 等价声明：没有覆盖的 MV3 API 必须继续标“未移植/非等价”，尤其 debugger、下载认证头、Worker/不匹配或 opaque iframe 注入、响应替换和扩展弹窗/Service Worker 生命周期。匹配 provider iframe 的 API 降噪不是完整 MV3 frame/worker 覆盖。
 
+17. **标签导航历史恢复**：兼容读取旧版 URL 字符串数组，新增 URL + 有界 WebView saveState 序列化状态；总编码预算 96 KiB、单标签原始 Parcel 上限 36 KiB、标签 JSON 上限 512 KiB。损坏、超限、恢复异常回退 URL。API 35 instrumentation 以本地受控两页 fixture 验证可恢复返回栈；表单、DOM、JavaScript 堆与站点状态不保证恢复，PR head `241f2ff1` 的 APK CI 与 Android 15/API 35 UI smoke 已通过；16/16 instrumentation 全绿（run `38054679861`）。
 
-17. **标签导航历史恢复（PR head `7704490b`）**：多标签偏好设置继续读取旧版 URL 字符串数组，并支持写入 URL + 有界 WebView `saveState` 序列化数据。全部历史编码预算 96 KiB，单标签状态原始 Parcel 上限 36 KiB，JSON 上限 512 KiB；无法保存、损坏或超限时退回 URL 加载。API 35 instrumentation 使用本地两页 fixture 验证恢复后仍有返回历史；表单、DOM、JavaScript 堆和网页内状态仍不恢复。PR head `241f2ff1` 的 Android APK 构建/资源哈希门禁通过，Android 15/API 35 UI smoke 为 16/16 instrumentation 全通过（run `38054679861`）；历史恢复项由本地双页 HTTPS 拦截 fixture 覆盖。
