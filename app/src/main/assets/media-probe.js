@@ -12,31 +12,65 @@
   var origin = String(root.location.origin || "");
   if (!/^https?:\/\//i.test(origin)) return;
   root.__dolaAndroidProbeInstalled = true;
-
   var collector = api.createCollector();
   var document = root.document;
   var bodyJobs = 0;
   var pendingScan = false;
-  var pendingRelay = false;
+  var pendingFrames = new Map();
+  var frameRequests = new WeakMap();
+  var frameLoadListeners = new WeakSet();
   function title() { return String(document.title || "").slice(0, 200); }
+  function trustedOrigin(raw) {
+    try {
+      var url = new URL(raw);
+      if (url.protocol !== "https:" || !url.hostname || url.username || url.password || (url.port && url.port !== "443") || !api.isAllowedHost(url.hostname)) return "";
+      return url.origin;
+    } catch (_) { return ""; }
+  }
+  function frameOrigin(frame) {
+    if (!frame || !frame.getAttribute || frame.hasAttribute && frame.hasAttribute("srcdoc")) return "";
+    var raw = frame.getAttribute("src");
+    if (!raw || !raw.trim()) return "";
+    try { return trustedOrigin(new URL(raw, document.baseURI || root.location.href).href); }
+    catch (_) { return ""; }
+  }
+  function requestFrameScans() {
+    if (!isTop || !document.querySelectorAll || !root.crypto || typeof root.crypto.getRandomValues !== "function") return;
+    var frames;
+    try { frames = document.querySelectorAll("iframe"); } catch (_) { return; }
+    for (var i = 0; i < Math.min(frames.length, 20); i++) {
+      var frame = frames[i], targetOrigin = frameOrigin(frame), source = frame && frame.contentWindow;
+      if (!targetOrigin || !source || frame.isConnected === false) continue;
+      if (!frameLoadListeners.has(frame) && frame.addEventListener) {
+        frameLoadListeners.add(frame);
+        frame.addEventListener("load", function () { requestFrameScans(); });
+      }
+      var last = frameRequests.get(frame) || 0;
+      if (Date.now() - last < 750) continue;
+      frameRequests.set(frame, Date.now());
+      var bytes = new Uint32Array(4);
+      try { root.crypto.getRandomValues(bytes); } catch (_) { continue; }
+      var nonce = Array.from(bytes).map(function (n) { return n.toString(16); }).join("");
+      pendingFrames.set(nonce, { frame: frame, source: source, origin: targetOrigin, expires: Date.now() + 5000 });
+      try { source.postMessage({ channel: "dola.android.media", version: 1, type: "scan-request", nonce: nonce }, targetOrigin); }
+      catch (_) { pendingFrames.delete(nonce); }
+    }
+  }
   function receive(items) {
     collector.add(items);
-    if (isTop || pendingRelay || !root.parent || typeof root.parent.postMessage !== "function") return;
-    pendingRelay = true;
-    root.setTimeout(function () {
-      pendingRelay = false;
-      var batch = collector.drain();
-      if (!batch.length) return;
-      try { root.parent.postMessage({ channel: "dola.android.media", version: 1, items: batch }, origin); }
-      catch (_) { /* A cross-origin or detached frame must not affect the page. */ }
-    }, 0);
+    // Child frames only send data in response to a top-frame nonce challenge.
   }
   if (isTop && typeof root.addEventListener === "function") {
     root.addEventListener("message", function (event) {
       var data = event && event.data;
-      if (!event || event.origin !== origin || !event.source || event.source === root ||
-          !data || data.channel !== "dola.android.media" || data.version !== 1 ||
-          !Array.isArray(data.items) || data.items.length > 300) return;
+      if (!event || !event.source || !data || data.channel !== "dola.android.media" || data.version !== 1 ||
+          data.type !== "scan-response" || typeof data.nonce !== "string" || data.nonce.length > 64 ||
+          !Array.isArray(data.items) || data.items.length > 50) return;
+      var pending = pendingFrames.get(data.nonce);
+      pendingFrames.delete(data.nonce);
+      if (!pending || pending.expires < Date.now() || event.source !== pending.source || event.origin !== pending.origin ||
+          !pending.frame || pending.frame.isConnected === false || pending.frame.contentWindow !== event.source || frameOrigin(pending.frame) !== event.origin) return;
+      try { if (JSON.stringify(data).length > 65536) return; } catch (_) { return; }
       var items = [];
       for (var i = 0; i < data.items.length; i++) {
         var item = data.items[i];
@@ -88,8 +122,23 @@
     pendingScan = true;
     root.setTimeout(function () { pendingScan = false; scanDom(); }, 400);
   }
-  root.__dolaAndroidScan = function () { scanDom(); return collector.snapshot(); };
-  root.__dolaAndroidDrain = function () { return collector.drain(); };
+  if (!isTop && root.parent && typeof root.addEventListener === "function") {
+    root.addEventListener("message", function (event) {
+      var data = event && event.data;
+      if (!event || event.source !== root.parent || !trustedOrigin(event.origin) ||
+          !data || data.channel !== "dola.android.media" || data.version !== 1 ||
+          data.type !== "scan-request" || typeof data.nonce !== "string" || !/^[0-9a-f]{1,64}$/.test(data.nonce)) return;
+      scanDom();
+      var items = collector.drain().slice(0, 50);
+      var response = { channel: "dola.android.media", version: 1, type: "scan-response", nonce: data.nonce, items: items };
+      // Bound the serialized response too, not only item count and URL length.
+      while (items.length && JSON.stringify(response).length > 65536) items.pop();
+      try { root.parent.postMessage(response, event.origin); }
+      catch (_) { /* Detached or navigated frame: ignore. */ }
+    });
+  }
+  root.__dolaAndroidScan = function () { scanDom(); requestFrameScans(); return collector.snapshot(); };
+  root.__dolaAndroidDrain = function () { requestFrameScans(); return collector.drain(); };
 
   async function observeResponse(response, source) {
     // Only inspect readable JSON/text copies. Never consume or replace the page's response.
@@ -195,7 +244,8 @@
     if (!url) return "";
     var path;
     try { path = new URL(url).pathname; } catch (_) { return ""; }
-    // Prefer recognizable file types: browsers may report a video poster request as initiatorType="video".
+    // Prefer an explicit, recognizable file type over resource initiator hints:
+    // browsers report a video element's poster request with initiatorType="video".
     if (/\.(?:png|jpe?g|webp|gif|avif|bmp|heic)(?:[~!].*)?$/i.test(path)) return "image";
     if (/\.(?:mp4|m4v|mov|webm|mkv|m3u8)(?:[~!].*)?$/i.test(path)) return "video";
     return hint === "image" || hint === "video" ? hint : "";
