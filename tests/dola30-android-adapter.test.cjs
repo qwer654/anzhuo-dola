@@ -232,3 +232,37 @@ test("floating Android control restores saved position and clamps it to viewport
   assert.deepEqual(JSON.parse(values.get("intl_doubao_media_panel_pos_v3")), { left: 310, bottom: 610 }, "restoring must not overwrite saved coordinates");
 });
 
+test("floating Android control reclamps and persists after viewport resize", () => {
+  const values = new Map([["intl_doubao_media_panel_pos_v3", JSON.stringify({ left: 188, bottom: 12 })]]);
+  const listeners = new Map();
+  let button;
+  const page = {
+    top: null, innerWidth: 360, innerHeight: 640,
+    location: { hostname: "www.dola.com" },
+    addEventListener(name, callback) { listeners.set(name, callback); },
+    localStorage: {
+      getItem(key) { return values.has(key) ? values.get(key) : null; },
+      setItem(key, value) { values.set(key, String(value)); }
+    },
+    setTimeout() {}, Event: function Event() {}, CustomEvent: function CustomEvent() {}, MutationObserver: null,
+    document: {
+      readyState: "complete", documentElement: { setAttribute() {} }, dispatchEvent() {},
+      getElementById() { return button || null; },
+      createElement() {
+        button = {
+          style: {}, offsetWidth: 160, offsetHeight: 40, setAttribute() {},
+          addEventListener() {}, setPointerCapture() {}, releasePointerCapture() {}
+        };
+        return button;
+      },
+      body: { appendChild() {} }
+    }
+  };
+  page.top = page;
+  vm.runInNewContext(source, { window: page });
+  page.innerWidth = 100;
+  listeners.get("resize")();
+  assert.equal(button.style.left, "8px");
+  assert.deepEqual(JSON.parse(values.get("intl_doubao_media_panel_pos_v3")), { left: 8, bottom: 12 });
+});
+
