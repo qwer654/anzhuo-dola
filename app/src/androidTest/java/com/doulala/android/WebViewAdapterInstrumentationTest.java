@@ -213,7 +213,9 @@ public class WebViewAdapterInstrumentationTest {
                         + "var dragSaved=JSON.parse(localStorage.getItem('intl_doubao_media_panel_pos_v3'));"
                         + "fire('pointerdown',150,560);fire('pointermove',160,555);fire('pointercancel',160,555);"
                         + "var cancelledSaved=JSON.parse(localStorage.getItem('intl_doubao_media_panel_pos_v3'));"
-                        + "return JSON.stringify({left:left,bottom:bottom,dragLeft:dragLeft,dragBottom:dragBottom,dragSaved:dragSaved,cancelledSaved:cancelledSaved,enabled:JSON.parse(window.getDola30sStatus()).on});"
+                        + "Object.defineProperty(window,'innerWidth',{configurable:true,value:100});window.dispatchEvent(new Event('resize'));"
+                        + "var resizeSaved=JSON.parse(localStorage.getItem('intl_doubao_media_panel_pos_v3'));"
+                        + "return JSON.stringify({left:left,bottom:bottom,dragLeft:dragLeft,dragBottom:dragBottom,dragSaved:dragSaved,cancelledSaved:cancelledSaved,resizedLeft:parseFloat(button.style.left),resizeSaved:resizeSaved,enabled:JSON.parse(window.getDola30sStatus()).on});"
                         + "})()", value -> { result.set(value); finished.countDown(); });
                 }
             });
@@ -231,6 +233,8 @@ public class WebViewAdapterInstrumentationTest {
         assertEquals(state.getInt("dragBottom"), state.getJSONObject("dragSaved").getInt("bottom"));
         assertEquals(state.getInt("dragLeft") + 10, state.getJSONObject("cancelledSaved").getInt("left"));
         assertEquals(state.getInt("dragBottom") + 5, state.getJSONObject("cancelledSaved").getInt("bottom"));
+        assertEquals(8, state.getInt("resizedLeft"));
+        assertEquals(8, state.getJSONObject("resizeSaved").getInt("left"));
         assertFalse("Pointer movement must not toggle the 30S control", state.getBoolean("enabled"));
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
