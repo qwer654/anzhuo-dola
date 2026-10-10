@@ -47,6 +47,20 @@ test('deduplicates exact media URL without stripping signatures', () => {
   const queue = probe.createCollector();
   queue.add(result); assert.equal(queue.drain().length, 2); queue.add(result); assert.equal(queue.drain().length, 0);
 });
+test('video collector preserves a validated poster and emits a late poster update only once', () => {
+  const queue = probe.createCollector();
+  const video = { url:'https://cdn.example/movie.mp4?sig=a%2Fb', type:'video', source:'dom', title:'page' };
+  queue.add([video]);
+  assert.equal(queue.drain()[0].posterUrl, undefined);
+  queue.add([{...video, posterUrl:'https://cdn.example/poster.jpg?sig=c%2Fd'}]);
+  const update = queue.drain();
+  assert.equal(update.length, 1);
+  assert.equal(update[0].posterUrl, 'https://cdn.example/poster.jpg?sig=c%2Fd');
+  queue.add([{...video, posterUrl:'https://user:pw@cdn.example/poster.jpg'}]);
+  assert.deepEqual(queue.drain(), []);
+  queue.add([{...video, posterUrl:'http://cdn.example/poster.jpg'}]);
+  assert.deepEqual(queue.drain(), []);
+});
 test('rejects blob/data/javascript/credentials and skips fallback_api', () => {
   const result = probe.parsePayload({ video_url:'blob:https://dola.com/id', image_url:'data:image/png;base64,abc', main_url:'javascript:alert(1)', fallback_api:'https://cdn.example/a.mp4', image:'https://user:password@cdn.example/a.jpg' });
   assert.deepEqual(result, []);
@@ -130,7 +144,9 @@ test('live observer keeps fetch/XHR responses untouched while collecting readabl
     return name === 'src' ? 'https://cdn.example/dom-attribute.jpg?sig=q%2Fr' : null;
   } });
   root.__dolaAndroidScan();
-  assert.deepEqual(Array.from(root.__dolaAndroidDrain(), item => item.url).sort(), [
+  const domItems = Array.from(root.__dolaAndroidDrain());
+  assert.equal(domItems.find(item => item.type === 'video').posterUrl, 'https://cdn.example/poster.jpg?sig=m%2Fn');
+  assert.deepEqual(domItems.map(item => item.url).sort(), [
     'https://cdn.example/dom.jpg?sig=e%2Ff',
     'https://cdn.example/dom2.jpg?sig=g%2Fh',
     'https://cdn.example/picture.avif?sig=i%2Fj',
