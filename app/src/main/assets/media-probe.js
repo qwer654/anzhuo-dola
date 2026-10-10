@@ -24,8 +24,11 @@
       var parentTag = node.parentElement && node.parentElement.tagName.toLowerCase();
       if (tag === "source" && parentTag !== "video" && parentTag !== "picture") continue;
       var type = tag === "img" || (tag === "source" && parentTag === "picture") ? "image" : "video";
-      var rawSrc = node.currentSrc || node.src || (node.getAttribute && node.getAttribute("src")) || "";
-      var url = api.normalizeMediaUrl(rawSrc);
+      // A non-empty but unusable currentSrc (for example a placeholder/data URL)
+      // must not mask a valid authored src attribute.
+      var url = api.normalizeMediaUrl(node.currentSrc || "") ||
+        api.normalizeMediaUrl(node.src || "") ||
+        api.normalizeMediaUrl(node.getAttribute && node.getAttribute("src") || "");
       if (url) receive([{ url: url, type: type, source: "dom", title: title() }]);
       // Responsive images may expose several useful candidates while currentSrc
       // reports only the one selected for this viewport. Parse candidates without

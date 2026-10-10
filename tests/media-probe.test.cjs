@@ -126,7 +126,7 @@ test('live observer keeps fetch/XHR responses untouched while collecting readabl
     srcset: 'https://cdn.example/picture.avif?sig=i%2Fj 1x' },
   { tagName: 'VIDEO', currentSrc: 'https://cdn.example/movie.mp4?sig=k%2Fl', src: '', poster: 'https://cdn.example/poster.jpg?sig=m%2Fn' },
   { tagName: 'SOURCE', parentElement: { tagName: 'VIDEO' }, src: 'https://cdn.example/movie-alt.webm?sig=o%2Fp' }];
-  domNodes.push({ tagName: 'IMG', currentSrc: '', src: '', getAttribute(name) {
+  domNodes.push({ tagName: 'IMG', currentSrc: 'data:image/png;base64,placeholder', src: '', getAttribute(name) {
     return name === 'src' ? 'https://cdn.example/dom-attribute.jpg?sig=q%2Fr' : null;
   } });
   root.__dolaAndroidScan();
