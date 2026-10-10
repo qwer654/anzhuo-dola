@@ -98,7 +98,7 @@ test('live observer keeps fetch/XHR responses untouched while collecting readabl
     send() { listeners.get('loadend')?.(); return 'original-send-result'; }
   }
   const root = {
-    location: { hostname: 'www.dola.com' },
+    location: { hostname: 'www.dola.com', origin: 'https://www.dola.com' },
     document: { title: 'observer fixture', readyState: 'loading', addEventListener() {}, querySelectorAll() { return domNodes; }, documentElement: null },
     setTimeout() { return 1; },
     fetch() { return Promise.resolve(response); },
