@@ -14,6 +14,7 @@ import java.util.concurrent.*;
 /** Tracks only explicit downloads from this profile. Does not attach cookies or auth headers. */
 final class DownloadCenter {
     private static final int SAVE=8220, MAX_DOWNLOADS=100;
+    interface StatusCallback { void accept(String status); }
     private final Activity activity;
     private final SharedPreferences prefs;
     private final DownloadManager manager;
@@ -46,15 +47,37 @@ final class DownloadCenter {
                     profile+"/"+UUID.randomUUID()+"-"+name);
             if(mime!=null && !mime.contains("*") && mime.matches("[A-Za-z0-9.+-]+/[A-Za-z0-9.+-]+"))request.setMimeType(mime);
             long id=manager.enqueue(request);ids.add(Long.toString(id));
-            if(!prefs.edit().putStringSet("downloads",ids).commit()){manager.remove(id);throw new IOException();}
+            if(!prefs.edit().putStringSet("downloads",ids).putString(urlKey(id),url).commit()){manager.remove(id);throw new IOException();}
             tell("已加入下载，可在菜单 → 下载中心查看。使用移动数据时会消耗流量。");refresh();
         }catch(Exception e){tell("下载未加入，请检查系统下载服务、存储空间和网络");}
     }
     void confirm(String url,String disposition,String mime) {
+        confirm(url,disposition,mime,null);
+    }
+    void confirm(String url,String disposition,String mime,StatusCallback callback) {
         new AlertDialog.Builder(activity).setTitle("下载此文件？")
             .setMessage("将通过系统下载服务保存，允许使用移动数据。不传递登录 Cookie；需要登录或已过期的链接可能失败。")
-            .setNegativeButton("取消",null).setPositiveButton("下载",(d,w)->enqueue(url,disposition,mime)).show();
+            .setNegativeButton("取消",null).setPositiveButton("下载",(d,w)->{enqueue(url,disposition,mime);statusForUrl(url,callback);}).show();
     }
+    void statusForUrl(String raw,StatusCallback callback) {
+        String url=UrlRules.normalize(raw);
+        if(url==null||!url.startsWith("https://")){if(callback!=null)callback.accept("仅支持 HTTPS 下载");return;}
+        if(callback==null)return;
+        ArrayList<Long> matches=new ArrayList<>();
+        for(String value:ids())try{long id=Long.parseLong(value);if(url.equals(prefs.getString(urlKey(id),null)))matches.add(id);}catch(NumberFormatException ignored){}
+        if(matches.isEmpty()){callback.accept("尚未通过本应用下载");return;}
+        long[] filter=new long[matches.size()];for(int i=0;i<filter.length;i++)filter[i]=matches.get(i);
+        io.execute(()->{
+            String state="下载记录已不存在";
+            try(Cursor c=manager.query(new DownloadManager.Query().setFilterById(filter))){
+                if(c==null)throw new IOException();
+                Entry latest=null;while(c.moveToNext()){Entry candidate=new Entry(c);if(latest==null||candidate.id>latest.id)latest=candidate;}
+                if(latest!=null)state=latest.summary();
+            }catch(Exception e){state="暂时无法读取下载状态";}
+            final String result=state;activity.runOnUiThread(()->{if(!closed&&!activity.isFinishing())callback.accept(result);});
+        });
+    }
+    private static String urlKey(long id){return "download_url_"+id;}
     void show() {
         if(dialog!=null && dialog.isShowing())return;
         list=Ui.column(activity);Ui.pad(list,12);
@@ -149,7 +172,7 @@ final class DownloadCenter {
                     boolean ok=true;try{manager.remove(e.id);}catch(Exception ex){ok=false;}
                     final boolean success=ok;
                     activity.runOnUiThread(()->{
-                        if(success){Set<String> ids=ids();ids.remove(Long.toString(e.id));prefs.edit().putStringSet("downloads",ids).apply();}
+                        if(success){Set<String> ids=ids();ids.remove(Long.toString(e.id));prefs.edit().putStringSet("downloads",ids).remove(urlKey(e.id)).apply();}
                         else tell("移除失败，记录已保留");
                         refresh();
                     });
@@ -169,14 +192,17 @@ final class DownloadCenter {
             reason=c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));}
         Entry(long n){id=n;title="记录 "+n;done=0;total=-1;status=0;reason=0;}
         String summary(){
-            String state;
-            switch(status){case DownloadManager.STATUS_SUCCESSFUL:state="已完成";break;
-                case DownloadManager.STATUS_RUNNING:state="下载中";break;
-                case DownloadManager.STATUS_PENDING:state="等待下载";break;
-                case DownloadManager.STATUS_PAUSED:state="暂停 / 等待网络（"+reason+"）";break;
-                case DownloadManager.STATUS_FAILED:state="失败（"+reason+"），请返回网页获取新链接";break;
-                default:state="系统记录已不存在";}
+            String state=statusLabel(status,reason);
             return state+" · "+String.format(Locale.ROOT,"%.1f MiB",done/1048576.0)+(total>0?" / "+String.format(Locale.ROOT,"%.1f MiB",total/1048576.0):"");
         }
     }
+    static String statusLabel(int status,int reason){
+        switch(status){case DownloadManager.STATUS_SUCCESSFUL:return "已完成";
+            case DownloadManager.STATUS_RUNNING:return "下载中";
+            case DownloadManager.STATUS_PENDING:return "等待下载";
+            case DownloadManager.STATUS_PAUSED:return "暂停 / 等待网络（"+reason+"）";
+            case DownloadManager.STATUS_FAILED:return "失败（"+reason+"），请返回网页获取新链接";
+            default:return "系统记录已不存在";}
+    }
 }
+

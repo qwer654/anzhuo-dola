@@ -86,6 +86,12 @@ public class UrlRulesTest {
         assertNull(BrowserActivity.validatedMediaShareUrl("data:text/plain,secret"));
         assertNull(BrowserActivity.validatedMediaShareUrl("https://user:pass@cdn.example.test/media.mp4"));
     }
+    @Test public void clearingObservedMediaAlsoClearsDeduplicationKeys(){
+        java.util.List<String> items=new java.util.ArrayList<>();items.add("https://cdn.example.test/a.jpg");
+        java.util.Set<String> keys=new java.util.HashSet<>();keys.add("image|https://cdn.example.test/a.jpg");
+        BrowserActivity.clearObservedMedia(items,keys);
+        assertTrue(items.isEmpty());assertTrue(keys.isEmpty());
+    }
     @Test public void mediaPreviewAcceptsOnlyCredentialFreeHttpsImages(){
         assertNotNull(MediaPreview.validateImageUrl("https://cdn.example.test/a.png?sig=x%2Fy", "image"));
         assertNull(MediaPreview.validateImageUrl("http://cdn.example.test/a.png", "image"));
@@ -95,11 +101,13 @@ public class UrlRulesTest {
         assertNull(MediaPreview.validateImageUrl("https://cdn.example.test:444/a.png", "image"));
         assertEquals(8*1024*1024,MediaPreview.MAX_BYTES);
     }
-    @Test public void clearingObservedMediaAlsoClearsDeduplicationKeys(){
-        java.util.List<String> items=new java.util.ArrayList<>();items.add("https://cdn.example.test/a.jpg");
-        java.util.Set<String> keys=new java.util.HashSet<>();keys.add("image|https://cdn.example.test/a.jpg");
-        BrowserActivity.clearObservedMedia(items,keys);
-        assertTrue(items.isEmpty());assertTrue(keys.isEmpty());
+    @Test public void downloadStatusLabelsMatchSystemDownloadManagerLifecycle(){
+        assertEquals("等待下载",DownloadCenter.statusLabel(android.app.DownloadManager.STATUS_PENDING,0));
+        assertEquals("下载中",DownloadCenter.statusLabel(android.app.DownloadManager.STATUS_RUNNING,0));
+        assertTrue(DownloadCenter.statusLabel(android.app.DownloadManager.STATUS_PAUSED,android.app.DownloadManager.PAUSED_WAITING_FOR_NETWORK).contains("暂停 / 等待网络"));
+        assertEquals("已完成",DownloadCenter.statusLabel(android.app.DownloadManager.STATUS_SUCCESSFUL,0));
+        assertTrue(DownloadCenter.statusLabel(android.app.DownloadManager.STATUS_FAILED,android.app.DownloadManager.ERROR_HTTP_DATA_ERROR).contains("失败"));
+        assertEquals("系统记录已不存在",DownloadCenter.statusLabel(-1,0));
     }
 }
 

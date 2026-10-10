@@ -313,9 +313,12 @@ public class BrowserActivity extends Activity {
                 .setNegativeButton("关闭",null).setPositiveButton("重扫当前页",(d,w)->rescanMedia()).show();return;
         }
         LinearLayout list=Ui.column(this);Ui.pad(list,8);
+        LinkedHashMap<TextView,String> downloadRequests=new LinkedHashMap<>();
         for(MediaItem item:new ArrayList<>(active.media)){
             LinearLayout row=Ui.column(this);TextView label=Ui.text(this,item.type+" · "+item.title,13,Ui.INK);
             row.addView(label);
+            TextView downloadState=Ui.text(this,"正在读取本空间下载状态…",11,Ui.MUTED);row.addView(downloadState);
+            downloadRequests.put(downloadState,item.url);
             LinearLayout actions=Ui.row(this);
             if(MediaPreview.validateImageUrl(item.url,item.type)!=null)
                 addMediaAction(actions,"预览",()->previewImage(item));
@@ -324,7 +327,7 @@ public class BrowserActivity extends Activity {
             addMediaAction(actions,"复制",()->copyMediaUrl(item.url));
             addMediaAction(actions,"分享",()->shareMediaUrl(item.url));
             addMediaAction(actions,"打开",()->newTab(item.url));
-            addMediaAction(actions,"下载",()->downloads.confirm(item.url,null,null));
+            addMediaAction(actions,"下载",()->confirmMediaDownload(item.url,downloadState));
             if(item.type.equals("video")&&item.channels.size()>1)
                 addMediaAction(actions,"选择渠道（"+item.channels.size()+"）",()->showMediaChannels(item));
             row.addView(actions);list.addView(row);
@@ -339,6 +342,10 @@ public class BrowserActivity extends Activity {
             dialog.dismiss();
             showMedia();
         }));
+        for(Map.Entry<TextView,String> request:downloadRequests.entrySet()){
+            TextView stateView=request.getKey();stateView.setTag(dialog);
+            downloads.statusForUrl(request.getValue(),value->{Object owner=stateView.getTag();if(owner instanceof AlertDialog&&((AlertDialog)owner).isShowing())stateView.setText(value);});
+        }
     }
     private void showMediaChannels(MediaItem item) {
         if(item==null||item.channels.size()<2)return;
@@ -352,8 +359,11 @@ public class BrowserActivity extends Activity {
             if(action==0)copyMediaUrl(url);
             else if(action==1)shareMediaUrl(url);
             else if(action==2)newTab(url);
-            else downloads.confirm(url,null,null);
+            else confirmMediaDownload(url,null);
         }).setNegativeButton("取消",null).show();
+    }
+    private void confirmMediaDownload(String url,TextView statusView) {
+        downloads.confirm(url,null,null,state->{if(statusView!=null){Object owner=statusView.getTag();if(owner instanceof AlertDialog&&((AlertDialog)owner).isShowing())statusView.setText(state);}});
     }
     static List<String> normalizeMediaChannels(JSONArray raw,String primaryUrl) {
         ArrayList<String> result=new ArrayList<>();
