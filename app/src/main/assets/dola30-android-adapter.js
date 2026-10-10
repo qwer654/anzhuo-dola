@@ -275,7 +275,7 @@
     }
     var minimized = isMinimized();
     control.textContent = minimized ? "30S" : (isEnabled() ? "30S 已启用" : "30S 工具（当前 15S）");
-    control.setAttribute("aria-label", minimized ? "展开 Android WebView 30 秒工具" : "Android WebView 30 秒工具；点击切换，拖动移动，双击标题栏同源状态可最小化");
+    control.setAttribute("aria-label", minimized ? "展开 Android WebView 30 秒工具" : "Android WebView 30 秒工具；点击切换，拖动移动，使用旁侧减号最小化");
     control.title = minimized ? "点击展开 30S 工具；可拖动" : "仅保存页面本地状态；不会拦截请求或自动发送";
     control.style.padding = minimized ? "8px 10px" : "8px 12px";
     control.style.borderRadius = minimized ? "50%" : "18px";
