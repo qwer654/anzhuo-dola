@@ -266,7 +266,7 @@ public class WebViewAdapterInstrumentationTest {
             view.setWebViewClient(new android.webkit.WebViewClient() {
                 @Override public void onPageFinished(WebView webView, String url) {
                     String script = "(function(){"
-                        + "localStorage.setItem('intl_doubao_timeline_rewrite_v1','1');"
+                        + "window.dola30Android.setOriginalOptions({promptGuard:false,timelineRewrite:true});"
                         + "window.setDola30s(true);"
                         + "var matching=JSON.stringify({messages:[{role:'user',content:'00:00-00:05 开场'},{role:'system',content:'00:00-00:05 固定指令'}]});"
                         + "var unrelated=JSON.stringify({messages:[{role:'user',content:'00:00-00:05 不应改写'}]});"
@@ -274,7 +274,10 @@ public class WebViewAdapterInstrumentationTest {
                         + "window.fetch('https://www.doubao.com/api/other',{method:'POST',body:unrelated});"
                         + "var xhrMatch=new XMLHttpRequest();xhrMatch.open('POST','https://www.doubao.com/api/chat/completion');xhrMatch.send(matching);"
                         + "var xhrOther=new XMLHttpRequest();xhrOther.open('POST','https://www.doubao.com/api/other');xhrOther.send(unrelated);"
-                        + "return JSON.stringify({status:JSON.parse(window.getDola30sStatus()),requests:window.__capturedRequests,xhrs:window.__capturedXhrs});"
+                        + "window.dola30Android.setOriginalOptions({promptGuard:false,timelineRewrite:false});"
+                        + "var disabled=JSON.stringify({messages:[{role:'user',content:'00:00-00:05 关闭后应保持原文'}]});"
+                        + "window.fetch('https://www.doubao.com/api/chat/completion',{method:'POST',body:disabled});"
+                        + "return JSON.stringify({status:JSON.parse(window.getDola30sStatus()),options:window.dola30Android.getOriginalOptions(),requests:window.__capturedRequests,xhrs:window.__capturedXhrs});"
                         + "})()";
                     webView.evaluateJavascript(script, value -> { resultHolder.set(value); finished.countDown(); });
                 }
@@ -288,13 +291,17 @@ public class WebViewAdapterInstrumentationTest {
         JSONObject result = new JSONObject((String) decoded);
         assertTrue(result.getJSONObject("status").getBoolean("on"));
         JSONArray requests = result.getJSONArray("requests");
-        assertEquals(2, requests.length());
+        assertEquals(3, requests.length());
         JSONObject rewrittenPayload = new JSONObject(requests.getJSONObject(0).getString("body"));
         JSONArray messages = rewrittenPayload.getJSONArray("messages");
         assertTrue(messages.getJSONObject(0).getString("content").contains("16.7%"));
         assertEquals("00:00-00:05 固定指令", messages.getJSONObject(1).getString("content"));
         JSONObject unrelatedPayload = new JSONObject(requests.getJSONObject(1).getString("body"));
         assertEquals("00:00-00:05 不应改写", unrelatedPayload.getJSONArray("messages").getJSONObject(0).getString("content"));
+        JSONObject disabledPayload = new JSONObject(requests.getJSONObject(2).getString("body"));
+        assertEquals("00:00-00:05 关闭后应保持原文", disabledPayload.getJSONArray("messages").getJSONObject(0).getString("content"));
+        assertFalse(result.getJSONObject("options").getBoolean("timelineRewrite"));
+        assertFalse(result.getJSONObject("options").getBoolean("promptGuard"));
         JSONArray xhrs = result.getJSONArray("xhrs");
         assertEquals(2, xhrs.length());
         JSONObject xhrPayload = new JSONObject(xhrs.getJSONObject(0).getString("body"));
