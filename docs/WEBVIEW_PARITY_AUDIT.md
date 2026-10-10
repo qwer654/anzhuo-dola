@@ -26,11 +26,11 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 4. **站点运行风险**：注入只允许受信 HTTPS 域；文件访问关闭、混合内容禁止、外部 scheme 不会直接交给 WebView。资源下载为用户确认的系统下载任务，不自动附加登录 Cookie。Cookie 快照是敏感凭证，只经用户主动 SAF 选择且绑定精确 origin。
 5. **真机验收边界**：已在 Xiaomi `22127RK46C` / Android 16 / `com.google.android.webview 153.0.8010.36` 安装 CI 校验的 `0.2.1-debug` APK，并打开 `https://www.dola.com/chat/`。页面显示本地工具与资源观察状态，资源计数为 5；本次未登录、未提交提示词、未触发生成，也未读取 Cookie/令牌。该结果证明目标 Provider 与这一 Dola 页面下的基础加载/注入路径可用，但不证明登录、上传、实际下载、Cookie 迁移、跨空间隔离或平台接受 30 秒请求。
 
-6. **CI 门禁已实际运行**：2026-10-10 的 Android APK 工作流完成 Node 测试、11 项 Java 单测、lint、assemble、签名与打包资源完整性检查并上传 APK；Android UI smoke 的 API 35 模拟器 `connectedDebugAndroidTest` 也通过。当前工作流与 PR #1 对应，后续相同路径的 pull request 会执行这两类检查。
+6. **CI 门禁与设备安装路径已验证**：PR #1 的 Android APK 工作流已对 `debug` 与独立包名 `deviceValidation` 变体运行编译、签名及原始资源完整性检查；API 35 模拟器的 `connectedDeviceValidationAndroidTest` 通过，包含媒体 URL 精确复制到剪贴板的测试，并上传了可并装 APK 与 instrumentation APK。真机侧 `adb install` 曾返回 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`（runner debug 签名不一致）；随后提供并在 CI 验证了并装变体。小米手机本次尝试安装并装变体时返回 `INSTALL_FAILED_USER_RESTRICTED`，旧版数据未卸载或清除，等待设备端安装确认后再做真机 instrumentation。
 
 ## 下一阶段验收门槛
 
 - 自动化：Node 测试 26 项、Java 单测 11 项、lint、APK 构建/签名、打包原始资源完整性均通过（2026-10-10 PR 检查）。
-- 模拟器：API 35 `connectedDebugAndroidTest` 中空间隔离/标签测试与 document-start 适配测试通过。
-- Xiaomi 真机：已确认 `DOCUMENT_START_SCRIPT` 实际注入路径及 Dola 页面显示；仍需真机验收提示词转换流程、资源下载、上传、Cookie 快照及空间隔离。不得因本次 smoke 通过而声称页面请求或平台功能已全面等价。
+- 模拟器：API 35 `connectedDeviceValidationAndroidTest` 中空间隔离/标签、document-start 适配与媒体链接剪贴板测试通过；并装验收 APK 不需替换原 app 包。
+- Xiaomi 真机：已在原安装包上确认 `DOCUMENT_START_SCRIPT` 路径及 Dola 页面显示；新版并装包受系统安装限制拒绝，需设备端允许安装后验证提示词转换、资源复制/下载、上传、Cookie 快照及空间隔离。不得因本次 smoke 通过而声称页面请求或平台功能已全面等价。
 - 等价声明：没有覆盖的 MV3 API 必须继续标“未移植/非等价”，尤其 debugger、下载认证头、跨 Worker/iframe 注入、响应替换和扩展弹窗/Service Worker 生命周期。
