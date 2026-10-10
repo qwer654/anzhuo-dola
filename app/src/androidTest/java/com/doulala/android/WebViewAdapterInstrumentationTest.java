@@ -293,8 +293,9 @@ public class WebViewAdapterInstrumentationTest {
                         int attempts;
                         @Override public void run() {
                             webView.evaluateJavascript("window.__geoResult||''", value -> {
-                                Object decoded = new JSONTokener(value).nextValue();
-                                if (decoded instanceof String && !((String) decoded).isEmpty()) {
+                                String decoded = value != null && value.length() >= 2
+                                    ? value.substring(1, value.length() - 1) : "";
+                                if (!decoded.isEmpty()) {
                                     resultRef.set(value);
                                     finished.countDown();
                                 } else if (++attempts < 60) {
