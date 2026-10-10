@@ -39,7 +39,7 @@ public class WebViewHistoryRestoreTest {
         final String[] encoded = new String[1];
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             saved[0] = new Bundle();
-            assertNotNull(first[0].saveState(saved[0]));
+            assertNotNull("WebView returned no saved state", first[0].saveState(saved[0]));
             encoded[0] = TabStateCodec.encode(saved[0], TabStateCodec.TOTAL_LIMIT);
             assertNotNull("small history should fit the bounded preference budget", encoded[0]);
         });
@@ -49,9 +49,9 @@ public class WebViewHistoryRestoreTest {
             activity.setContentView(second[0]);
             Bundle decoded = TabStateCodec.decode(encoded[0]);
             assertNotNull(decoded);
-            assertNotNull(second[0].restoreState(decoded));
-            assertTrue(second[0].canGoBack());
-            assertTrue(second[0].getUrl().endsWith("/two"));
+            assertNotNull("WebView did not restore the saved history", second[0].restoreState(decoded));
+            assertTrue("restored history has no back entry", second[0].canGoBack());
+            assertTrue("restored URL was " + second[0].getUrl(), second[0].getUrl().endsWith("/two"));
             second[0].destroy();first[0].destroy();activity.finish();
         });
     }
