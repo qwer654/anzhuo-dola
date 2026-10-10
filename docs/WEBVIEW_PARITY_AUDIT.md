@@ -62,3 +62,5 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 
 18. **DOM 视频渠道选择（CI 已验证）**：对 `<video>` 仅从 `currentSrc`/`src` 及其 `<source src>` 收集至多两个已暴露的 HTTP(S) 地址，去重、校验并保留签名查询字节；不请求额外 URL、不读 `fallback_api`、不附凭证、不改 fetch/XHR。原生资源列表汇总为单条视频并由用户选渠道，然后显式选择复制/分享/打开/下载。Node 覆盖候选规范化、上限和响应透传；API 35 WebView fixture 检查两条渠道保序，Android model helper 检查第二条链接精确性。原 `dola30-original/` 资产由 manifest 测试校验未变。PR head `92d7bdafd0e6507017954d5d5146149c57f1f378` 的 Android APK workflow 与 Android 15/API 35 instrumentation 通过（runs `38056468273`、`38056468304`）；真机渠道选择尚未验证。
 
+
+19. **已观察资源的下载生命周期状态**：用户明确确认后，DownloadManager 的任务 ID 仅与当前 BrowserActivity profile 的规范化 HTTPS URL 关联；资源列表显示本空间内最新匹配任务状态与字节进度。取消/移除会清理映射；旧版未记录来源 URL 的下载不虚构关联。失败提示需要用户回网页获取新链接，未自动重试或转发 Cookie/认证头。状态文案纯 Java 单测覆盖等待、运行、暂停、完成、失败与缺失；head `b262e11ffe2c6829cbaad68238923ccf0c9a0bcb` 的 APK 与 Android 15/API 35 UI smoke 通过。
