@@ -8,6 +8,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.io.ByteArrayInputStream;
 import android.content.Context;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -26,15 +27,30 @@ public class WebViewHistoryRestoreTest {
             first[0] = new WebView(context);
             first[0].setWebViewClient(new android.webkit.WebViewClient() {
                 @Override public void onPageFinished(WebView view, String url) { loaded.countDown(); }
+                @Override public android.webkit.WebResourceResponse shouldInterceptRequest(WebView view, android.webkit.WebResourceRequest request) {
+                    if (!"fixture.invalid".equals(request.getUrl().getHost())) return null;
+                    String path = request.getUrl().getPath();
+                    String html = "<html><body>" + ("/one".equals(path) ? "one" : "two") + "</body></html>";
+                    return new android.webkit.WebResourceResponse("text/html", "UTF-8",
+                        new ByteArrayInputStream(html.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                }
             });
             activity.setContentView(first[0]);
-            first[0].loadDataWithBaseURL("https://fixture.invalid/one", "one", "text/html", "UTF-8", null);
+            first[0].loadUrl("https://fixture.invalid/one");
         });
-        assertTrue("fixture page did not finish", loaded.await(15, TimeUnit.SECONDS));
-        final CountDownLatch pushed = new CountDownLatch(1);
-        InstrumentationRegistry.getInstrumentation().runOnMainSync(() ->
-            first[0].evaluateJavascript("history.pushState({}, '', '/two'); location.pathname", value -> pushed.countDown()));
-        assertTrue("history fixture did not update", pushed.await(5, TimeUnit.SECONDS));
+        assertTrue("first fixture page did not finish", loaded.await(15, TimeUnit.SECONDS));
+        final CountDownLatch secondLoaded = new CountDownLatch(1);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> first[0].setWebViewClient(new android.webkit.WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) { secondLoaded.countDown(); }
+            @Override public android.webkit.WebResourceResponse shouldInterceptRequest(WebView view, android.webkit.WebResourceRequest request) {
+                if (!"fixture.invalid".equals(request.getUrl().getHost())) return null;
+                String html = "<html><body>two</body></html>";
+                return new android.webkit.WebResourceResponse("text/html", "UTF-8",
+                    new ByteArrayInputStream(html.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            }
+        }));
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> first[0].loadUrl("https://fixture.invalid/two"));
+        assertTrue("second fixture page did not finish", secondLoaded.await(15, TimeUnit.SECONDS));
         final Bundle[] saved = new Bundle[1];
         final String[] encoded = new String[1];
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
