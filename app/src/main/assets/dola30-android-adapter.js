@@ -99,6 +99,18 @@
       root.setDola30s(!isEnabled());
       return;
     }
+    persistPosition(control);
+  }
+  function cancelDrag(event, control) {
+    if (!drag || (drag.pointerId != null && event.pointerId !== drag.pointerId)) return;
+    var moved = drag.moved;
+    drag = null;
+    try { control.releasePointerCapture(event.pointerId); } catch (_) {}
+    // A cancelled pointer sequence is never a tap. Preserve any movement made
+    // before cancellation, but do not toggle the setting.
+    if (moved) persistPosition(control);
+  }
+  function persistPosition(control) {
     try { root.localStorage.setItem(PANEL_POS_KEY, JSON.stringify({
       left: parseFloat(control.style.left), bottom: parseFloat(control.style.bottom)
     })); } catch (_) {}
@@ -162,7 +174,7 @@
       control.addEventListener("pointerdown", function (event) { beginDrag(event, control); });
       control.addEventListener("pointermove", function (event) { moveDrag(event, control); });
       control.addEventListener("pointerup", function (event) { finishDrag(event, control); });
-      control.addEventListener("pointercancel", function (event) { finishDrag(event, control); });
+      control.addEventListener("pointercancel", function (event) { cancelDrag(event, control); });
       control.addEventListener("click", function (event) {
         // Ignore provider-generated mouse clicks; pointerup owns touch/mouse
         // activation. Keep keyboard activation available for accessibility.
