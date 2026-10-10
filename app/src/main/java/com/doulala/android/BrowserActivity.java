@@ -252,9 +252,16 @@ public class BrowserActivity extends Activity {
         LinearLayout list=Ui.column(this);Ui.pad(list,8);
         for(MediaItem item:new ArrayList<>(active.media)){
             LinearLayout row=Ui.row(this);TextView label=Ui.text(this,item.type+" · "+item.title,13,Ui.INK);
-            row.addView(label,new LinearLayout.LayoutParams(0,-2,1));row.addView(Ui.button(this,"下载",()->downloads.confirm(item.url,null,null)));list.addView(row);
+            row.addView(label,new LinearLayout.LayoutParams(0,-2,1));row.addView(Ui.button(this,"复制链接",()->copyMediaUrl(item.url)));row.addView(Ui.button(this,"下载",()->downloads.confirm(item.url,null,null)));list.addView(row);
         }
         new AlertDialog.Builder(this).setTitle("当前标签资源（"+active.media.size()+"）").setView(Ui.scroll(this,list)).setPositiveButton("关闭",null).show();
+    }
+    private void copyMediaUrl(String url) {
+        if(url==null||url.trim().isEmpty()){Ui.toast(this,"资源链接为空");return;}
+        ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+        if(clipboard==null){Ui.toast(this,"剪贴板不可用");return;}
+        clipboard.setPrimaryClip(ClipData.newPlainText("媒体链接",url));
+        Ui.toast(this,"资源链接已复制");
     }
     private void showDurationTool() {
         if(active==null||active.view==null||!UrlRules.trusted(active.view.getUrl())){
