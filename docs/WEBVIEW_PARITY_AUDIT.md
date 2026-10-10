@@ -24,11 +24,13 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 2. **设备端适配缺少执行级证明**：既有测试验证 JS 纯函数、源码哈希和节点 VM 行为，但没有证明 Android WebView Provider 能在目标 origin 的 document-start 执行注入脚本。本次增加 `WebViewAdapterInstrumentationTest`，检查 15/30 状态切换、时间轴输出，并确保返回状态明确为不改网络、不自动提交。
 3. **原始 JS 完整性**：保留检查继续验证全部列出的原文件路径、字节数、SHA-256；APK 工作流还会检查打包后资产。不允许将原件“改成 WebView 版”；新适配放在独立文件并单独测试。
 4. **站点运行风险**：注入只允许受信 HTTPS 域；文件访问关闭、混合内容禁止、外部 scheme 不会直接交给 WebView。资源下载为用户确认的系统下载任务，不自动附加登录 Cookie。Cookie 快照是敏感凭证，只经用户主动 SAF 选择且绑定精确 origin。
-5. **运行时仍未验收**：源码检查或模拟器构建不能证明目标平台登录/上传/媒体发现/下载正确；还需 Xiaomi Android 16 真机验证，并记录 WebView Provider 版本、页面 URL、步骤和结果，勿采集用户 Cookie 或会话令牌。
+5. **真机验收边界**：已在 Xiaomi `22127RK46C` / Android 16 / `com.google.android.webview 153.0.8010.36` 安装 CI 校验的 `0.2.1-debug` APK，并打开 `https://www.dola.com/chat/`。页面显示本地工具与资源观察状态，资源计数为 5；本次未登录、未提交提示词、未触发生成，也未读取 Cookie/令牌。该结果证明目标 Provider 与这一 Dola 页面下的基础加载/注入路径可用，但不证明登录、上传、实际下载、Cookie 迁移、跨空间隔离或平台接受 30 秒请求。
+
+6. **CI 门禁已实际运行**：2026-10-10 的 Android APK 工作流完成 Node 测试、11 项 Java 单测、lint、assemble、签名与打包资源完整性检查并上传 APK；Android UI smoke 的 API 35 模拟器 `connectedDebugAndroidTest` 也通过。当前工作流与 PR #1 对应，后续相同路径的 pull request 会执行这两类检查。
 
 ## 下一阶段验收门槛
 
-- 自动化：Node 测试、Java 单测、lint、APK 构建、打包后原始资源 SHA-256 全通过。
-- 模拟器：`connectedDebugAndroidTest` 的 UI 隔离/标签检查与新增 document-start 适配测试通过。
-- Xiaomi 真机：确认目标 WebView Provider 支持 `DOCUMENT_START_SCRIPT`；检查 Dola 豆包页浮动控件、输入选择器与用户确认时间轴转换；验证页面本身无请求体/响应体改写；确认可见媒体链接仅在用户点下载后进入系统下载器。
+- 自动化：Node 测试 26 项、Java 单测 11 项、lint、APK 构建/签名、打包原始资源完整性均通过（2026-10-10 PR 检查）。
+- 模拟器：API 35 `connectedDebugAndroidTest` 中空间隔离/标签测试与 document-start 适配测试通过。
+- Xiaomi 真机：已确认 `DOCUMENT_START_SCRIPT` 实际注入路径及 Dola 页面显示；仍需真机验收提示词转换流程、资源下载、上传、Cookie 快照及空间隔离。不得因本次 smoke 通过而声称页面请求或平台功能已全面等价。
 - 等价声明：没有覆盖的 MV3 API 必须继续标“未移植/非等价”，尤其 debugger、下载认证头、跨 Worker/iframe 注入、响应替换和扩展弹窗/Service Worker 生命周期。
