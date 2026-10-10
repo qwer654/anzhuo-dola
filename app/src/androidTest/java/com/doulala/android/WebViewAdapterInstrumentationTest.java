@@ -631,7 +631,7 @@ public class WebViewAdapterInstrumentationTest {
         assertNull(BrowserActivity.mediaChannelAt(normalized,2));
         assertEquals("https://www.dola.com/poster.jpg?sig=i%2Fj", posters.get("https://www.dola.com/movie.mp4?sig=g%2Fh"));
         assertEquals("image", mediaTypes.get("https://www.dola.com/poster.jpg?sig=i%2Fj"));
-        assertEquals("video", mediaTypes.get("https://www.dola.com/movie-alt.webm?sig=k%2Fl"));
+        assertNull("<source> alternative is grouped into its parent video, not duplicated", mediaTypes.get("https://www.dola.com/movie-alt.webm?sig=k%2Fl"));
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
 
