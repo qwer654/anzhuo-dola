@@ -20,6 +20,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.json.JSONObject;
+import org.json.JSONArray;
 import org.json.JSONTokener;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -135,6 +136,61 @@ public class WebViewAdapterInstrumentationTest {
         assertTrue(result.getBoolean("previewAvailable"));
         assertTrue(result.getBoolean("networkRewrite"));
         assertFalse(result.getBoolean("autoSubmit"));
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
+    }
+
+    @Test public void originalDurationScriptRewritesOnlyMatchingUserTimelineInWebView() throws Exception {
+        assertTrue(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
+        String original = readAsset("dola30-original/duration-main.js");
+        String adapter = readAsset("dola30-android-adapter.js");
+        AtomicReference<WebView> viewRef = new AtomicReference<>();
+        AtomicReference<String> resultHolder = new AtomicReference<>();
+        CountDownLatch finished = new CountDownLatch(1);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            WebView view = new WebView(context);
+            view.getSettings().setJavaScriptEnabled(true);
+            view.getSettings().setDomStorageEnabled(true);
+            viewRef.set(view);
+            Set<String> origins = new HashSet<>(Arrays.asList("https://doubao.com", "https://*.doubao.com"));
+            try {
+                WebViewCompat.addDocumentStartJavaScript(view,
+                    "window.__capturedRequests=[];window.fetch=function(url,init){window.__capturedRequests.push({url:String(url),body:init&&init.body});return Promise.resolve({ok:true,status:200})};", origins);
+                WebViewCompat.addDocumentStartJavaScript(view,
+                    "window.__dola30ExtOff=false;\n" + original, origins);
+                WebViewCompat.addDocumentStartJavaScript(view, adapter, origins);
+            } catch (Exception e) {
+                throw new AssertionError("Could not install original script in the WebView request fixture", e);
+            }
+            view.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override public void onPageFinished(WebView webView, String url) {
+                    String script = "(function(){"
+                        + "localStorage.setItem('intl_doubao_timeline_rewrite_v1','1');"
+                        + "window.setDola30s(true);"
+                        + "var matching=JSON.stringify({messages:[{role:'user',content:'00:00-00:05 开场'},{role:'system',content:'00:00-00:05 固定指令'}]});"
+                        + "var unrelated=JSON.stringify({messages:[{role:'user',content:'00:00-00:05 不应改写'}]});"
+                        + "window.fetch('https://www.doubao.com/api/chat/completion',{method:'POST',body:matching});"
+                        + "window.fetch('https://www.doubao.com/api/other',{method:'POST',body:unrelated});"
+                        + "return JSON.stringify({status:JSON.parse(window.getDola30sStatus()),requests:window.__capturedRequests});"
+                        + "})()";
+                    webView.evaluateJavascript(script, value -> { resultHolder.set(value); finished.countDown(); });
+                }
+            });
+            view.loadDataWithBaseURL("https://www.doubao.com/", "<!doctype html><html><head></head><body>request fixture</body></html>",
+                "text/html", "UTF-8", null);
+        });
+        assertTrue("Original WebView request fixture did not finish", finished.await(20, TimeUnit.SECONDS));
+        Object decoded = new JSONTokener(resultHolder.get()).nextValue();
+        assertTrue(decoded instanceof String);
+        JSONObject result = new JSONObject((String) decoded);
+        assertTrue(result.getJSONObject("status").getBoolean("on"));
+        JSONArray requests = result.getJSONArray("requests");
+        assertEquals(2, requests.length());
+        JSONObject rewrittenPayload = new JSONObject(requests.getJSONObject(0).getString("body"));
+        JSONArray messages = rewrittenPayload.getJSONArray("messages");
+        assertTrue(messages.getJSONObject(0).getString("content").contains("16.7%"));
+        assertEquals("00:00-00:05 固定指令", messages.getJSONObject(1).getString("content"));
+        JSONObject unrelatedPayload = new JSONObject(requests.getJSONObject(1).getString("body"));
+        assertEquals("00:00-00:05 不应改写", unrelatedPayload.getJSONArray("messages").getJSONObject(0).getString("content"));
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
 
