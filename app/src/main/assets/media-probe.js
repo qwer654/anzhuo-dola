@@ -25,6 +25,16 @@
       var type = tag === "img" ? "image" : "video";
       var url = api.normalizeMediaUrl(node.currentSrc || node.src || "");
       if (url) receive([{ url: url, type: type, source: "dom", title: title() }]);
+      // Responsive images may expose several useful candidates while currentSrc
+      // reports only the one selected for this viewport. Parse candidates without
+      // rewriting their URL bytes; descriptors are intentionally ignored.
+      if (tag === "img") {
+        var srcset = node.srcset || (node.getAttribute && node.getAttribute("srcset")) || "";
+        var candidates = api.parseSrcset(srcset);
+        for (var c = 0; c < candidates.length; c++) {
+          receive([{ url: candidates[c], type: "image", source: "dom:srcset", title: title() }]);
+        }
+      }
       if (tag === "video") {
         var poster = api.normalizeMediaUrl(node.poster || "");
         if (poster) receive([{ url: poster, type: "image", source: "dom:poster", title: title() }]);
@@ -148,6 +158,23 @@
     if (/\.(?:mp4|m4v|mov|webm|mkv|m3u8)(?:[~!].*)?$/i.test(path)) return "video";
     return "";
   }
+  function parseSrcset(value) {
+    if (typeof value !== "string" || value.length > LIMITS.bodyBytes) return [];
+    var candidates = [], i = 0;
+    while (i < value.length && candidates.length < 100) {
+      while (i < value.length && /[\s,]/.test(value[i])) i++;
+      if (i >= value.length) break;
+      var start = i;
+      while (i < value.length && !/\s/.test(value[i])) i++;
+      var token = value.slice(start, i).replace(/,+$/, "");
+      var url = normalizeMediaUrl(token);
+      if (url) candidates.push(url);
+      // Skip a width/density descriptor until the next candidate separator.
+      while (i < value.length && value[i] !== ",") i++;
+      if (value[i] === ",") i++;
+    }
+    return candidates;
+  }
   function decodeMainUrl(value) {
     var direct = normalizeMediaUrl(value);
     if (direct) return direct;
@@ -228,6 +255,8 @@
     }
   }
   return { LIMITS: LIMITS, isAllowedHost: isAllowedHost, normalizeMediaUrl: normalizeMediaUrl,
+    parseSrcset: parseSrcset,
     mediaType: mediaType, decodeMainUrl: decodeMainUrl, createCollector: createCollector,
     parsePayload: parsePayload, parseText: parseText };
 });
+
