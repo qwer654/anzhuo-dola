@@ -26,14 +26,14 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 4. **站点运行风险**：注入只允许受信 HTTPS 域；文件访问关闭、混合内容禁止、外部 scheme 不会直接交给 WebView。资源下载为用户确认的系统下载任务，不自动附加登录 Cookie。Cookie 快照是敏感凭证，只经用户主动 SAF 选择且绑定精确 origin。
 5. **真机验收边界**：已在 Xiaomi `22127RK46C` / Android 16 / `com.google.android.webview 153.0.8010.36` 安装 CI 校验的 `0.2.1-debug` APK，并打开 `https://www.dola.com/chat/`。页面显示本地工具与资源观察状态，资源计数为 5；本次未登录、未提交提示词、未触发生成，也未读取 Cookie/令牌。该结果证明目标 Provider 与这一 Dola 页面下的基础加载/注入路径可用，但不证明登录、上传、实际下载、Cookie 迁移、跨空间隔离或平台接受 30 秒请求。
 
-6. **隐私洁净开关已按低风险定义接入**：开启时使用 native WebView UA、阻止第三方 Cookie；单元测试验证 UA 不被伪造且 Cookie 策略随模式切换。d2ac709 对应 CI 的构建/lint和API 35模拟器5/5 instrumentation通过（包括实际 WebView UA 与 Cookie 策略切换）；它不是完整抗指纹，也不保证防止个性化广告。
+6. **隐私洁净开关已按低风险定义接入**：开启时使用 native WebView UA、阻止第三方 Cookie；单元测试验证 UA 不被伪造且 Cookie 策略随模式切换。25320c6 对应 CI 的构建/lint和API 35模拟器6/6 instrumentation通过（包括实际 WebView UA/Cookie 切换与原版请求转换行为）；它不是完整抗指纹，也不保证防止个性化广告。
 7. **CI 门禁与设备安装路径已验证**：PR #1 的 Android APK 工作流已对 `debug` 与独立包名 `deviceValidation` 变体运行编译、签名及原始资源完整性检查；API 35 模拟器的 `connectedDeviceValidationAndroidTest` 通过，包含媒体 URL 精确复制到剪贴板的测试，并上传了可并装 APK 与 instrumentation APK。真机侧 `adb install` 曾返回 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`（runner debug 签名不一致）；随后提供并在 CI 验证了并装变体。小米手机本次尝试安装并装变体时返回 `INSTALL_FAILED_USER_RESTRICTED`，旧版数据未卸载或清除，等待设备端安装确认后再做真机 instrumentation。
 
 ## 下一阶段验收门槛
 
-- 自动化：最新 `d2ac709` 检查中 Node 28 项、Java 单测 12 项、lint、APK 构建/签名、打包原始资源完整性均通过。
+- 自动化：最新 `25320c6` 检查中 Node 28 项、Java 单测 12 项、lint、APK 构建/签名、打包原始资源完整性均通过。
 - 最新提交 `0189e434`：Node 27 项、11 项 Java 单测、lint、debug/deviceValidation 构建与签名、原始 JS 打包哈希检查以及 API 35 模拟器 instrumentation 均通过。
-- `d2ac709` 提交对应工作流均通过：Node 28 项、Android 单测/build/lint/APK 签名与原始 JS 完整性检查成功；API 35 模拟器完成 5/5 instrumentation 测试（0 失败）。新增测试覆盖原版 duration 脚本 opt-in 初始化及 Android adapter 不覆盖其公开 API；洁净模式 UA/Cookie 规则有单元测试。
+- `25320c6` 提交对应工作流均通过：Node 28 项、Android 单测/build/lint/APK 签名与原始 JS 完整性检查成功；API 35 模拟器完成 6/6 instrumentation 测试（0 失败）。新增测试覆盖原版 duration 脚本 opt-in 初始化、Android adapter 不覆盖其公开 API，以及本地 fetch 夹具中匹配 completion 的 user 时间线变换（system 文本与非目标路径保持不变）；洁净模式 UA/Cookie 规则有单元测试。
 - 模拟器：API 35 `connectedDeviceValidationAndroidTest` 中空间隔离/标签、document-start 适配与媒体链接剪贴板测试通过；并装验收 APK 不需替换原 app 包。
 - Xiaomi 真机：已在原安装包上确认 `DOCUMENT_START_SCRIPT` 路径及 Dola 页面显示；新版并装包受系统安装限制拒绝，需设备端允许安装后验证提示词转换、资源复制/下载、上传、Cookie 快照及空间隔离。不得因本次 smoke 通过而声称页面请求或平台功能已全面等价。
 - 等价声明：没有覆盖的 MV3 API 必须继续标“未移植/非等价”，尤其 debugger、下载认证头、跨 Worker/iframe 注入、响应替换和扩展弹窗/Service Worker 生命周期。
