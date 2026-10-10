@@ -32,13 +32,12 @@ public class UrlRulesTest {
         assertTrue(BrowserActivity.acceptThirdPartyCookiesInPrivacyMode(false));
         assertTrue(BrowserActivity.geolocationEnabledInPrivacyMode(false));
     }
-    @Test public void privacyFingerprintBootstrapIsOptInAndOnlySeedsWebglReduction() {
+    @Test public void privacyFingerprintBootstrapIsOptInAndSeedsApiReductionsWithoutIdentitySpoofing() {
         assertNull(BrowserActivity.privacyFingerprintBootstrap("script", false));
         String bootstrap=BrowserActivity.privacyFingerprintBootstrap("script", true);
-        assertTrue(bootstrap.startsWith("window.__dolaFingerprintInitialSettings={hideWebglDebugInfo:true};\n"));
+        assertTrue(bootstrap.startsWith("window.__dolaFingerprintInitialSettings={blockCanvasReadback:true,hideWebglDebugInfo:true,blockAudioFingerprint:true,blockWebRTC:true,blockDeviceEnumeration:true};\n"));
         assertTrue(bootstrap.endsWith("script"));
         assertFalse(bootstrap.contains("cleanMode:true"));
-        assertFalse(bootstrap.contains("blockCanvasReadback:true"));
     }
     @Test public void durationToolExplainsAvailableAndUnavailableParityWithoutOverclaiming() {
         String available=BrowserActivity.durationToolCapabilitySummary(true);
