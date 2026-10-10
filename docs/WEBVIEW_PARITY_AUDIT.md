@@ -16,7 +16,7 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 | `skill-pack-main.js` 能力响应钩子 | **保留、未注入** | 原文件哈希保持不变，但不向站点运行；不伪造/扩大平台返回的模型、会员或生成能力。 |
 | `host-bridge.js` 与 Chrome 消息通道 | **未移植** | 未创建 `chrome.*` 兼容假层，避免出现“看似成功、实际消息丢失”的伪兼容。若实现原生桥，必须限制白名单源、命令集合、消息大小和调用权限，并单测来源校验。 |
 | MV3 `manifest.json` | **仅作为原始资料保留** | Android APK 不会把它当作 Chrome 扩展安装。 |
-| MV3 fingerprint-privacy 扩展 | **MV3 扩展未接入；Android 原生隐私子集已实现** | WebView 菜单洁净模式保留实际 WebView UA（仅移除应用自标识后缀）并拒收第三方 Cookie；不伪造设备身份或高熵 Client Hints。Canvas/Audio/WebRTC限制和 DNR 请求头规则仍未接入，也不保证无广告。 |
+| MV3 fingerprint-privacy 扩展 | **MV3 扩展未接入；Android 原生隐私子集已实现** | WebView 菜单洁净模式保留实际 WebView UA（仅移除应用自标识后缀）、拒收第三方 Cookie，并禁用网页 Geolocation API；不伪造设备身份或高熵 Client Hints。Canvas/Audio/WebRTC 限制和 DNR 请求头规则仍未接入，也不保证无广告。 |
 
 ## 审核发现与改进
 

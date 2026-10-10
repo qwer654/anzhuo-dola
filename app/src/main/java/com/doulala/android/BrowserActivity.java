@@ -151,6 +151,7 @@ public class BrowserActivity extends Activity {
         s.setJavaScriptCanOpenWindowsAutomatically(false);s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         boolean cleanPrivacy=prefs.getBoolean("privacyCleanMode",false);
         s.setSafeBrowsingEnabled(true);s.setUserAgentString(userAgentForPrivacyMode(s.getUserAgentString(),cleanPrivacy));
+        s.setGeolocationEnabled(geolocationEnabledInPrivacyMode(cleanPrivacy));
         CookieManager.getInstance().setAcceptCookie(true);CookieManager.getInstance().setAcceptThirdPartyCookies(view,acceptThirdPartyCookiesInPrivacyMode(cleanPrivacy));
         view.setOverScrollMode(View.OVER_SCROLL_NEVER);
         view.setWebViewClient(new WebViewClient(){
@@ -200,6 +201,7 @@ public class BrowserActivity extends Activity {
         return cleanPrivacy?nativeUserAgent:nativeUserAgent+" DoulalaAndroid/0.2";
     }
     static boolean acceptThirdPartyCookiesInPrivacyMode(boolean cleanPrivacy) { return !cleanPrivacy; }
+    static boolean geolocationEnabledInPrivacyMode(boolean cleanPrivacy) { return !cleanPrivacy; }
     private boolean external(Tab t,Uri uri) {
         if(webUrl(uri.toString())!=null)return false;
         String scheme=uri.getScheme();
@@ -365,7 +367,7 @@ public class BrowserActivity extends Activity {
     }
     private void confirmPrivacyCleanMode(boolean enabled) {
         String detail=enabled
-            ?"开启后使用 Android WebView 原生 UA（不伪造机型/系统身份），并阻止第三方 Cookie。可能导致依赖跨站 Cookie 的登录或嵌入内容失效；不会保证阻止定向广告或实现匿名。确认后所有标签重载，未提交输入会丢失。"
+            ?"开启后使用 Android WebView 原生 UA（不伪造机型/系统身份），阻止第三方 Cookie，并关闭网页定位 API。可能导致依赖跨站 Cookie 或定位的登录、地图、嵌入内容失效；不会保证阻止定向广告或实现匿名。确认后所有标签重载，未提交输入会丢失。"
             :"关闭后恢复应用标识 UA 并允许第三方 Cookie。所有标签重载，未提交输入会丢失。";
         new AlertDialog.Builder(this).setTitle(enabled?"开启隐私洁净模式？":"关闭隐私洁净模式？")
             .setMessage(detail).setNegativeButton("取消",null).setPositiveButton(enabled?"开启并重载":"关闭并重载",(d,w)->{
@@ -392,7 +394,7 @@ public class BrowserActivity extends Activity {
             tab.navigation++;tab.probe=false;tab.androidTools=false;tab.failed=false;tab.media.clear();tab.mediaKeys.clear();
         }
         if(active!=null&&!active.closed)select(active);
-        Ui.toast(this,prefs.getBoolean("privacyCleanMode",false)?"隐私洁净模式已开启（原生 UA / 阻止第三方 Cookie）":
+        Ui.toast(this,prefs.getBoolean("privacyCleanMode",false)?"隐私洁净模式已开启（原生 UA / 阻止第三方 Cookie / 禁用网页定位）":
             (prefs.getBoolean("originalDola30",false)?"原版 Dola30 JS 已开启":"已恢复 Android 默认适配"));
     }
     private JSONArray bookmarks(){try{return new JSONArray(prefs.getString("bookmarks","[]"));}catch(Exception e){return new JSONArray();}}

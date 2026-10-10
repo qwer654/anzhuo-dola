@@ -26,8 +26,10 @@ public class UrlRulesTest {
         String nativeAgent="Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/153.0.0.0 Mobile Safari/537.36";
         assertEquals(nativeAgent,BrowserActivity.userAgentForPrivacyMode(nativeAgent,true));
         assertFalse(BrowserActivity.acceptThirdPartyCookiesInPrivacyMode(true));
+        assertFalse(BrowserActivity.geolocationEnabledInPrivacyMode(true));
         assertEquals(nativeAgent+" DoulalaAndroid/0.2",BrowserActivity.userAgentForPrivacyMode(nativeAgent,false));
         assertTrue(BrowserActivity.acceptThirdPartyCookiesInPrivacyMode(false));
+        assertTrue(BrowserActivity.geolocationEnabledInPrivacyMode(false));
     }
     @Test public void filenamesAreBoundedAndFlat() {
         String file = UrlRules.safeFilename("../../secret:?.mp4", "media.mp4");
