@@ -14,7 +14,6 @@ import androidx.webkit.WebViewFeature;
 import org.json.*;
 import java.net.URI;
 import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /** Each Space runs in its own process/data directory. Tabs within a Space share its login. */
@@ -377,7 +376,7 @@ public class BrowserActivity extends Activity {
             URI uri=new URI(normalized);String rawQuery=uri.getRawQuery();
             ArrayList<String[]> kept=new ArrayList<>();
             if(rawQuery!=null&&!rawQuery.isEmpty())for(String part:rawQuery.split("&",-1)){
-                int eq=part.indexOf('=');String rawKey=eq<0?part:part.substring(0,eq);String decoded=URLDecoder.decode(rawKey,StandardCharsets.UTF_8);
+                int eq=part.indexOf('=');String rawKey=eq<0?part:part.substring(0,eq);String decoded=URLDecoder.decode(rawKey,"UTF-8");
                 if(!isVolatileMediaQueryKey(decoded.toLowerCase(Locale.ROOT)))kept.add(new String[]{decoded,part});
             }
             kept.sort(Comparator.comparing(pair->pair[0]));
