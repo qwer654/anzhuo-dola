@@ -5,10 +5,14 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.webkit.CookieManager;
 import android.webkit.WebView;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
+import androidx.webkit.WebViewAssetLoader;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -138,15 +142,23 @@ public class WebViewAdapterInstrumentationTest {
             } catch (Exception e) {
                 throw new AssertionError("Could not install frame privacy-clean script", e);
             }
+            WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
+                .setDomain("www.dola.com")
+                .addPathHandler("/fixture/", path -> new WebResourceResponse("text/html", "UTF-8",
+                    new ByteArrayInputStream("<!doctype html><p>matching origin frame</p>".getBytes(StandardCharsets.UTF_8))))
+                .build();
             view.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override public WebResourceResponse shouldInterceptRequest(WebView webView, WebResourceRequest request) {
+                    return loader.shouldInterceptRequest(request.getUrl());
+                }
                 @Override public void onPageFinished(WebView webView, String url) {
-                    webView.evaluateJavascript("JSON.stringify({frameConfigured:!!frames[0].__dolaFingerprintPrivacy,"
+                    webView.postDelayed(() -> webView.evaluateJavascript("JSON.stringify({frameConfigured:!!frames[0].__dolaFingerprintPrivacy,"
                         + "hideWebgl:frames[0].__dolaFingerprintPrivacy && frames[0].__dolaFingerprintPrivacy.getSettings().hideWebglDebugInfo})",
-                        value -> { resultHolder.set(value); finished.countDown(); });
+                        value -> { resultHolder.set(value); finished.countDown(); }), 300);
                 }
             });
-            view.loadDataWithBaseURL("https://www.dola.com/",
-                "<!doctype html><iframe srcdoc='<p>same-origin frame</p>'></iframe>", "text/html", "UTF-8", null);
+            view.loadDataWithBaseURL("https://www.dola.com/fixture/parent.html",
+                "<!doctype html><iframe src='https://www.dola.com/fixture/frame.html'></iframe>", "text/html", "UTF-8", null);
         });
         assertTrue("Frame privacy fixture did not finish", finished.await(20, TimeUnit.SECONDS));
         Object decoded = new JSONTokener(resultHolder.get()).nextValue();
