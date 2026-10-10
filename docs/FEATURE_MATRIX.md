@@ -31,7 +31,7 @@
 
 - 工作流会运行媒体、原始 JS 完整性和 Android 适配层 Node 测试（`tests/media-probe.test.cjs`、`tests/dola30-source.test.cjs`、`tests/dola30-android-adapter.test.cjs`）。
 - 在 2026-10-10 的 PR 检查中，4 个 Node 测试文件共 26 项、11 项 Java 单元测试、`lintDebug`、APK 构建/签名及原始资源打包哈希验证均通过；APK 构件已由 GitHub Actions 上传。
-- `android.yml` 现对匹配的 pull request 也执行构建验证；`android-smoke.yml` 对 Android 代码/测试 pull request 运行 Android 15/API 35 模拟器的 `connectedDebugAndroidTest`。PR #1 最新已完成检查中，两项工作流均通过。
+- `android.yml` 现对匹配的 pull request 也执行构建验证；`android-smoke.yml` 对 Android 代码/测试 pull request 运行 Android 15/API 35 模拟器的 `connectedDeviceValidationAndroidTest`。PR #1 最新已完成检查中，两项工作流均通过。
 - `WebViewAdapterInstrumentationTest` 在 Android WebView 中通过 document-start、本地 30S 状态、提示词转换，以及已观察媒体链接复制到系统剪贴板的精确性断言；`BrowserSmokeTest` 通过空间切换、标签/书签及空间隔离烟测。
 - **小米真机基础验收已完成**：`22127RK46C` / Android 16 / `com.google.android.webview 153.0.8010.36`。已校验并安装 CI `0.2.1-debug` APK，打开 `https://www.dola.com/chat/`；屏幕显示本地工具状态及资源计数（5）。本次未登录、未提交提示词或触发生成。
 - 真机已验证启动、该 Dola 页面加载、document-start 适配控件及资源观察状态；未验证登录/会话、实际下载、上传、Cookie 快照、不同空间数据隔离或平台是否接受 30 秒请求，仍需逐项真机验收。

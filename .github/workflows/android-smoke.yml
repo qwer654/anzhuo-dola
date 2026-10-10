@@ -65,6 +65,8 @@ jobs:
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
+            app/build/outputs/apk/deviceValidation/app-deviceValidation.apk
+            app/build/outputs/apk/androidTest/deviceValidation/app-deviceValidation-androidTest.apk
             app/build/smoke-diagnostics/
           if-no-files-found: ignore
           retention-days: 7
