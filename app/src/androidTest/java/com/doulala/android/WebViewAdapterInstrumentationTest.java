@@ -3,6 +3,7 @@ package com.doulala.android;
 import android.content.Context;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.webkit.CookieManager;
 import android.webkit.WebView;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -157,5 +158,29 @@ public class WebViewAdapterInstrumentationTest {
             while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
             return out.toString(StandardCharsets.UTF_8.name());
         }
+    }
+    @Test public void privacyModeUsesNativeWebViewIdentityAndCanRestoreCookiePolicy() {
+        AtomicReference<WebView> viewRef = new AtomicReference<>();
+        AtomicReference<String> nativeAgentRef = new AtomicReference<>();
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            WebView view = new WebView(context);
+            viewRef.set(view);
+            String nativeAgent = view.getSettings().getUserAgentString();
+            nativeAgentRef.set(nativeAgent);
+            view.getSettings().setUserAgentString(BrowserActivity.userAgentForPrivacyMode(nativeAgent, true));
+            CookieManager.getInstance().setAcceptThirdPartyCookies(view,
+                BrowserActivity.acceptThirdPartyCookiesInPrivacyMode(true));
+        });
+        WebView view = viewRef.get();
+        assertEquals(nativeAgentRef.get(), view.getSettings().getUserAgentString());
+        assertFalse(CookieManager.getInstance().acceptThirdPartyCookies(view));
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            view.getSettings().setUserAgentString(BrowserActivity.userAgentForPrivacyMode(nativeAgentRef.get(), false));
+            CookieManager.getInstance().setAcceptThirdPartyCookies(view,
+                BrowserActivity.acceptThirdPartyCookiesInPrivacyMode(false));
+        });
+        assertEquals(nativeAgentRef.get() + " DoulalaAndroid/0.2", view.getSettings().getUserAgentString());
+        assertTrue(CookieManager.getInstance().acceptThirdPartyCookies(view));
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(view::destroy);
     }
 }
