@@ -45,6 +45,8 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 
 15. **移动面板触控位置**：Android 30S 悬浮控件新增 Pointer Events 拖动，边界限制在当前 viewport 内；位置写入原版 `content-panel.js` 使用的 `intl_doubao_media_panel_pos_v3` 键，释放拖动不会误触 30S 开关。Node VM 回归测试覆盖坐标更新/持久化和误触抑制；Android WebView instrumentation 验证 Chromium Provider 中 pointer 事件、坐标变更及 localStorage 写入。完整面板、最小化状态和解析 UI 仍未移植。
 
+16. **视频媒体分类与 poster 回归（PR head `9a0062fc`）**：API 35 instrumentation 新增 `<video>`、`<source>` 和 poster fixture。首轮发现 Performance API 可能将 poster 请求标成 `video`，修复为已知 URL 扩展名优先；随后的 WebView 测试发现 DOM poster 属性读取在真实 Provider 下缺失，改为同时回退读取 `getAttribute("poster")`。最终 API 35 smoke run `38040564234` 通过；APK run `38040564223` 完成构建、签名及原始扩展资源完整性检查。Node media probe 15/15、原始来源清单 1/1、Android adapter 10/10 通过。原始 Dola30 包仍由 manifest 校验保持不变。
+
 ## 下一阶段验收门槛
 
 - 自动化：`f361cc0` Android APK 工作流通过 Node 29 项、Java 单测 12 项、lint、APK 构建/签名和打包原始资源完整性；`05093fc` API 35 模拟器 6/6 instrumentation 通过。新增 Node VM 测试实际执行被注入媒体观察器，确认 fetch/XHR 响应维持原行为而只收集可读媒体 URL。
