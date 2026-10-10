@@ -16,7 +16,7 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 | `skill-pack-main.js` 能力响应钩子 | **保留、未注入** | 原文件哈希保持不变，但不向站点运行；不伪造/扩大平台返回的模型、会员或生成能力。 |
 | `host-bridge.js` 与 Chrome 消息通道 | **未移植** | 未创建 `chrome.*` 兼容假层，避免出现“看似成功、实际消息丢失”的伪兼容。若实现原生桥，必须限制白名单源、命令集合、消息大小和调用权限，并单测来源校验。 |
 | MV3 `manifest.json` | **仅作为原始资料保留** | Android APK 不会把它当作 Chrome 扩展安装。 |
-| MV3 fingerprint-privacy 扩展 | **Android API 降噪子集已接入，MV3 运行时未接入** | WebView 菜单洁净模式保留实际 WebView UA（仅移除应用自标识后缀）、拒收第三方 Cookie、禁用网页 Geolocation，并在受信 provider 页面阻断 Canvas 像素读取、隐藏 WebGL 调试渲染器、禁用离线音频指纹 API、WebRTC 和设备枚举；不伪造设备身份或高熵 Client Hints。此模式可能让绘图导出、音频处理、通话和设备选择不可用，也不保证无广告。页面诊断、iframe/Worker 覆盖和 DNR 请求头规则仍未接入；API 屏蔽的实际站点兼容性需真机验证。 |
+| MV3 fingerprint-privacy 扩展 | **Android API 降噪子集已接入，MV3 运行时未接入** | WebView 菜单洁净模式保留实际 WebView UA（仅移除应用自标识后缀）、拒收第三方 Cookie、禁用网页 Geolocation，并在受信 provider 顶层页及匹配的 provider iframe 阻断 Canvas 像素读取、隐藏 WebGL 调试渲染器、禁用离线音频指纹 API、WebRTC 和设备枚举；不伪造设备身份或高熵 Client Hints。此模式可能让绘图导出、音频处理、通话和设备选择不可用，也不保证无广告。Worker 与不匹配/opaque frame、页面诊断和 DNR 请求头规则仍未接入；iframe API 屏蔽的实际站点兼容性需 Android Provider 测试与真机验证。 |
 
 ## 审核发现与改进
 
@@ -59,5 +59,5 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 - 模拟器：API 35 `connectedDeviceValidationAndroidTest` 中空间隔离/标签、document-start 适配与媒体链接剪贴板测试通过；并装验收 APK 不需替换原 app 包。
 - Xiaomi 真机：已在原安装包上确认 `DOCUMENT_START_SCRIPT` 路径及 Dola 页面显示；新版并装包受系统安装限制拒绝，需设备端允许安装后验证提示词转换、资源复制/下载、上传、Cookie 快照及空间隔离。不得因本次 smoke 通过而声称页面请求或平台功能已全面等价。
 - 洁净模式 WebGL 子集提交 `f87f8e1`：Android APK 工作流 `38041152167` 与 UI smoke `38041152221` 均成功。CI 运行 12/12 instrumentation（0 skipped/0 failed），APK 路径验证 Node/Java 测试、lint、打包签名和原始资源完整性。工作流 commit 是 PR merge ref，代码改动以 PR head `0a51423` 为准；纯 docs 后续更新不影响运行代码。
-- 等价声明：没有覆盖的 MV3 API 必须继续标“未移植/非等价”，尤其 debugger、下载认证头、跨 Worker/iframe 注入、响应替换和扩展弹窗/Service Worker 生命周期。
+- 等价声明：没有覆盖的 MV3 API 必须继续标“未移植/非等价”，尤其 debugger、下载认证头、Worker/不匹配或 opaque iframe 注入、响应替换和扩展弹窗/Service Worker 生命周期。匹配 provider iframe 的 API 降噪不是完整 MV3 frame/worker 覆盖。
 
