@@ -289,8 +289,9 @@ public class BrowserActivity extends Activity {
                 String u=webUrl(o.optString("url",null)),type=o.optString("type","");
                 if(u==null||!(type.equals("image")||type.equals("video")))continue;
                 String posterUrl=type.equals("video")?webUrl(o.optString("posterUrl",null)):null;
-                if(t.mediaKeys.add(type+"|"+u)){String label=o.optString("title","资源");t.media.add(new MediaItem(u,type,label.substring(0,Math.min(label.length(),120)),posterUrl));}
-                else if(type.equals("video")&&posterUrl!=null){for(MediaItem existing:t.media)if(existing.type.equals("video")&&existing.url.equals(u)){existing.posterUrl=posterUrl;break;}}
+                List<String> channels=type.equals("video")?normalizeMediaChannels(o.optJSONArray("channels"),u):Collections.emptyList();
+                if(t.mediaKeys.add(type+"|"+u)){String label=o.optString("title","资源");t.media.add(new MediaItem(u,type,label.substring(0,Math.min(label.length(),120)),posterUrl,channels));}
+                else if(type.equals("video")){for(MediaItem existing:t.media)if(existing.type.equals("video")&&existing.url.equals(u)){if(posterUrl!=null)existing.posterUrl=posterUrl;existing.mergeChannels(channels);break;}}
             }
             if(t==active)mediaButton.setText("资源 "+t.media.size());
         }catch(Exception ignored){}
@@ -324,6 +325,8 @@ public class BrowserActivity extends Activity {
             addMediaAction(actions,"分享",()->shareMediaUrl(item.url));
             addMediaAction(actions,"打开",()->newTab(item.url));
             addMediaAction(actions,"下载",()->downloads.confirm(item.url,null,null));
+            if(item.type.equals("video")&&item.channels.size()>1)
+                addMediaAction(actions,"选择渠道（"+item.channels.size()+"）",()->showMediaChannels(item));
             row.addView(actions);list.addView(row);
         }
         list.addView(Ui.button(this,"复制全部资源链接",()->copyMediaUrls(active.media)));
@@ -336,6 +339,34 @@ public class BrowserActivity extends Activity {
             dialog.dismiss();
             showMedia();
         }));
+    }
+    private void showMediaChannels(MediaItem item) {
+        if(item==null||item.channels.size()<2)return;
+        String[] labels=new String[item.channels.size()];
+        for(int i=0;i<labels.length;i++)labels[i]="渠道 "+(i+1)+" · "+Uri.parse(item.channels.get(i)).getHost();
+        new AlertDialog.Builder(this).setTitle("选择视频渠道").setItems(labels,(d,index)->showMediaChannelActions(item,index)).setNegativeButton("取消",null).show();
+    }
+    private void showMediaChannelActions(MediaItem item,int index) {
+        String url=mediaChannelAt(item.channels,index);if(url==null)return;
+        new AlertDialog.Builder(this).setTitle("渠道 "+(index+1)).setItems(new String[]{"复制链接","分享链接","在新标签打开","下载"},(d,action)->{
+            if(action==0)copyMediaUrl(url);
+            else if(action==1)shareMediaUrl(url);
+            else if(action==2)newTab(url);
+            else downloads.confirm(url,null,null);
+        }).setNegativeButton("取消",null).show();
+    }
+    static List<String> normalizeMediaChannels(JSONArray raw,String primaryUrl) {
+        ArrayList<String> result=new ArrayList<>();
+        addMediaChannel(result,primaryUrl);
+        if(raw!=null)for(int i=0;i<raw.length()&&result.size()<2;i++)addMediaChannel(result,raw.optString(i,null));
+        return result;
+    }
+    private static void addMediaChannel(List<String> result,String raw) {
+        String url=webUrl(raw);if(url!=null&&!result.contains(url)&&result.size()<2)result.add(url);
+    }
+    static String mediaChannelAt(List<String> channels,int index) {
+        if(channels==null||index<0||index>=channels.size())return null;
+        return webUrl(channels.get(index));
     }
     static void clearObservedMedia(Collection<?> items,Set<String> keys) {
         if(items!=null)items.clear();
@@ -656,7 +687,7 @@ public class BrowserActivity extends Activity {
         destroyed=true;handler.removeCallbacksAndMessages(null);previewExecutor.shutdownNow();cancelFile();cookies.close();downloads.close();viewport.removeAllViews();
         for(Tab t:tabs){t.closed=true;if(t.view!=null){t.view.stopLoading();t.view.destroy();t.view=null;}}super.onDestroy();
     }
-    private static final class MediaItem{final String url,type,title;String posterUrl;MediaItem(String u,String t,String n){this(u,t,n,null);}MediaItem(String u,String t,String n,String p){url=u;type=t;title=n;posterUrl=p;}}
+    private static final class MediaItem{final String url,type,title;String posterUrl;final ArrayList<String> channels=new ArrayList<>();MediaItem(String u,String t,String n){this(u,t,n,null,Collections.emptyList());}MediaItem(String u,String t,String n,String p){this(u,t,n,p,Collections.emptyList());}MediaItem(String u,String t,String n,String p,List<String> c){url=u;type=t;title=n;posterUrl=p;mergeChannels(c);}void mergeChannels(Collection<String> values){if(values==null)return;for(String value:values)addMediaChannel(channels,value);}}
     public static class Space0 extends BrowserActivity{} public static class Space1 extends BrowserActivity{}
     public static class Space2 extends BrowserActivity{} public static class Space3 extends BrowserActivity{}
     public static class Space4 extends BrowserActivity{} public static class Space5 extends BrowserActivity{}
