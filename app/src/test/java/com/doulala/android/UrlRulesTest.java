@@ -32,6 +32,14 @@ public class UrlRulesTest {
         assertTrue(BrowserActivity.acceptThirdPartyCookiesInPrivacyMode(false));
         assertTrue(BrowserActivity.geolocationEnabledInPrivacyMode(false));
     }
+    @Test public void privacyFingerprintBootstrapIsOptInAndOnlySeedsWebglReduction() {
+        assertNull(BrowserActivity.privacyFingerprintBootstrap("script", false));
+        String bootstrap=BrowserActivity.privacyFingerprintBootstrap("script", true);
+        assertTrue(bootstrap.startsWith("window.__dolaFingerprintInitialSettings={hideWebglDebugInfo:true};\n"));
+        assertTrue(bootstrap.endsWith("script"));
+        assertFalse(bootstrap.contains("cleanMode:true"));
+        assertFalse(bootstrap.contains("blockCanvasReadback:true"));
+    }
     @Test public void durationToolExplainsAvailableAndUnavailableParityWithoutOverclaiming() {
         String available=BrowserActivity.durationToolCapabilitySummary(true);
         assertTrue(available.contains("页面资源观察：已注入，仅观察页面已暴露的 URL"));
