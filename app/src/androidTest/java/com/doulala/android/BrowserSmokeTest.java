@@ -31,7 +31,7 @@ public class BrowserSmokeTest {
         waitFor(By.text("账号空间"));
         new UiScrollable(new UiSelector().scrollable(true)).scrollTextIntoView(title);
         UiObject2 card=waitFor(By.text(title)).getParent();
-        UiObject2 enter=card.findObject(By.text("进入空间"));assertNotNull(enter);enter.click();
+        UiObject2 enter=card.findObject(By.text("进入空间"));assertNotNull("Space card has no enter button: "+title,enter);enter.click();
         waitFor(By.text(title));waitFor(By.desc("浏览器菜单"));
     }
     @Test public void tabsBookmarksDownloadsAndSpaceIsolation() throws Exception {
@@ -55,7 +55,7 @@ public class BrowserSmokeTest {
         waitFor(By.text("标签 2"));menu("打开书签");waitFor(By.text("Smoke bookmark"));tap("关闭");
         menu("回到空间列表");openSpace("测试空间八");
         waitFor(By.text("标签 1"));menu("打开书签");
-        assertFalse(device.hasObject(By.text("Smoke bookmark")));
-        assertNotNull(device.findObject(By.desc("浏览器菜单")));
+        assertFalse("A bookmark from space seven leaked into space eight",device.hasObject(By.text("Smoke bookmark")));
+        assertNotNull("Browser menu is missing after switching to space eight",device.findObject(By.desc("浏览器菜单")));
     }
 }
