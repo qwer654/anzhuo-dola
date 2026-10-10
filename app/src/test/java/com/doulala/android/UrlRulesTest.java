@@ -79,5 +79,11 @@ public class UrlRulesTest {
         assertNull(BrowserActivity.validatedMediaShareUrl("data:text/plain,secret"));
         assertNull(BrowserActivity.validatedMediaShareUrl("https://user:pass@cdn.example.test/media.mp4"));
     }
+    @Test public void clearingObservedMediaAlsoClearsDeduplicationKeys(){
+        java.util.List<String> items=new java.util.ArrayList<>();items.add("https://cdn.example.test/a.jpg");
+        java.util.Set<String> keys=new java.util.HashSet<>();keys.add("image|https://cdn.example.test/a.jpg");
+        BrowserActivity.clearObservedMedia(items,keys);
+        assertTrue(items.isEmpty());assertTrue(keys.isEmpty());
+    }
 }
 

@@ -301,7 +301,17 @@ public class BrowserActivity extends Activity {
         }
         list.addView(Ui.button(this,"复制全部资源链接",()->copyMediaUrls(active.media)));
         list.addView(Ui.button(this,"重扫当前页",this::rescanMedia));
-        new AlertDialog.Builder(this).setTitle("当前标签资源（"+active.media.size()+"）").setView(Ui.scroll(this,list)).setPositiveButton("关闭",null).show();
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("当前标签资源（"+active.media.size()+"）").setView(Ui.scroll(this,list)).setPositiveButton("关闭",null).show();
+        list.addView(Ui.button(this,"清空当前标签资源",()->{
+            clearObservedMedia(active.media,active.mediaKeys);
+            updateUi();
+            dialog.dismiss();
+            showMedia();
+        }));
+    }
+    static void clearObservedMedia(Collection<?> items,Set<String> keys) {
+        if(items!=null)items.clear();
+        if(keys!=null)keys.clear();
     }
     static boolean writeMediaUrlToClipboard(Context context,String url) {
         if(context==null||url==null||url.trim().isEmpty())return false;

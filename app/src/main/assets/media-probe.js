@@ -24,7 +24,8 @@
       var parentTag = node.parentElement && node.parentElement.tagName.toLowerCase();
       if (tag === "source" && parentTag !== "video" && parentTag !== "picture") continue;
       var type = tag === "img" || (tag === "source" && parentTag === "picture") ? "image" : "video";
-      var url = api.normalizeMediaUrl(node.currentSrc || node.src || "");
+      var rawSrc = node.currentSrc || node.src || (node.getAttribute && node.getAttribute("src")) || "";
+      var url = api.normalizeMediaUrl(rawSrc);
       if (url) receive([{ url: url, type: type, source: "dom", title: title() }]);
       // Responsive images may expose several useful candidates while currentSrc
       // reports only the one selected for this viewport. Parse candidates without
