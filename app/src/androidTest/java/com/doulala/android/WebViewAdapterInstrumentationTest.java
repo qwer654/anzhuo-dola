@@ -484,7 +484,7 @@ public class WebViewAdapterInstrumentationTest {
             JSONObject item = media.getJSONObject(i);
             mediaTypes.put(item.getString("url"), item.getString("type"));
         }
-        assertEquals("image", mediaTypes.get("https://www.dola.com/media.jpg?sig=a%2Fb"));
+        assertEquals("Observed media: " + resultHolder.get(), "image", mediaTypes.get("https://www.dola.com/media.jpg?sig=a%2Fb"));
         assertEquals("image", mediaTypes.get("https://www.dola.com/picture-1.avif?sig=c%2Fd"));
         assertEquals("image", mediaTypes.get("https://www.dola.com/picture-2.avif?sig=e%2Ff"));
         assertEquals("video", mediaTypes.get("https://www.dola.com/movie.mp4?sig=g%2Fh"));
