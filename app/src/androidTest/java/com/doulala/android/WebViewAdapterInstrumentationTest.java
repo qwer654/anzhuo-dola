@@ -418,21 +418,25 @@ public class WebViewAdapterInstrumentationTest {
             view.loadDataWithBaseURL("https://www.dola.com/", "<!doctype html><picture>"
                     + "<source srcset=\"https://www.dola.com/picture-1.avif?sig=c%2Fd 1x, "
                     + "https://www.dola.com/picture-2.avif?sig=e%2Ff 2x\">"
-                    + "<img src=\"https://www.dola.com/media.jpg?sig=a%2Fb\"></picture>",
+                    + "<img src=\"https://www.dola.com/media.jpg?sig=a%2Fb\"></picture>"
+                    + "<video src=\"https://www.dola.com/movie.mp4?sig=g%2Fh\" "
+                    + "poster=\"https://www.dola.com/poster.jpg?sig=i%2Fj\">"
+                    + "<source src=\"https://www.dola.com/movie-alt.webm?sig=k%2Fl\"></video>",
                 "text/html", "UTF-8", null);
         });
         assertTrue("Trusted media fixture did not finish", finished.await(20, TimeUnit.SECONDS));
         JSONArray media = new JSONArray(resultHolder.get());
-        Set<String> urls = new HashSet<>();
+        java.util.Map<String, String> mediaTypes = new java.util.HashMap<>();
         for (int i = 0; i < media.length(); i++) {
             JSONObject item = media.getJSONObject(i);
-            assertEquals("image", item.getString("type"));
-            urls.add(item.getString("url"));
+            mediaTypes.put(item.getString("url"), item.getString("type"));
         }
-        assertEquals(new HashSet<>(Arrays.asList(
-                "https://www.dola.com/media.jpg?sig=a%2Fb",
-                "https://www.dola.com/picture-1.avif?sig=c%2Fd",
-                "https://www.dola.com/picture-2.avif?sig=e%2Ff")), urls);
+        assertEquals("image", mediaTypes.get("https://www.dola.com/media.jpg?sig=a%2Fb"));
+        assertEquals("image", mediaTypes.get("https://www.dola.com/picture-1.avif?sig=c%2Fd"));
+        assertEquals("image", mediaTypes.get("https://www.dola.com/picture-2.avif?sig=e%2Ff"));
+        assertEquals("video", mediaTypes.get("https://www.dola.com/movie.mp4?sig=g%2Fh"));
+        assertEquals("image", mediaTypes.get("https://www.dola.com/poster.jpg?sig=i%2Fj"));
+        assertEquals("video", mediaTypes.get("https://www.dola.com/movie-alt.webm?sig=k%2Fl"));
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
 
