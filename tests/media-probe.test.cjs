@@ -118,12 +118,17 @@ test('live observer keeps fetch/XHR responses untouched while collecting readabl
   domNodes = [{ tagName: 'IMG', currentSrc: 'https://cdn.example/dom.jpg?sig=e%2Ff', src: '',
     srcset: 'https://cdn.example/dom.jpg?sig=e%2Ff 1x, https://cdn.example/dom2.jpg?sig=g%2Fh 2x' },
   { tagName: 'SOURCE', parentElement: { tagName: 'PICTURE' }, src: '',
-    srcset: 'https://cdn.example/picture.avif?sig=i%2Fj 1x' }];
+    srcset: 'https://cdn.example/picture.avif?sig=i%2Fj 1x' },
+  { tagName: 'VIDEO', currentSrc: 'https://cdn.example/movie.mp4?sig=k%2Fl', src: '', poster: 'https://cdn.example/poster.jpg?sig=m%2Fn' },
+  { tagName: 'SOURCE', parentElement: { tagName: 'VIDEO' }, src: 'https://cdn.example/movie-alt.webm?sig=o%2Fp' }];
   root.__dolaAndroidScan();
   assert.deepEqual(Array.from(root.__dolaAndroidDrain(), item => item.url).sort(), [
     'https://cdn.example/dom.jpg?sig=e%2Ff',
     'https://cdn.example/dom2.jpg?sig=g%2Fh',
-    'https://cdn.example/picture.avif?sig=i%2Fj'
+    'https://cdn.example/picture.avif?sig=i%2Fj',
+    'https://cdn.example/movie.mp4?sig=k%2Fl',
+    'https://cdn.example/poster.jpg?sig=m%2Fn',
+    'https://cdn.example/movie-alt.webm?sig=o%2Fp'
   ].sort());
 });
 test('prompt timeline handles timestamps and English/Chinese seconds', () => {
