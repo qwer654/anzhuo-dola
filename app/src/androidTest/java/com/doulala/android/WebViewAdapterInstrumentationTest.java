@@ -31,6 +31,97 @@ import static org.junit.Assert.*;
 public class WebViewAdapterInstrumentationTest {
     private final Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
 
+    @Test public void defaultModeLeavesOriginalRequestHooksDisabled() throws Exception {
+        assertTrue(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
+        String original = readAsset("dola30-original/duration-main.js");
+        String promptTools = readAsset("prompt-tools.js");
+        String adapter = readAsset("dola30-android-adapter.js");
+        AtomicReference<WebView> viewRef = new AtomicReference<>();
+        AtomicReference<String> resultHolder = new AtomicReference<>();
+        CountDownLatch finished = new CountDownLatch(1);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            WebView view = new WebView(context);
+            view.getSettings().setJavaScriptEnabled(true);
+            view.getSettings().setDomStorageEnabled(true);
+            viewRef.set(view);
+            Set<String> origins = new HashSet<>(Arrays.asList("https://dola.com", "https://*.dola.com"));
+            try {
+                WebViewCompat.addDocumentStartJavaScript(view, "window.__fetchBefore=window.fetch;window.__xhrSendBefore=XMLHttpRequest.prototype.send;", origins);
+                WebViewCompat.addDocumentStartJavaScript(view, promptTools, origins);
+                WebViewCompat.addDocumentStartJavaScript(view, "window.__dola30ExtOff=true;\n" + original, origins);
+                WebViewCompat.addDocumentStartJavaScript(view, adapter, origins);
+            } catch (Exception e) {
+                throw new AssertionError("Could not install default-mode scripts", e);
+            }
+            view.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override public void onPageFinished(WebView webView, String url) {
+                    webView.evaluateJavascript("JSON.stringify({"
+                        + "fetchUntouched:window.fetch===window.__fetchBefore,"
+                        + "xhrUntouched:XMLHttpRequest.prototype.send===window.__xhrSendBefore,"
+                        + "originalInstalled:!!window.__watermarkFreeDuration30Installed,"
+                        + "networkRewrite:window.dola30Android.limitations.networkRewrite,"
+                        + "autoSubmit:window.dola30Android.limitations.autoSubmit})",
+                        value -> { resultHolder.set(value); finished.countDown(); });
+                }
+            });
+            view.loadDataWithBaseURL("https://www.dola.com/", "<!doctype html><html><body>default-mode fixture</body></html>",
+                "text/html", "UTF-8", null);
+        });
+        assertTrue("Default-mode fixture did not finish", finished.await(20, TimeUnit.SECONDS));
+        Object decoded = new JSONTokener(resultHolder.get()).nextValue();
+        assertTrue(decoded instanceof String);
+        JSONObject result = new JSONObject((String) decoded);
+        assertTrue(result.getBoolean("fetchUntouched"));
+        assertTrue(result.getBoolean("xhrUntouched"));
+        assertFalse(result.getBoolean("originalInstalled"));
+        assertFalse(result.getBoolean("networkRewrite"));
+        assertFalse(result.getBoolean("autoSubmit"));
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
+    }
+
+    @Test public void dolaScriptsAreNotInjectedOnUntrustedOrigin() throws Exception {
+        assertTrue(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
+        String original = readAsset("dola30-original/duration-main.js");
+        String promptTools = readAsset("prompt-tools.js");
+        String adapter = readAsset("dola30-android-adapter.js");
+        AtomicReference<WebView> viewRef = new AtomicReference<>();
+        AtomicReference<String> resultHolder = new AtomicReference<>();
+        CountDownLatch finished = new CountDownLatch(1);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            WebView view = new WebView(context);
+            view.getSettings().setJavaScriptEnabled(true);
+            view.getSettings().setDomStorageEnabled(true);
+            viewRef.set(view);
+            Set<String> origins = new HashSet<>(Arrays.asList("https://dola.com", "https://*.dola.com"));
+            try {
+                WebViewCompat.addDocumentStartJavaScript(view, promptTools, origins);
+                WebViewCompat.addDocumentStartJavaScript(view, "window.__dola30ExtOff=false;\n" + original, origins);
+                WebViewCompat.addDocumentStartJavaScript(view, adapter, origins);
+            } catch (Exception e) {
+                throw new AssertionError("Could not install Dola-scoped scripts", e);
+            }
+            view.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override public void onPageFinished(WebView webView, String url) {
+                    webView.evaluateJavascript("JSON.stringify({"
+                        + "adapter:typeof window.dola30Android,"
+                        + "original:!!window.__watermarkFreeDuration30Installed,"
+                        + "promptTools:typeof window.DolaPromptTools})",
+                        value -> { resultHolder.set(value); finished.countDown(); });
+                }
+            });
+            view.loadDataWithBaseURL("https://example.com/", "<!doctype html><html><body>untrusted fixture</body></html>",
+                "text/html", "UTF-8", null);
+        });
+        assertTrue("Untrusted-origin fixture did not finish", finished.await(20, TimeUnit.SECONDS));
+        Object decoded = new JSONTokener(resultHolder.get()).nextValue();
+        assertTrue(decoded instanceof String);
+        JSONObject result = new JSONObject((String) decoded);
+        assertEquals("undefined", result.getString("adapter"));
+        assertFalse(result.getBoolean("original"));
+        assertEquals("undefined", result.getString("promptTools"));
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
+    }
+
     @Test public void documentStartAdapterExposesLocalControlsWithoutChangingNetwork() throws Exception {
         assertTrue("WebView provider lacks document-start JavaScript support",
             WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
