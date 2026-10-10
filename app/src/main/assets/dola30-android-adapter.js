@@ -28,6 +28,8 @@
   var STATE_ATTRIBUTE = "data-watermark-free-duration-30";
   var STATE_EVENT = "watermark-free-duration-30-change";
   var CONTROL_ID = "dola30-android-control";
+  // Keep the supplied content-panel.js minimized state key; original source is untouched.
+  var MINIMIZED_KEY = "intl_doubao_media_panel_minimized_v1";
   // Reuse the supplied panel's position key so moving the Android control
   // remains compatible with the original content-panel.js state.
   var PANEL_POS_KEY = "intl_doubao_media_panel_pos_v3";
@@ -99,7 +101,10 @@
     var dx = event.clientX - drag.startX;
     var dy = event.clientY - drag.startY;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
-    if (drag.moved) applyPosition(control, drag.left + dx, drag.bottom - dy);
+    if (drag.moved) {
+      applyPosition(control, drag.left + dx, drag.bottom - dy);
+      syncMinimizeButton(control);
+    }
   }
   function finishDrag(event, control) {
     if (!drag || (drag.pointerId != null && event.pointerId !== drag.pointerId)) return;
@@ -109,7 +114,8 @@
     if (!moved) {
       // Handle taps on pointerup rather than the provider-dependent synthetic
       // click that follows it. This makes drag and activation mutually exclusive.
-      root.setDola30s(!isEnabled());
+      if (isMinimized()) setMinimized(false);
+      else root.setDola30s(!isEnabled());
       return;
     }
     persistPosition(control);
@@ -134,6 +140,13 @@
     var position = applyPosition(control, left, bottom);
     if (position.left !== left || position.bottom !== bottom) persistPosition(control);
   }
+  function syncMinimizeButton(control) {
+    var button = root.document.getElementById(CONTROL_ID + "-minimize");
+    if (!button) return;
+    var left = parseFloat(control.style.left), bottom = parseFloat(control.style.bottom);
+    button.style.left = (left + Math.max(24, control.offsetWidth || 40) - 12) + "px";
+    button.style.bottom = (bottom + Math.max(24, control.offsetHeight || 40) - 12) + "px";
+  }
 
   function storageGet(key, fallback) {
     try {
@@ -146,6 +159,12 @@
   }
   function isEnabled() {
     return storageGet(ENABLE_KEY, "0") === "1" && storageGet(TARGET_KEY, "15") === "30";
+  }
+  function isMinimized() { return storageGet(MINIMIZED_KEY, "0") === "1"; }
+  function setMinimized(minimized) {
+    storageSet(MINIMIZED_KEY, minimized ? "1" : "0");
+    render();
+    return isMinimized();
   }
   function duration() { return isEnabled() ? 30 : 15; }
   function statusObject() {
@@ -228,20 +247,43 @@
       control.addEventListener("click", function (event) {
         // Ignore provider-generated mouse clicks; pointerup owns touch/mouse
         // activation. Keep keyboard activation available for accessibility.
-        if (event && event.detail === 0 && event.isTrusted) root.setDola30s(!isEnabled());
+        if (event && event.detail === 0 && event.isTrusted) {
+          if (isMinimized()) setMinimized(false);
+          else root.setDola30s(!isEnabled());
+        }
       });
       // Match the original panel's keep-in-view behavior when rotation,
       // split-screen, zoom, or the on-screen keyboard changes the viewport.
-      function reposition() { keepControlInView(control); }
+      function reposition() { keepControlInView(control); syncMinimizeButton(control); }
       if (root.addEventListener) root.addEventListener("resize", reposition);
       if (root.visualViewport && root.visualViewport.addEventListener) {
         root.visualViewport.addEventListener("resize", reposition);
         root.visualViewport.addEventListener("scroll", reposition);
       }
       root.document.body.appendChild(control);
+      var minimize = root.document.createElement("button");
+      minimize.id = CONTROL_ID + "-minimize";
+      minimize.type = "button";
+      minimize.textContent = "−";
+      minimize.title = "最小化 30S 工具";
+      minimize.setAttribute("aria-label", "最小化 Android WebView 30 秒工具");
+      minimize.style.cssText = "position:fixed;z-index:2147483647;width:24px;height:24px;padding:0;" +
+        "border:1px solid rgba(255,255,255,.6);border-radius:50%;background:#39445d;color:#fff;" +
+        "font:16px sans-serif;line-height:20px;touch-action:manipulation;";
+      minimize.addEventListener("click", function () { setMinimized(true); });
+      root.document.body.appendChild(minimize);
     }
-    control.textContent = isEnabled() ? "30S 已启用" : "30S 工具（当前 15S）";
-    control.title = "仅保存页面本地状态；不会拦截请求或自动发送";
+    var minimized = isMinimized();
+    control.textContent = minimized ? "30S" : (isEnabled() ? "30S 已启用" : "30S 工具（当前 15S）");
+    control.setAttribute("aria-label", minimized ? "展开 Android WebView 30 秒工具" : "Android WebView 30 秒工具；点击切换，拖动移动，双击标题栏同源状态可最小化");
+    control.title = minimized ? "点击展开 30S 工具；可拖动" : "仅保存页面本地状态；不会拦截请求或自动发送";
+    control.style.padding = minimized ? "8px 10px" : "8px 12px";
+    control.style.borderRadius = minimized ? "50%" : "18px";
+    control.style.minWidth = minimized ? "40px" : "0";
+    keepControlInView(control);
+    syncMinimizeButton(control);
+    var minimizeButton = root.document.getElementById(CONTROL_ID + "-minimize");
+    if (minimizeButton) minimizeButton.style.display = minimized ? "none" : "block";
   }
   function setDola30s(on) {
     var enabled = !!on;
@@ -283,6 +325,8 @@
       getOriginalOptions: getOriginalOptions,
       setOriginalOptions: setOriginalOptions,
       getDolaPlatformSelectionStatus: getDolaPlatformSelectionStatus,
+      isPanelMinimized: isMinimized,
+      setPanelMinimized: setMinimized,
       limitations: Object.freeze({ networkRewrite: true, autoSubmit: false, watermarkBypass: false })
     });
     return;
@@ -301,6 +345,8 @@
     getOriginalOptions: getOriginalOptions,
     setOriginalOptions: setOriginalOptions,
     getDolaPlatformSelectionStatus: getDolaPlatformSelectionStatus,
+    isPanelMinimized: isMinimized,
+    setPanelMinimized: setMinimized,
     limitations: Object.freeze({ networkRewrite: false, autoSubmit: false, watermarkBypass: false })
   });
 
