@@ -369,6 +369,39 @@ public class BrowserActivity extends Activity {
             });
         }));dialog.show();
     }
+    private void showOriginalScriptOptions() {
+        if(!prefs.getBoolean("originalDola30",false)){
+            Ui.toast(this,"请先在菜单中确认启用原版 Dola30 JS");return;
+        }
+        if(active==null||active.view==null||!UrlRules.trusted(active.view.getUrl())){
+            Ui.toast(this,"原版 Dola30 设置仅在白名单网页可用");return;
+        }
+        final Tab t=active;final int navigation=t.navigation;
+        t.view.evaluateJavascript("window.dola30Android&&window.dola30Android.getOriginalOptions?JSON.stringify(window.dola30Android.getOriginalOptions()):null",value->{
+            if(destroyed||t.closed||t.view==null||t.navigation!=navigation||t!=active)return;
+            JSONObject saved=parseJsObject(value);
+            if(saved==null){Ui.toast(this,"原版 Dola30 选项尚未加载");return;}
+            LinearLayout form=Ui.column(this);Ui.pad(form,8);
+            form.addView(Ui.text(this,"以下开关使用原版 duration-main.js 已有的本地设置键；开启后可能改变匹配生成请求中的用户提示词。应用不会自动提交。",13,Ui.MUTED));
+            CheckBox rewrite=new CheckBox(this);rewrite.setText("自动改写匹配请求中的时间轴");rewrite.setChecked(saved.optBoolean("timelineRewrite",true));form.addView(rewrite);
+            CheckBox guard=new CheckBox(this);guard.setText("追加原版控制提示段");guard.setChecked(saved.optBoolean("promptGuard",false));form.addView(guard);
+            AlertDialog dialog=new AlertDialog.Builder(this).setTitle("原版 Dola30 脚本选项")
+                .setView(Ui.scroll(this,form)).setNegativeButton("取消",null).setPositiveButton("保存",null).create();
+            dialog.setOnShowListener(x->dialog.getButton(-1).setOnClickListener(button->{
+                String js="window.dola30Android&&window.dola30Android.setOriginalOptions?JSON.stringify(window.dola30Android.setOriginalOptions({promptGuard:"+
+                    (guard.isChecked()?"true":"false")+",timelineRewrite:"+(rewrite.isChecked()?"true":"false")})):null";
+                t.view.evaluateJavascript(js,result->{
+                    if(destroyed||t.closed||t.view==null||t.navigation!=navigation||t!=active){dialog.dismiss();return;}
+                    JSONObject actual=parseJsObject(result);
+                    if(actual==null||actual.optBoolean("promptGuard",!guard.isChecked())!=guard.isChecked()||
+                        actual.optBoolean("timelineRewrite",!rewrite.isChecked())!=rewrite.isChecked()){
+                        Ui.toast(this,"保存失败；原版选项未确认写入");return;
+                    }
+                    dialog.dismiss();Ui.toast(this,"原版脚本选项已保存到当前站点");
+                });
+            }));dialog.show();
+        });
+    }
     private void showTimelineResult(String result) {
         TextView output=Ui.text(this,result,14,Ui.INK);output.setTextIsSelectable(true);output.setGravity(Gravity.TOP|Gravity.START);
         new AlertDialog.Builder(this).setTitle("转换结果（请手动检查）").setView(Ui.scroll(this,output))
@@ -379,10 +412,10 @@ public class BrowserActivity extends Activity {
     private void showMenu() {
         boolean originalEnabled=prefs.getBoolean("originalDola30",false);
         boolean cleanPrivacy=prefs.getBoolean("privacyCleanMode",false);
-        new AlertDialog.Builder(this).setTitle(title).setItems(new String[]{"前进","回到首页","新建标签","添加当前页书签","打开书签","下载中心","30S 工具","Cookie 手动迁移","原版 Dola30 请求适配："+(originalEnabled?"已启用":"关闭"),"隐私洁净模式："+(cleanPrivacy?"已启用":"关闭"),"回到空间列表"},(d,n)->{
+        new AlertDialog.Builder(this).setTitle(title).setItems(new String[]{"前进","回到首页","新建标签","添加当前页书签","打开书签","下载中心","30S 工具","Cookie 手动迁移","原版 Dola30 请求适配："+(originalEnabled?"已启用":"关闭"),"隐私洁净模式："+(cleanPrivacy?"已启用":"关闭"),"原版 Dola30 选项","回到空间列表"},(d,n)->{
             switch(n){case 0:if(active.view!=null&&active.view.canGoForward())active.view.goForward();break;
                 case 1:load(home);break;case 2:newTab(home);break;case 3:addBookmark();break;
-                case 4:showBookmarks();break;case 5:downloads.show();break;case 6:showDurationTool();break;case 7:cookies.show();break;case 8:confirmOriginalDolaMode(!originalEnabled);break;case 9:confirmPrivacyCleanMode(!cleanPrivacy);break;case 10:returnToCatalog();break;}
+                case 4:showBookmarks();break;case 5:downloads.show();break;case 6:showDurationTool();break;case 7:cookies.show();break;case 8:confirmOriginalDolaMode(!originalEnabled);break;case 9:confirmPrivacyCleanMode(!cleanPrivacy);break;case 10:showOriginalScriptOptions();break;case 11:returnToCatalog();break;}
         }).show();
     }
     private void confirmPrivacyCleanMode(boolean enabled) {
