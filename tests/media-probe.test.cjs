@@ -17,6 +17,9 @@ test('srcset parser collects bounded HTTPS image candidates without changing sig
     'https://cdn.example/b?id=2&sig=a%2Fb'
   ]);
   assert.deepEqual(probe.parseSrcset('data:image/png;base64,AAAA 1x, javascript:alert(1) 2x'), []);
+  assert.deepEqual(probe.parseSrcset('https://cdn.example/one.jpg, https://cdn.example/two.jpg'), [
+    'https://cdn.example/one.jpg', 'https://cdn.example/two.jpg'
+  ]);
   assert.deepEqual(probe.parseSrcset('x'.repeat(probe.LIMITS.bodyBytes + 1)), []);
 });
 test('base64 and URL-safe base64 main_url preserve signed URL bytes', () => {
