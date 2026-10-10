@@ -79,6 +79,48 @@ public class WebViewAdapterInstrumentationTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
 
+    @Test public void privacyCleanModeReducesWebglDebugInfoWithoutSpoofingWebViewUa() throws Exception {
+        assertTrue(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
+        String privacy = readAsset("fingerprint-privacy/content-main.js");
+        String bootstrap = BrowserActivity.privacyFingerprintBootstrap(privacy, true);
+        AtomicReference<WebView> viewRef = new AtomicReference<>();
+        AtomicReference<String> resultHolder = new AtomicReference<>();
+        CountDownLatch finished = new CountDownLatch(1);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            WebView view = new WebView(context);
+            view.getSettings().setJavaScriptEnabled(true);
+            view.getSettings().setDomStorageEnabled(true);
+            viewRef.set(view);
+            try {
+                WebViewCompat.addDocumentStartJavaScript(view, bootstrap,
+                    new HashSet<>(Arrays.asList("https://dola.com", "https://*.dola.com")));
+            } catch (Exception e) {
+                throw new AssertionError("Could not install privacy-clean WebGL reduction", e);
+            }
+            view.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override public void onPageFinished(WebView webView, String url) {
+                    String expectedUa = JSONObject.quote(webView.getSettings().getUserAgentString());
+                    webView.evaluateJavascript("JSON.stringify({"
+                        + "settings:window.__dolaFingerprintPrivacy.getSettings(),"
+                        + "ua:navigator.userAgent,expectedUa:" + expectedUa + ","
+                        + "debugResult:(window.WebGLRenderingContext ? WebGLRenderingContext.prototype.getExtension.call({},'WEBGL_debug_renderer_info') : 'unavailable')"
+                        + "})", value -> { resultHolder.set(value); finished.countDown(); });
+                }
+            });
+            view.loadDataWithBaseURL("https://www.dola.com/", "<!doctype html><html><body>privacy fixture</body></html>",
+                "text/html", "UTF-8", null);
+        });
+        assertTrue("Privacy fixture did not finish", finished.await(20, TimeUnit.SECONDS));
+        Object decoded = new JSONTokener(resultHolder.get()).nextValue();
+        assertTrue(decoded instanceof String);
+        JSONObject result = new JSONObject((String) decoded);
+        assertTrue(result.getJSONObject("settings").getBoolean("hideWebglDebugInfo"));
+        assertFalse("Android must not enable identity spoofing", result.getJSONObject("settings").getBoolean("cleanMode"));
+        assertEquals(result.getString("expectedUa"), result.getString("ua"));
+        if (!"unavailable".equals(result.getString("debugResult"))) assertTrue(result.isNull("debugResult"));
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
+    }
+
     @Test public void dolaScriptsAreNotInjectedOnUntrustedOrigin() throws Exception {
         assertTrue(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
         String original = readAsset("dola30-original/duration-main.js");
