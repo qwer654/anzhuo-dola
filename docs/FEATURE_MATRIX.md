@@ -29,7 +29,7 @@
 
 ## 验证状态
 
-- 最新 PR head `d44e432e9cf294558bc031d0ae8190f54cc81575`：本地 Node 4 套共 43 项通过（媒体 17、隐私 14、适配器 11、源文件清单 1）；GitHub APK 构建/签名/原始资源校验通过，Android 15/API 35 模拟器 15/15 instrumentation 通过，新增验证匹配 provider iframe 中指纹 API 降噪与跨源媒体帧 nonce relay。真实小米手机仍未连接 ADB。
+- 最新代码 head `5cd4228c77c6c441d77f8a03e4dd6c96b8972fd5`：Node 四套共 43 项通过（媒体 17、隐私 14、适配器 11、源文件清单 1）；[Android APK workflow](https://github.com/qwer654/anzhuo-dola/actions/runs/38052851806) 构建/签名/原始资源校验通过，[Android 15/API 35 smoke](https://github.com/qwer654/anzhuo-dola/actions/runs/38052851802) 的 15/15 instrumentation 通过，实测匹配的跨源 provider iframe 中隐私 API 降噪与跨源媒体帧 nonce relay。真实小米手机仍未连接 ADB。
 
 - 工作流会运行媒体、原始 JS 完整性和 Android 适配层 Node 测试（`tests/media-probe.test.cjs`、`tests/dola30-source.test.cjs`、`tests/dola30-android-adapter.test.cjs`）。
 - 在 2026-10-10 的 PR 检查中，4 个 Node 测试文件共 26 项、11 项 Java 单元测试、`lintDebug`、APK 构建/签名及原始资源打包哈希验证均通过；APK 构件已由 GitHub Actions 上传。
