@@ -14,7 +14,7 @@
 | 白名单页面媒体观察 | 已实现（安全子集） | 观察页面已有 JSON/fetch/XHR/DOM/Performance 的图片/视频 URL；可手动重扫当前页、复制链接、在新 HTTPS 标签打开或确认下载；不请求 fallback API、不改响应，不保证原图/无水印。 |
 | 资源下载 | 已实现（有限） | Android DownloadManager + 下载中心状态、打开、分享、SAF 另存、删除；最多保留 100 条记录，应用私有外部目录卸载时删除。 |
 | 认证下载 | 未实现 | 不自动附加 Cookie 或认证头；需登录或已过期链接可能失败/过期。 |
-| 30 秒/时间码 | 已实现（默认安全适配；原版脚本可选） | 默认 WebView 模式只保存本地状态并提供人工提示词工具；用户可在浏览器菜单显式开启原版 `duration-main.js`，经警告并重载后原样注入 Dola/Doubao 白名单页。开启原版模式后，原脚本自行判断是否更改页面状态、提示词或匹配请求中的用户文本；不会由应用自动提交。原 MV3 源文件保持原样。 |
+| 30 秒/时间码 | 已实现（默认安全适配；原版脚本可选） | 默认 WebView 模式只保存本地状态并提供人工提示词工具；用户可在浏览器菜单显式开启原版 `duration-main.js`，经警告并重载后原样注入 Dola/Doubao 白名单页。原版脚本选项菜单直接读写原脚本既有的 prompt-guard / timeline-rewrite localStorage 键；开启原版模式后，原脚本自行判断是否更改页面状态、提示词或匹配请求中的用户文本；不会由应用自动提交。原 MV3 源文件保持原样。 |
 | 指纹诊断/隐私 | WebView 已实现保守洁净子集；扩展模块未接入 | 浏览器菜单“隐私洁净模式”采用实际 WebView 原生 UA（移除应用专属后缀）、阻止第三方 Cookie，并禁用网页 Geolocation API；不伪造机型/系统身份或高熵请求头，可能影响跨站登录/定位功能，不保证无定向广告。MV3 模块的 Canvas/Audio/WebRTC 限制、页面诊断与 DNR 请求头规则仍未接入 WebView。
 | 快捷文本 | 已实现 | 本地 CRUD、复制或填入当前网页；不会自动发送。 |
 | 分镜工作台 | 已实现（手动） | UTF-8 文本按空行导入、编辑、三态手动状态、JSON 备份；不代表平台生成状态。 |
@@ -36,6 +36,7 @@
 - 2026-10-10，媒体手动重扫测试代码提交 `5c1f993` 的 Android UI smoke 与 APK workflows 均通过；模拟器运行 7 项 instrumentation，构建产出 debug/deviceValidation APK，且两份 APK 均验证了 15 个原始扩展文件。随后仅文档提交更新到 head `4c162a9`，没有改动该已验证代码。
 - 后续 instrumentation 提交 `9e41d17` 的两项 Android 工作流也通过；API 35 模拟器共运行 9 项 instrumentation，新增覆盖默认关闭时原版 fetch/XHR hooks 保持原状，以及 Dola/Doubao document-start 脚本不注入非白名单 origin。APK 构建和 15 个原始文件校验通过。
 - 最新代码提交 `bcf7919` 的 APK 与 Android UI smoke 工作流均通过；API 35 模拟器 10/10 instrumentation 通过，新增“隐私洁净模式”用户确认/重载/关闭回归。剪贴板测试不再依赖后台读取系统剪贴板，改为精确验证即将写入的 `ClipData` 保留完整签名 URL。
+- 后续 Android 适配层增加“原版 Dola30 选项”原生菜单：只在用户已启用原版脚本、且页面为白名单时使用适配器暴露的读写接口操作原有 localStorage 键；Node VM 用例验证默认值、读写与恢复。Android WebView instrumentation 已扩展验证这些选项可用且原版公开 API 不被覆盖；此新增代码仍待 GitHub Actions 执行。
 - `WebViewAdapterInstrumentationTest` 在 Android WebView 中通过 document-start、本地 30S 状态、提示词转换及 opt-in 原版控制提示段断言、已观察媒体链接复制到系统剪贴板的精确性断言；`BrowserSmokeTest` 通过空间切换、标签/书签及空间隔离烟测。
 - **小米真机基础验收已完成**：`22127RK46C` / Android 16 / `com.google.android.webview 153.0.8010.36`。已校验并安装 CI `0.2.1-debug` APK，打开 `https://www.dola.com/chat/`；屏幕显示本地工具状态及资源计数（5）。本次未登录、未提交提示词或触发生成。
 - **真机安装待确认**：从最新代码提交 `bcf7919` 的 CI artifact 提取 `deviceValidation` APK，并本地复核 SHA-256 `4e6111300ffb50eb10126d275b5479cd7360268041c4bb8f71808d386373a87a`，包含 15 个原始扩展文件。对前一版 APK 执行 `adb install -r` 曾返回 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`；最新 APK 尚未安装。未卸载旧版或更改其数据；需在手机端允许通过调试安装。
