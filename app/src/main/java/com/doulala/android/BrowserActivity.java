@@ -313,12 +313,18 @@ public class BrowserActivity extends Activity {
             String message="当前页面目标时长："+state.optInt("duration",15)+" 秒\n"+
                 (originalEnabled?"原版 Dola30 JS 已启用：按原脚本逻辑可能更改页面状态、提示词或匹配请求中的用户文本；应用不会自动提交。\n":
                     "Android 默认适配只保存页面状态并提供本地提示词工具，不改写网页请求。\n")+
+                durationToolCapabilitySummary(t.probe)+"\n"+
                 "不会伪造平台能力；30 秒能力由页面选项与平台决定。";
             new AlertDialog.Builder(this).setTitle("30S 工具（Android WebView）")
                 .setMessage(message).setNegativeButton("关闭",null)
                 .setNeutralButton("转换提示词时间轴",(d,w)->showTimelineRewrite())
                 .setPositiveButton(on?"切换为 15S":"启用 30S",(d,w)->setDurationState(!on)).show();
         });
+    }
+    static String durationToolCapabilitySummary(boolean pageProbeEnabled) {
+        return "页面资源观察："+(pageProbeEnabled?"已注入，仅观察页面已暴露的 URL":"未启用，当前网页或 WebView 未提供该能力")+"\n"+
+            "Debugger 深度/自动嗅探：不可用（Android WebView 不提供 Chrome MV3 Debugger）\n"+
+            "fallback API 解析：未实现";
     }
     private JSONObject parseJsObject(String value) {
         if(value==null||"null".equals(value))return null;
