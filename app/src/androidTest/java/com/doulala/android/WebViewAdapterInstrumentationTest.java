@@ -565,6 +565,14 @@ public class WebViewAdapterInstrumentationTest {
                 throw new AssertionError("Could not install the media observer", e);
             }
             view.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override public android.webkit.WebResourceResponse shouldInterceptRequest(WebView webView, android.webkit.WebResourceRequest request) {
+                    if ("https://www.dola.com/frame-fixture".equals(request.getUrl().toString())) {
+                        String html = "<!doctype html><html><body><img src='https://cdn.example/frame.jpg?sig=a%2Fb'></body></html>";
+                        return new android.webkit.WebResourceResponse("text/html", "UTF-8",
+                            new java.io.ByteArrayInputStream(html.getBytes(StandardCharsets.UTF_8)));
+                    }
+                    return super.shouldInterceptRequest(webView, request);
+                }
                 @Override public void onPageFinished(WebView webView, String url) {
                     new Handler(Looper.getMainLooper()).postDelayed(() -> webView.evaluateJavascript(
                         "JSON.stringify({items:window.__dolaAndroidDrain(),childOrigin:document.getElementById('same').contentWindow.location.origin})",
@@ -572,7 +580,7 @@ public class WebViewAdapterInstrumentationTest {
                 }
             });
             view.loadDataWithBaseURL("https://www.dola.com/", "<!doctype html><html><body>"
-                    + "<iframe id='same' srcdoc='<!doctype html><html><body><img src=&quot;https://cdn.example/frame.jpg?sig=a%2Fb&quot;></body></html>'></iframe>"
+                    + "<iframe id='same' src='https://www.dola.com/frame-fixture'></iframe>"
                     + "<iframe id='opaque' sandbox='allow-scripts' srcdoc='<!doctype html><html><body><img src=&quot;https://cdn.example/opaque.jpg?sig=no&quot;></body></html>'></iframe>"
                     + "</body></html>", "text/html", "UTF-8", null);
         });
