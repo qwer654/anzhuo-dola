@@ -209,10 +209,11 @@ public class WebViewAdapterInstrumentationTest {
                         + "function fire(type,x,y){button.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:9,clientX:x,clientY:y,button:0}));}"
                         + "fire('pointerdown',200,600);fire('pointermove',150,560);fire('pointerup',150,560);"
                         + "fire('pointerdown',150,560);fire('pointercancel',150,560);"
+                        + "var dragLeft=parseFloat(button.style.left),dragBottom=parseFloat(button.style.bottom);"
                         + "var dragSaved=JSON.parse(localStorage.getItem('intl_doubao_media_panel_pos_v3'));"
                         + "fire('pointerdown',150,560);fire('pointermove',160,555);fire('pointercancel',160,555);"
                         + "var cancelledSaved=JSON.parse(localStorage.getItem('intl_doubao_media_panel_pos_v3'));"
-                        + "return JSON.stringify({left:left,bottom:bottom,finalLeft:parseFloat(button.style.left),finalBottom:parseFloat(button.style.bottom),dragSaved:dragSaved,cancelledSaved:cancelledSaved,enabled:JSON.parse(window.getDola30sStatus()).on});"
+                        + "return JSON.stringify({left:left,bottom:bottom,dragLeft:dragLeft,dragBottom:dragBottom,dragSaved:dragSaved,cancelledSaved:cancelledSaved,enabled:JSON.parse(window.getDola30sStatus()).on});"
                         + "})()", value -> { result.set(value); finished.countDown(); });
                 }
             });
@@ -224,12 +225,12 @@ public class WebViewAdapterInstrumentationTest {
         assertTrue(decoded instanceof String);
         JSONObject state = new JSONObject((String) decoded);
         assertFalse(state.optBoolean("missing", false));
-        assertEquals(state.getInt("left") - 50, state.getInt("finalLeft"));
-        assertEquals(state.getInt("bottom") + 40, state.getInt("finalBottom"));
-        assertEquals(state.getInt("finalLeft"), state.getJSONObject("dragSaved").getInt("left"));
-        assertEquals(state.getInt("finalBottom"), state.getJSONObject("dragSaved").getInt("bottom"));
-        assertEquals(state.getInt("finalLeft") + 10, state.getJSONObject("cancelledSaved").getInt("left"));
-        assertEquals(state.getInt("finalBottom") + 5, state.getJSONObject("cancelledSaved").getInt("bottom"));
+        assertEquals(state.getInt("left") - 50, state.getInt("dragLeft"));
+        assertEquals(state.getInt("bottom") + 40, state.getInt("dragBottom"));
+        assertEquals(state.getInt("dragLeft"), state.getJSONObject("dragSaved").getInt("left"));
+        assertEquals(state.getInt("dragBottom"), state.getJSONObject("dragSaved").getInt("bottom"));
+        assertEquals(state.getInt("dragLeft") + 10, state.getJSONObject("cancelledSaved").getInt("left"));
+        assertEquals(state.getInt("dragBottom") + 5, state.getJSONObject("cancelledSaved").getInt("bottom"));
         assertFalse("Pointer movement must not toggle the 30S control", state.getBoolean("enabled"));
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
