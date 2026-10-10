@@ -14,7 +14,7 @@
 | 白名单页面媒体观察 | 已实现（安全子集） | 观察页面已有 JSON/fetch/XHR/DOM/Performance 的图片/视频 URL；可复制已观察到的链接、在新 HTTPS 标签打开或确认下载；不请求 fallback API、不改响应，不保证原图/无水印。 |
 | 资源下载 | 已实现（有限） | Android DownloadManager + 下载中心状态、打开、分享、SAF 另存、删除；最多保留 100 条记录，应用私有外部目录卸载时删除。 |
 | 认证下载 | 未实现 | 不自动附加 Cookie 或认证头；需登录或已过期链接可能失败/过期。 |
-| 30 秒/时间码 | 已实现（安全适配） | 白名单 WebView 页面提供本地 15/30 秒状态、原公开 API 兼容名、提示词时间轴转换和复制；不改写 fetch/XHR、不自动提交、不伪造模型能力，不保证目标平台接受 30 秒。原 MV3 文件原样保留在 `assets/dola30-original/`。 |
+| 30 秒/时间码 | 已实现（安全适配） | 白名单 WebView 页面提供本地 15/30 秒状态、原公开 API 兼容名、提示词时间轴转换和复制；时间轴工具可选加入原版“单片生成/直接生成”提示段，但只处理用户输入并供人工检查，不改写 fetch/XHR、不自动提交、不伪造模型能力，不保证目标平台接受 30 秒。原 MV3 文件原样保留在 `assets/dola30-original/`。 |
 | 指纹诊断/隐私 | 已加入扩展模块（待 Cobalt 验收） | `assets/fingerprint-privacy/` 提供本地信号报告、Canvas/WebGL/离线音频/WebRTC/媒体设备限制，以及“洁净模式”（固定低熵移动 UA、通用设备值、删除高熵 Client Hints）；不随机轮换，不改 Cookie/Referer/认证头，不用于绕过风控。 |
 | 快捷文本 | 已实现 | 本地 CRUD、复制或填入当前网页；不会自动发送。 |
 | 分镜工作台 | 已实现（手动） | UTF-8 文本按空行导入、编辑、三态手动状态、JSON 备份；不代表平台生成状态。 |
@@ -31,6 +31,7 @@
 
 - 工作流会运行媒体、原始 JS 完整性和 Android 适配层 Node 测试（`tests/media-probe.test.cjs`、`tests/dola30-source.test.cjs`、`tests/dola30-android-adapter.test.cjs`）。
 - 在 2026-10-10 的 PR 检查中，4 个 Node 测试文件共 26 项、11 项 Java 单元测试、`lintDebug`、APK 构建/签名及原始资源打包哈希验证均通过；APK 构件已由 GitHub Actions 上传。
+- 后续本地回归新增了提示控制段 opt-in/idempotence 覆盖；当前 4 个 Node 测试文件为 27 项本地通过。包含该改动的下一次 GitHub 构建和 Android instrumentation 检查仍需完成后才能记为 CI 通过。
 - `android.yml` 现对匹配的 pull request 也执行构建验证；`android-smoke.yml` 对 Android 代码/测试 pull request 运行 Android 15/API 35 模拟器的 `connectedDeviceValidationAndroidTest`。PR #1 最新已完成检查中，两项工作流均通过。
 - `WebViewAdapterInstrumentationTest` 在 Android WebView 中通过 document-start、本地 30S 状态、提示词转换，以及已观察媒体链接复制到系统剪贴板的精确性断言；`BrowserSmokeTest` 通过空间切换、标签/书签及空间隔离烟测。
 - **小米真机基础验收已完成**：`22127RK46C` / Android 16 / `com.google.android.webview 153.0.8010.36`。已校验并安装 CI `0.2.1-debug` APK，打开 `https://www.dola.com/chat/`；屏幕显示本地工具状态及资源计数（5）。本次未登录、未提交提示词或触发生成。

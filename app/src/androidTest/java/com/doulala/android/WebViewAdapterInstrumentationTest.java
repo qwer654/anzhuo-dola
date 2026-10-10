@@ -58,7 +58,7 @@ public class WebViewAdapterInstrumentationTest {
                         + "var before=JSON.parse(window.getDola30sStatus());"
                         + "window.setDola30s(true);"
                         + "var after=JSON.parse(window.getDola30sStatus());"
-                        + "return JSON.stringify({before:before,after:after,timeline:window.rewriteDolaTimeline('00:00-00:05 开场',30)});"
+                        + "return JSON.stringify({before:before,after:after,timeline:window.rewriteDolaTimeline('00:00-00:05 开场',30),guarded:window.rewriteDolaTimeline('00:00-00:05 开场',30,true)});"
                         + "})()", value -> { pageResult.set(value); loaded.countDown(); });
                 }
             });
@@ -77,6 +77,10 @@ public class WebViewAdapterInstrumentationTest {
         assertFalse(after.getBoolean("networkRewrite"));
         assertFalse(after.getBoolean("autoSubmit"));
         assertTrue(result.getString("timeline").contains("全片进度 0%–16.7%"));
+        String guarded = result.getString("guarded");
+        assertTrue(guarded.startsWith("【直接生成控制】"));
+        assertTrue(guarded.contains("【单片生成控制】"));
+        assertTrue(guarded.contains("全片进度 0%–16.7%"));
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync(view::destroy);
     }

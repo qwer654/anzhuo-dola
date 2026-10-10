@@ -310,13 +310,14 @@ public class BrowserActivity extends Activity {
     private void showTimelineRewrite() {
         if(active==null||active.view==null||!UrlRules.trusted(active.view.getUrl())){Ui.toast(this,"当前页面不可用");return;}
         LinearLayout form=Ui.column(this);Ui.pad(form,8);
-        TextView hint=Ui.text(this,"仅转换提示词中的时间表达，不会提交到网页。",12,Ui.MUTED);form.addView(hint);
+        TextView hint=Ui.text(this,"仅处理本地提示词，不会改写网页请求或自动提交。",12,Ui.MUTED);form.addView(hint);
         EditText prompt=Ui.edit(this,"输入提示词，例如：00:00-00:05 开场","");
         prompt.setSingleLine(false);prompt.setMinLines(5);prompt.setGravity(Gravity.TOP|Gravity.START);
         prompt.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         form.addView(prompt,new LinearLayout.LayoutParams(-1,Ui.dp(this,130)));
         EditText seconds=Ui.edit(this,"总时长（秒）","30");
         seconds.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);form.addView(seconds);
+        CheckBox guards=new CheckBox(this);guards.setText("加入原版控制提示段（人工检查后再复制/填入）");form.addView(guards);
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("转换提示词时间轴").setView(Ui.scroll(this,form))
             .setNegativeButton("取消",null).setPositiveButton("转换",null).create();
         dialog.setOnShowListener(x->dialog.getButton(-1).setOnClickListener(v->{
@@ -325,7 +326,7 @@ public class BrowserActivity extends Activity {
             if(!(total>0&&total<=86400)){seconds.setError("请输入 0–86400 之间的秒数");return;}
             final Tab t=active;final int navigation=t==null?0:t.navigation;
             if(t==null||t.view==null||!UrlRules.trusted(t.view.getUrl())){dialog.dismiss();Ui.toast(this,"页面已变化，请重试");return;}
-            String js="window.rewriteDolaTimeline?window.rewriteDolaTimeline("+JSONObject.quote(input)+","+Double.toString(total)+"):null";
+            String js="window.rewriteDolaTimeline?window.rewriteDolaTimeline("+JSONObject.quote(input)+","+Double.toString(total)+","+(guards.isChecked()?"true":"false")+"):null";
             t.view.evaluateJavascript(js,value->{
                 if(destroyed||t.closed||t!=active||t.navigation!=navigation){Ui.toast(this,"页面已变化，未填入结果");return;}
                 String result=decodeJsString(value);if(result==null){Ui.toast(this,"提示词工具未加载");return;}

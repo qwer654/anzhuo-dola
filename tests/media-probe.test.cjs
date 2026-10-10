@@ -67,3 +67,17 @@ test('prompt conversion validates duration and does not claim model capability',
   assert.equal(prompts.rewriteTimeline('120秒', 30), '全片进度约 400% 处');
   assert.equal(prompts.rewriteTimeline('-5秒', 30), '-5秒');
 });
+test('prompt guard is opt-in and preserves the original markers without auto-submit', () => {
+  const plain = prompts.rewriteTimeline('00:00-00:05 开场', 30);
+  assert.equal(plain, '全片进度 0%–16.7% 开场');
+  assert.doesNotMatch(plain, /【(?:单片生成|直接生成)控制】/);
+  const guarded = prompts.rewriteTimeline('00:00-00:05 开场', 30, {promptGuard:true});
+  assert.match(guarded, /^【直接生成控制】/);
+  assert.match(guarded, /【单片生成控制】/);
+  assert.match(guarded, /全片进度 0%–16.7% 开场/);
+  assert.equal((guarded.match(/【直接生成控制】/g)||[]).length, 1);
+  assert.equal((guarded.match(/【单片生成控制】/g)||[]).length, 1);
+  const directOnly = prompts.rewriteTimeline('16:9 雨夜街景', 30, {promptGuard:true});
+  assert.match(directOnly, /^【直接生成控制】/);
+  assert.doesNotMatch(directOnly, /【单片生成控制】/);
+});

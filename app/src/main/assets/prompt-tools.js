@@ -31,7 +31,7 @@
     if (parts.length === 2 && !decimalDigits) return NaN;
     return Number(String(integer) + (decimalDigits ? "." + decimalDigits : ""));
   }
-  function rewriteTimeline(text, totalSeconds) {
+  function rewriteTimeline(text, totalSeconds, options) {
     var total = Number(totalSeconds);
     if (!Number.isFinite(total) || total <= 0 || total > 86400) throw new RangeError("totalSeconds must be 0 < duration <= 86400");
     var input = String(text || "");
@@ -68,6 +68,18 @@
       var duration = !ordinal && /(?:持续|延续|保持|停留|时长|等待|for\s*|lasting\s*)$/i.test(previous);
       return prefix + point(n, duration);
     });
+    if (options && options.promptGuard === true) {
+      var timelineChanged = rewritten !== input;
+      if (timelineChanged && rewritten.indexOf("【单片生成控制】") === -1) {
+        rewritten = "【单片生成控制】这是一个单次、连续的视频生成任务。下方的“全片进度”只表示同一条成片内部的镜头节奏，"
+          + "不代表多个视频任务；不得拆分生成，不得改为多次任务。\n\n" + rewritten;
+      }
+      if (rewritten.indexOf("【直接生成控制】") === -1) {
+        rewritten = "【直接生成控制】用户已经明确选定视频模型、比例和时长，参数以本请求的 chat_ability / ability_param 为准。"
+          + "禁止询问用户确认，禁止要求用户回复 A/B/C 或选择时长，禁止再次解释可选规格；"
+          + "立即调用一次视频生成能力，只回复已经受理并开始生成的确认结果。\n\n" + rewritten;
+      }
+    }
     return rewritten;
   }
   return Object.freeze({ parseChineseNumber: parseChineseNumber, rewriteTimeline: rewriteTimeline });

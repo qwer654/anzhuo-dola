@@ -81,11 +81,13 @@
     return statusObject();
   }
   function getDola30sStatus() { return JSON.stringify(statusObject()); }
-  function rewriteDolaTimeline(text, totalSeconds) {
+  function rewriteDolaTimeline(text, totalSeconds, includeControlInstructions) {
     if (!root.DolaPromptTools || typeof root.DolaPromptTools.rewriteTimeline !== "function") {
       throw new Error("prompt-tools.js 尚未加载");
     }
-    return root.DolaPromptTools.rewriteTimeline(text, totalSeconds);
+    return root.DolaPromptTools.rewriteTimeline(text, totalSeconds, {
+      promptGuard: includeControlInstructions === true
+    });
   }
 
   // Keep the public names used by the supplied scripts, but route them to a
