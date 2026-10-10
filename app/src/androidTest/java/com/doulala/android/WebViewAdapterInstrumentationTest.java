@@ -401,7 +401,7 @@ public class WebViewAdapterInstrumentationTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             WebView view = new WebView(context);
             view.getSettings().setJavaScriptEnabled(true);
-            view.getSettings().setBlockNetworkLoads(true)
+            view.getSettings().setBlockNetworkLoads(true);
             viewRef.set(view);
             try {
                 WebViewCompat.addDocumentStartJavaScript(view, probe,
