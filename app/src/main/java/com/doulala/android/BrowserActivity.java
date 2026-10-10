@@ -36,7 +36,7 @@ public class BrowserActivity extends Activity {
 
     private static final class Tab {
         WebView view;
-        String url,title="新标签",message="等待加载";
+        String url,title="新标签",message="等待加载",savedState;
         int navigation;
         boolean probe,androidTools,closed,failed;
         final ArrayList<MediaItem> media=new ArrayList<>();
@@ -97,19 +97,39 @@ public class BrowserActivity extends Activity {
         try {
             String saved=prefs.getString("tabs","[]");if(saved.length()>128*1024)throw new JSONException("too large");
             JSONArray array=new JSONArray(saved);
-            for(int i=0;i<array.length()&&tabs.size()<MAX_TABS;i++){String u=webUrl(array.optString(i));if(u!=null)tabs.add(new Tab(u));}
+            for(int i=0;i<array.length()&&tabs.size()<MAX_TABS;i++){
+                Object entry=array.opt(i);String u=entry instanceof JSONObject?((JSONObject)entry).optString("url",null):String.valueOf(entry);
+                u=webUrl(u);if(u==null)continue;
+                Tab tab=new Tab(u);if(entry instanceof JSONObject)tab.savedState=TabStateCodec.validEncoded(((JSONObject)entry).optString("state",null));tabs.add(tab);
+            }
         }catch(Exception ignored){}
         if(tabs.isEmpty())tabs.add(new Tab(home));
         select(tabs.get(Math.max(0,Math.min(prefs.getInt("selected",0),tabs.size()-1))));
     }
     private void saveTabs() {
-        if(prefs==null)return;JSONArray a=new JSONArray();for(Tab t:tabs)a.put(t.url);
+        if(prefs==null)return;JSONArray a=new JSONArray();int stateBudget=TabStateCodec.TOTAL_LIMIT;
+        for(Tab t:tabs){
+            JSONObject item=new JSONObject();try{item.put("url",t.url);}catch(JSONException ignored){}
+            if(t.view!=null&&stateBudget>0){
+                Bundle state=new Bundle();try{
+                    if(t.view.saveState(state)!=null){String encoded=TabStateCodec.encode(state,stateBudget);if(encoded!=null){item.put("state",encoded);stateBudget-=encoded.length();}}
+                }catch(RuntimeException ignored){}
+            }else if(t.savedState!=null&&stateBudget>0){try{item.put("state",t.savedState);stateBudget-=t.savedState.length();}catch(JSONException ignored){}}
+            a.put(item);
+        }
         prefs.edit().putString("tabs",a.toString()).putInt("selected",Math.max(0,tabs.indexOf(active))).apply();
     }
     private void select(Tab tab) {
         if(tab==null||tab.closed)return;
         if(active!=null&&active.view!=null)active.view.onPause();viewport.removeAllViews();active=tab;
-        if(tab.view==null){tab.view=new WebView(this);configure(tab);installProbe(tab);tab.view.loadUrl(tab.url);}
+        if(tab.view==null){
+            tab.view=new WebView(this);configure(tab);installProbe(tab);
+            Bundle restored=TabStateCodec.decode(tab.savedState);
+            WebBackForwardList history=restored==null?null:tab.view.restoreState(restored);
+            if(history==null||history.getSize()==0)tab.view.loadUrl(tab.url);
+            else {String restoredUrl=webUrl(tab.view.getUrl());if(restoredUrl!=null)tab.url=restoredUrl;}
+            tab.savedState=null;
+        }
         viewport.addView(tab.view,new FrameLayout.LayoutParams(-1,-1));
         if(resumed)tab.view.onResume();else tab.view.onPause();
         updateUi();saveTabs();
