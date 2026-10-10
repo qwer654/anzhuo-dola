@@ -1,12 +1,10 @@
 package com.doulala.android;
 
 import android.content.*;
-import android.graphics.Rect;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.uiautomator.*;
 import java.io.File;
-import java.util.Comparator;
 import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -31,12 +29,10 @@ public class BrowserSmokeTest {
     @After public void captureFinalState() throws Exception {screenshot("final");}
     private void openSpace(String title) throws Exception {
         waitFor(By.text("账号空间"));
-        new UiScrollable(new UiSelector().scrollable(true)).scrollTextIntoView(title);
-        UiObject2 target=waitFor(By.text(title));Rect titleBounds=target.getVisibleBounds();
-        UiObject2 enter=device.findObjects(By.text("进入空间")).stream()
-            .filter(button->button.getVisibleBounds().top>titleBounds.bottom)
-            .min(Comparator.comparingInt(button->button.getVisibleBounds().top-titleBounds.bottom)).orElse(null);
-        assertNotNull("No visible enter button below space title: "+title,enter);enter.click();
+        UiScrollable list=new UiScrollable(new UiSelector().scrollable(true));
+        String entryDescription="进入空间："+title;
+        UiObject entry=list.scrollIntoView(new UiSelector().description(entryDescription));
+        assertTrue("Space entry button is not reachable: "+title,entry.exists());entry.click();
         waitFor(By.text(title));waitFor(By.desc("浏览器菜单"));
     }
     @Test public void tabsBookmarksDownloadsAndSpaceIsolation() throws Exception {

@@ -32,7 +32,9 @@ public final class MainActivity extends Activity {
             card.addView(Ui.title(this,settings.getString("name"+i,"创作空间 "+(i+1)),19));
             card.addView(Ui.text(this,settings.getString("url"+i,URLS[0]),12,Ui.MUTED));
             LinearLayout buttons=Ui.row(this);
-            Ui.equal(buttons,Ui.button(this,"进入空间",()->open(slot)));
+            Button enterSpace=Ui.button(this,"进入空间",()->open(slot));
+            enterSpace.setContentDescription("进入空间："+settings.getString("name"+i,"创作空间 "+(i+1)));
+            Ui.equal(buttons,enterSpace);
             Ui.equal(buttons,Ui.button(this,"设置",()->edit(slot))); card.addView(buttons); root.addView(card);
         }
         if(used<8) root.addView(Ui.button(this,"＋ 新建独立空间",()->{ for(int i=0;i<8;i++) if(!settings.getBoolean("enabled"+i,i==0)) {edit(i); break;} }));
