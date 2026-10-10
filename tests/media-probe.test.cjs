@@ -16,6 +16,16 @@ test('recognized media URL extension wins over a misleading resource initiator h
   assert.equal(probe.mediaType('https://cdn.example/clip.mp4?sig=x', 'image'), 'video');
   assert.equal(probe.mediaType('https://cdn.example/opaque?id=1', 'video'), 'video');
 });
+test('video channel normalizer preserves order/signatures and rejects invalid or duplicate alternatives', () => {
+  assert.deepEqual(probe.normalizeVideoChannels([
+    'https://cdn.example/a.mp4?sig=a%2Fb', 'blob:https://cdn.example/id',
+    'https://user:pass@cdn.example/private.mp4', 'https://cdn.example/a.mp4?sig=a%2Fb'
+  ], { querySelectorAll() { return [
+    { src: 'https://cdn.example/b.webm?token=x%3Dy' },
+    { src: 'https://cdn.example/c.mp4' }
+  ]; } }), ['https://cdn.example/a.mp4?sig=a%2Fb', 'https://cdn.example/b.webm?token=x%3Dy']);
+  assert.deepEqual(probe.normalizeVideoChannels([], null), []);
+});
 test('srcset parser collects bounded HTTPS image candidates without changing signed queries', () => {
   assert.deepEqual(probe.parseSrcset('https://cdn.example/a.webp 1x, https://cdn.example/b?id=2&sig=a%2Fb 2x'), [
     'https://cdn.example/a.webp',
@@ -60,6 +70,16 @@ test('video collector preserves a validated poster and emits a late poster updat
   assert.deepEqual(queue.drain(), []);
   queue.add([{...video, posterUrl:'http://cdn.example/poster.jpg'}]);
   assert.deepEqual(queue.drain(), []);
+});
+test('video collector keeps at most two distinct validated channel URLs', () => {
+  const queue = probe.createCollector();
+  queue.add([{ url:'https://cdn.example/a.mp4?sig=a%2Fb', type:'video', channels:[
+    'https://cdn.example/a.mp4?sig=a%2Fb', 'https://cdn.example/b.webm?sig=c%2Fd',
+    'https://cdn.example/c.mp4?sig=e%2Ff'
+  ] }]);
+  assert.deepEqual(queue.drain()[0].channels, [
+    'https://cdn.example/a.mp4?sig=a%2Fb', 'https://cdn.example/b.webm?sig=c%2Fd'
+  ]);
 });
 test('rejects blob/data/javascript/credentials and skips fallback_api', () => {
   const result = probe.parsePayload({ video_url:'blob:https://dola.com/id', image_url:'data:image/png;base64,abc', main_url:'javascript:alert(1)', fallback_api:'https://cdn.example/a.mp4', image:'https://user:password@cdn.example/a.jpg' });
@@ -134,25 +154,28 @@ test('live observer keeps fetch/XHR responses untouched while collecting readabl
     'https://cdn.example/xhr.jpg?sig=c%3Dd'
   ].sort());
   assert.equal(Array.from(root.__dolaAndroidDrain()).length, 0);
+  const altSource = { tagName: 'SOURCE', parentElement: { tagName: 'VIDEO' }, src: 'https://cdn.example/movie-alt.webm?sig=o%2Fp' };
   domNodes = [{ tagName: 'IMG', currentSrc: 'https://cdn.example/dom.jpg?sig=e%2Ff', src: '',
     srcset: 'https://cdn.example/dom.jpg?sig=e%2Ff 1x, https://cdn.example/dom2.jpg?sig=g%2Fh 2x' },
   { tagName: 'SOURCE', parentElement: { tagName: 'PICTURE' }, src: '',
     srcset: 'https://cdn.example/picture.avif?sig=i%2Fj 1x' },
-  { tagName: 'VIDEO', currentSrc: 'https://cdn.example/movie.mp4?sig=k%2Fl', src: '', poster: 'https://cdn.example/poster.jpg?sig=m%2Fn' },
-  { tagName: 'SOURCE', parentElement: { tagName: 'VIDEO' }, src: 'https://cdn.example/movie-alt.webm?sig=o%2Fp' }];
+  { tagName: 'VIDEO', currentSrc: 'https://cdn.example/movie.mp4?sig=k%2Fl', src: '', poster: 'https://cdn.example/poster.jpg?sig=m%2Fn',
+    querySelectorAll() { return [altSource]; } }, altSource];
   domNodes.push({ tagName: 'IMG', currentSrc: 'data:image/png;base64,placeholder', src: '', getAttribute(name) {
     return name === 'src' ? 'https://cdn.example/dom-attribute.jpg?sig=q%2Fr' : null;
   } });
   root.__dolaAndroidScan();
   const domItems = Array.from(root.__dolaAndroidDrain());
   assert.equal(domItems.find(item => item.type === 'video').posterUrl, 'https://cdn.example/poster.jpg?sig=m%2Fn');
+  assert.deepEqual(Array.from(domItems.find(item => item.type === 'video').channels), [
+    'https://cdn.example/movie.mp4?sig=k%2Fl', 'https://cdn.example/movie-alt.webm?sig=o%2Fp'
+  ]);
   assert.deepEqual(domItems.map(item => item.url).sort(), [
     'https://cdn.example/dom.jpg?sig=e%2Ff',
     'https://cdn.example/dom2.jpg?sig=g%2Fh',
     'https://cdn.example/picture.avif?sig=i%2Fj',
     'https://cdn.example/movie.mp4?sig=k%2Fl',
     'https://cdn.example/poster.jpg?sig=m%2Fn',
-    'https://cdn.example/movie-alt.webm?sig=o%2Fp',
     'https://cdn.example/dom-attribute.jpg?sig=q%2Fr'
   ].sort());
 });
