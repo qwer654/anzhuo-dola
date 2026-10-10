@@ -1,6 +1,7 @@
 package com.doulala.android;
 
 import org.junit.Test;
+import java.util.Arrays;
 import static org.junit.Assert.*;
 
 public class UrlRulesTest {
@@ -58,5 +59,17 @@ public class UrlRulesTest {
         assertEquals("https://[::1]",UrlRules.origin("https://[::1]:443/a"));
         assertNull(UrlRules.normalize("https://example.com\r\n"));
     }
+    @Test public void bulkCopyPreservesExactHttpsUrlsAndTheirSignedQueries() {
+        assertEquals("https://cdn.example/a.mp4?sig=a%2Fb\nhttps://cdn.example/b.jpg?id=2&token=x%3Dy",
+            BrowserActivity.joinMediaUrls(Arrays.asList(
+                "https://cdn.example/a.mp4?sig=a%2Fb",
+                "https://cdn.example/b.jpg?id=2&token=x%3Dy")));
+    }
+    @Test public void bulkCopyOmitsUnsafeAndEmptyUrls() {
+        assertEquals("https://cdn.example/ok.jpg", BrowserActivity.joinMediaUrls(Arrays.asList(
+            "javascript:alert(1)", "http://cdn.example/insecure.jpg", "https://cdn.example/ok.jpg", null)));
+        assertEquals("", BrowserActivity.joinMediaUrls(null));
+    }
+
 }
 
