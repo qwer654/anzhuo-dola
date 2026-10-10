@@ -36,6 +36,8 @@
   }
   function requestFrameScans() {
     if (!isTop || !document.querySelectorAll || !root.crypto || typeof root.crypto.getRandomValues !== "function") return;
+    var now = Date.now();
+    pendingFrames.forEach(function (pending, nonce) { if (!pending || pending.expires < now) pendingFrames.delete(nonce); });
     var frames;
     try { frames = document.querySelectorAll("iframe"); } catch (_) { return; }
     for (var i = 0; i < Math.min(frames.length, 20); i++) {
@@ -46,12 +48,13 @@
         frame.addEventListener("load", function () { requestFrameScans(); });
       }
       var last = frameRequests.get(frame) || 0;
-      if (Date.now() - last < 750) continue;
-      frameRequests.set(frame, Date.now());
+      if (now - last < 750) continue;
+      frameRequests.set(frame, now);
       var bytes = new Uint32Array(4);
       try { root.crypto.getRandomValues(bytes); } catch (_) { continue; }
       var nonce = Array.from(bytes).map(function (n) { return n.toString(16); }).join("");
-      pendingFrames.set(nonce, { frame: frame, source: source, origin: targetOrigin, expires: Date.now() + 5000 });
+      while (pendingFrames.size >= 40) pendingFrames.delete(pendingFrames.keys().next().value);
+      pendingFrames.set(nonce, { frame: frame, source: source, origin: targetOrigin, expires: now + 5000 });
       try { source.postMessage({ channel: "dola.android.media", version: 1, type: "scan-request", nonce: nonce }, targetOrigin); }
       catch (_) { pendingFrames.delete(nonce); }
     }
