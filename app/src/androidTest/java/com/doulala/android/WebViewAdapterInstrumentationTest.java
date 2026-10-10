@@ -265,7 +265,7 @@ public class WebViewAdapterInstrumentationTest {
             }
             view.setWebViewClient(new android.webkit.WebViewClient() {
                 @Override public void onPageFinished(WebView webView, String url) {
-                    String script = "(function(){"
+                    String script = "(function(){try{"
                         + "window.dola30Android.setOriginalOptions({promptGuard:false,timelineRewrite:true});"
                         + "window.setDola30s(true);"
                         + "var matching=JSON.stringify({messages:[{role:'user',content:'00:00-00:05 开场'},{role:'system',content:'00:00-00:05 固定指令'}]});"
@@ -278,7 +278,7 @@ public class WebViewAdapterInstrumentationTest {
                         + "var disabled=JSON.stringify({messages:[{role:'user',content:'00:00-00:05 关闭后应保持原文'}]});"
                         + "window.fetch('https://www.doubao.com/api/chat/completion',{method:'POST',body:disabled});"
                         + "return JSON.stringify({status:JSON.parse(window.getDola30sStatus()),options:window.dola30Android.getOriginalOptions(),requests:window.__capturedRequests,xhrs:window.__capturedXhrs});"
-                        + "})()";
+                        + "}catch(e){return JSON.stringify({__jsError:String(e),stack:String(e.stack||'')})}})()";
                     webView.evaluateJavascript(script, value -> { resultHolder.set(value); finished.countDown(); });
                 }
             });
@@ -287,8 +287,10 @@ public class WebViewAdapterInstrumentationTest {
         });
         assertTrue("Original WebView request fixture did not finish", finished.await(20, TimeUnit.SECONDS));
         Object decoded = new JSONTokener(resultHolder.get()).nextValue();
-        assertTrue(decoded instanceof String);
+        assertTrue("Unexpected WebView evaluation result: " + resultHolder.get(), decoded instanceof String);
         JSONObject result = new JSONObject((String) decoded);
+        assertFalse("WebView fixture JavaScript failed: " + result.optString("__jsError") + " " + result.optString("stack"),
+            result.has("__jsError"));
         assertTrue(result.getJSONObject("status").getBoolean("on"));
         JSONArray requests = result.getJSONArray("requests");
         assertEquals(3, requests.length());
