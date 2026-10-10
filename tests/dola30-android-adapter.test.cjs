@@ -148,7 +148,8 @@ test("read-only page-selection status separates displayed Dola controls from loc
   assert.equal(match.model.textContent,"Seedance 2.5");
   assert.equal(match.duration.textContent,"30s");
 });
-\ntest("adapter allows exact Dola/Doubao subdomains but not lookalike domains", () => {
+
+test("adapter allows exact Dola/Doubao subdomains but not lookalike domains", () => {
   function createPage(hostname) {
     const page = {
       top: null,
