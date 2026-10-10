@@ -208,6 +208,7 @@ public class WebViewAdapterInstrumentationTest {
                         + "var left=parseFloat(button.style.left),bottom=parseFloat(button.style.bottom);"
                         + "function fire(type,x,y){button.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:9,clientX:x,clientY:y,button:0}));}"
                         + "fire('pointerdown',200,600);fire('pointermove',150,560);fire('pointerup',150,560);"
+                        + "fire('pointerdown',150,560);fire('pointercancel',150,560);"
                         + "var saved=JSON.parse(localStorage.getItem('intl_doubao_media_panel_pos_v3'));"
                         + "return JSON.stringify({left:left,bottom:bottom,finalLeft:parseFloat(button.style.left),finalBottom:parseFloat(button.style.bottom),saved:saved,enabled:JSON.parse(window.getDola30sStatus()).on});"
                         + "})()", value -> { result.set(value); finished.countDown(); });
