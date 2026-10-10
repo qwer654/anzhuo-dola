@@ -10,7 +10,7 @@
   if (root.__dolaAndroidProbeInstalled) return;
   var isTop = root.top === root;
   var origin = String(root.location.origin || "");
-  if (!/^https?:\\/\\//i.test(origin)) return;
+  if (!/^https?:\/\//i.test(origin)) return;
   root.__dolaAndroidProbeInstalled = true;
 
   var collector = api.createCollector();
