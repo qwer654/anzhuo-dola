@@ -152,12 +152,12 @@
   }
   function mediaType(url, hint) {
     if (!url) return "";
-    if (hint === "image" || hint === "video") return hint;
     var path;
     try { path = new URL(url).pathname; } catch (_) { return ""; }
+    // Prefer recognizable file types: browsers may report a video poster request as initiatorType="video".
     if (/\.(?:png|jpe?g|webp|gif|avif|bmp|heic)(?:[~!].*)?$/i.test(path)) return "image";
     if (/\.(?:mp4|m4v|mov|webm|mkv|m3u8)(?:[~!].*)?$/i.test(path)) return "video";
-    return "";
+    return hint === "image" || hint === "video" ? hint : "";
   }
   function parseSrcset(value) {
     if (typeof value !== "string" || value.length > LIMITS.bodyBytes) return [];
