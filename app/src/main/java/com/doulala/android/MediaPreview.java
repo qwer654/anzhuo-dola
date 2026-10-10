@@ -14,7 +14,7 @@ final class MediaPreview {
     private MediaPreview() {}
 
     static URL validateImageUrl(String raw, String type) {
-        if (raw == null || raw.length() > 8192 || !"image".equals(type)) return null;
+        if (raw == null || !raw.equals(raw.trim()) || raw.length() > 8192 || !"image".equals(type)) return null;
         try {
             URL url = new URL(raw);
             if (!"https".equalsIgnoreCase(url.getProtocol()) || url.getHost().isEmpty()
