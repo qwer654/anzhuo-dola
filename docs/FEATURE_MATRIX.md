@@ -37,7 +37,7 @@
 - 后续 instrumentation 提交 `9e41d17` 的两项 Android 工作流也通过；API 35 模拟器共运行 9 项 instrumentation，新增覆盖默认关闭时原版 fetch/XHR hooks 保持原状，以及 Dola/Doubao document-start 脚本不注入非白名单 origin。APK 构建和 15 个原始文件校验通过。
 - `WebViewAdapterInstrumentationTest` 在 Android WebView 中通过 document-start、本地 30S 状态、提示词转换及 opt-in 原版控制提示段断言、已观察媒体链接复制到系统剪贴板的精确性断言；`BrowserSmokeTest` 通过空间切换、标签/书签及空间隔离烟测。
 - **小米真机基础验收已完成**：`22127RK46C` / Android 16 / `com.google.android.webview 153.0.8010.36`。已校验并安装 CI `0.2.1-debug` APK，打开 `https://www.dola.com/chat/`；屏幕显示本地工具状态及资源计数（5）。本次未登录、未提交提示词或触发生成。
-- **当前 deviceValidation APK 尚未安装**：从 `5c1f993` CI artifact 提取并本地复核 SHA-256 `a764836780bbd13b9efe63d1e719f6f1775644670a532dc458261ad95614cd12`；目标 Xiaomi `22127RK46C` / Android 16 的 `adb install -r` 返回 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`。未卸载旧版，也未改动其数据；需要在手机端批准安装。
+- **真机安装待确认**：从最新 instrumentation 提交 `9e41d17` 的 CI artifact 提取 `deviceValidation` APK，并本地复核 SHA-256 `d7f3b8562c48b677b7eb594184f40bf4bdc0a6114b012f2e10e29201c477d95c`，包含 15 个原始扩展文件。此前在同一手机上对前一版 APK 执行 `adb install -r` 返回 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`；最新 APK 尚未安装。未卸载旧版或更改其数据；需要手机端批准安装。
 - 真机已验证启动、该 Dola 页面加载、document-start 适配控件及资源观察状态；未验证登录/会话、实际下载、上传、Cookie 快照、不同空间数据隔离或平台是否接受 30 秒请求，仍需逐项真机验收。
 
 ## 安装与升级边界
