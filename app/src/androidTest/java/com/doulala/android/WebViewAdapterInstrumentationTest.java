@@ -12,6 +12,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Arrays;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -83,6 +86,55 @@ public class WebViewAdapterInstrumentationTest {
         assertTrue(guarded.contains("全片进度 0%–16.7%"));
 
         InstrumentationRegistry.getInstrumentation().runOnMainSync(view::destroy);
+    }
+
+    @Test public void originalDurationScriptCanRunOptInWithoutAdapterOverwritingItsApi() throws Exception {
+        assertTrue("WebView provider lacks document-start JavaScript support",
+            WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
+        String promptTools = readAsset("prompt-tools.js");
+        String original = readAsset("dola30-original/duration-main.js");
+        String adapter = readAsset("dola30-android-adapter.js");
+        AtomicReference<WebView> viewRef = new AtomicReference<>();
+        AtomicReference<String> pageResultHolder = new AtomicReference<>();
+        CountDownLatch originalLoaded = new CountDownLatch(1);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            WebView view = new WebView(context);
+            view.getSettings().setJavaScriptEnabled(true);
+            view.getSettings().setDomStorageEnabled(true);
+            viewRef.set(view);
+            Set<String> origins = new HashSet<>(Arrays.asList("https://dola.com", "https://*.dola.com"));
+            try {
+                WebViewCompat.addDocumentStartJavaScript(view, promptTools, origins);
+                WebViewCompat.addDocumentStartJavaScript(view, "window.__dola30ExtOff=false;\n" + original, origins);
+                WebViewCompat.addDocumentStartJavaScript(view, "window.__originalDola30Setter=window.setDola30s;", origins);
+                WebViewCompat.addDocumentStartJavaScript(view, adapter, origins);
+            } catch (Exception e) {
+                throw new AssertionError("Could not install the opted-in original duration script", e);
+            }
+            view.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override public void onPageFinished(WebView webView, String url) {
+                    webView.evaluateJavascript("(function(){return JSON.stringify({"
+                        + "installed:!!window.__watermarkFreeDuration30Installed,"
+                        + "setterPreserved:window.setDola30s===window.__originalDola30Setter,"
+                        + "previewAvailable:typeof window.rewriteDolaTimeline==='function',"
+                        + "networkRewrite:window.dola30Android.limitations.networkRewrite,"
+                        + "autoSubmit:window.dola30Android.limitations.autoSubmit});})()",
+                        value -> { pageResultHolder.set(value); originalLoaded.countDown(); });
+                }
+            });
+            view.loadDataWithBaseURL("https://www.dola.com/", "<!doctype html><html><head></head><body>original script test</body></html>",
+                "text/html", "UTF-8", null);
+        });
+        assertTrue("Original script did not initialize in WebView", originalLoaded.await(20, TimeUnit.SECONDS));
+        Object decoded = new JSONTokener(pageResultHolder.get()).nextValue();
+        assertTrue(decoded instanceof String);
+        JSONObject result = new JSONObject((String) decoded);
+        assertTrue(result.getBoolean("installed"));
+        assertTrue(result.getBoolean("setterPreserved"));
+        assertTrue(result.getBoolean("previewAvailable"));
+        assertTrue(result.getBoolean("networkRewrite"));
+        assertFalse(result.getBoolean("autoSubmit"));
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
 
     @Test public void observedMediaLinkCopyWritesExactUrlToClipboard() {

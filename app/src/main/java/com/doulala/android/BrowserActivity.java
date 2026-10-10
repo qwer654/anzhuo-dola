@@ -26,7 +26,7 @@ public class BrowserActivity extends Activity {
     private FrameLayout viewport;
     private EditText address;
     private TextView status,mediaButton,tabsButton,caption;
-    private String home,title,probeScript,promptScript,androidDolaScript;
+    private String home,title,probeScript,promptScript,androidDolaScript,originalDolaScript;
     private ValueCallback<Uri[]> fileCallback;
     private DownloadCenter downloads;
     private CookieTransfer cookies;
@@ -213,12 +213,17 @@ public class BrowserActivity extends Activity {
             if(probeScript==null)probeScript=readAsset("media-probe.js");
             WebViewCompat.addDocumentStartJavaScript(t.view,probeScript,origins);t.probe=true;
         }catch(Exception ignored){}
-        // The supplied MV3 files stay byte-for-byte in dola30-original/. Only
-        // the Android-safe adapter and pure prompt utility are injected here.
+        // The supplied duration script remains byte-for-byte preserved. It is
+        // explicitly opt-in because it can rewrite outgoing generation prompts.
         try {
             if(promptScript==null)promptScript=readAsset("prompt-tools.js");
             if(androidDolaScript==null)androidDolaScript=readAsset("dola30-android-adapter.js");
             WebViewCompat.addDocumentStartJavaScript(t.view,promptScript,origins);
+            boolean originalEnabled=prefs.getBoolean("originalDola30",false);
+            if(originalDolaScript==null)originalDolaScript=readAsset("dola30-original/duration-main.js");
+            String originalBootstrap="window.__dola30ExtOff="+(originalEnabled?"false":"true")+";\n"+originalDolaScript;
+            WebViewCompat.addDocumentStartJavaScript(t.view,originalBootstrap,
+                new HashSet<>(Arrays.asList("https://doubao.com","https://*.doubao.com","https://dola.com","https://*.dola.com")));
             WebViewCompat.addDocumentStartJavaScript(t.view,androidDolaScript,origins);t.androidTools=true;
         }catch(Exception ignored){}
     }
@@ -276,9 +281,11 @@ public class BrowserActivity extends Activity {
             JSONObject state=parseJsObject(value);
             if(state==null){Ui.toast(this,"当前 WebView 未加载 30S 工具");return;}
             boolean on=state.optBoolean("on",false);
-            String message="当前页面本地目标时长："+state.optInt("duration",15)+" 秒\n"+
-                "Android WebView 只保存页面状态并提供提示词时间轴转换。\n"+
-                "不会拦截请求、伪造平台能力或自动发送；网页是否支持 30 秒由平台决定。";
+            boolean originalEnabled=prefs.getBoolean("originalDola30",false);
+            String message="当前页面目标时长："+state.optInt("duration",15)+" 秒\n"+
+                (originalEnabled?"原版 Dola30 JS 已启用：按原脚本逻辑可能更改页面状态、提示词或匹配请求中的用户文本；应用不会自动提交。\n":
+                    "Android 默认适配只保存页面状态并提供本地提示词工具，不改写网页请求。\n")+
+                "不会伪造平台能力；30 秒能力由页面选项与平台决定。";
             new AlertDialog.Builder(this).setTitle("30S 工具（Android WebView）")
                 .setMessage(message).setNegativeButton("关闭",null)
                 .setNeutralButton("转换提示词时间轴",(d,w)->showTimelineRewrite())
@@ -342,11 +349,33 @@ public class BrowserActivity extends Activity {
             }).show();
     }
     private void showMenu() {
-        new AlertDialog.Builder(this).setTitle(title).setItems(new String[]{"前进","回到首页","新建标签","添加当前页书签","打开书签","下载中心","30S 工具","Cookie 手动迁移","回到空间列表"},(d,n)->{
+        boolean originalEnabled=prefs.getBoolean("originalDola30",false);
+        new AlertDialog.Builder(this).setTitle(title).setItems(new String[]{"前进","回到首页","新建标签","添加当前页书签","打开书签","下载中心","30S 工具","Cookie 手动迁移","原版 Dola30 请求适配："+(originalEnabled?"已启用":"关闭"),"回到空间列表"},(d,n)->{
             switch(n){case 0:if(active.view!=null&&active.view.canGoForward())active.view.goForward();break;
                 case 1:load(home);break;case 2:newTab(home);break;case 3:addBookmark();break;
-                case 4:showBookmarks();break;case 5:downloads.show();break;case 6:showDurationTool();break;case 7:cookies.show();break;case 8:returnToCatalog();break;}
+                case 4:showBookmarks();break;case 5:downloads.show();break;case 6:showDurationTool();break;case 7:cookies.show();break;case 8:confirmOriginalDolaMode(!originalEnabled);break;case 9:returnToCatalog();break;}
         }).show();
+    }
+    private void confirmOriginalDolaMode(boolean enabled) {
+        String detail=enabled
+            ?"将原样注入 assets/dola30-original/duration-main.js（不改源码），仅匹配 Dola/Doubao HTTPS 页面。开启后由原脚本自行判断是否修改页面状态、提示词或匹配请求中的用户文本（可能改变生成请求行为）；应用不会自动提交。不会承诺平台接受请求或去除水印。重新加载会丢失未提交的网页输入。"
+            :"关闭原版请求适配并恢复 Android 默认无请求改写模式。为移除 document-start 脚本，所有打开标签会重新加载，未提交的网页输入将丢失。";
+        new AlertDialog.Builder(this).setTitle(enabled?"启用原版 Dola30 JS？":"关闭原版 Dola30 JS？")
+            .setMessage(detail).setNegativeButton("取消",null).setPositiveButton(enabled?"启用并重新加载":"关闭并重新加载",(d,w)->{
+                if(!prefs.edit().putBoolean("originalDola30",enabled).commit()){Ui.toast(this,"设置未保存");return;}
+                reloadTabsForScriptMode();
+            }).show();
+    }
+    private void reloadTabsForScriptMode() {
+        if(viewport!=null)viewport.removeAllViews();
+        if(fileCallback!=null)cancelFile();
+        promptTab=null;
+        for(Tab tab:tabs){
+            if(tab.view!=null){try{tab.view.stopLoading();tab.view.destroy();}catch(Exception ignored){}tab.view=null;}
+            tab.navigation++;tab.probe=false;tab.androidTools=false;tab.failed=false;tab.media.clear();tab.mediaKeys.clear();
+        }
+        if(active!=null&&!active.closed)select(active);
+        Ui.toast(this,prefs.getBoolean("originalDola30",false)?"原版 Dola30 JS 已开启":"已恢复 Android 默认适配");
     }
     private JSONArray bookmarks(){try{return new JSONArray(prefs.getString("bookmarks","[]"));}catch(Exception e){return new JSONArray();}}
     private void addBookmark() {

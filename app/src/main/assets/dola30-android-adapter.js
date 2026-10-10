@@ -90,11 +90,22 @@
     });
   }
 
-  // Keep the public names used by the supplied scripts, but route them to a
-  // user-confirmed, local-only adapter rather than Chrome extension APIs.
+  root.rewriteDolaTimeline = rewriteDolaTimeline;
+  if (root.__watermarkFreeDuration30Installed && typeof root.setDola30s === "function" &&
+      typeof root.getDola30sStatus === "function") {
+    // Keep the supplied page script's controls/request patcher intact. Android
+    // adds only the local timeline preview helper alongside that opt-in script.
+    root.dola30Android = Object.freeze({
+      setDola30s: root.setDola30s,
+      getDola30sStatus: root.getDola30sStatus,
+      rewriteDolaTimeline: rewriteDolaTimeline,
+      limitations: Object.freeze({ networkRewrite: true, autoSubmit: false, watermarkBypass: false })
+    });
+    return;
+  }
+  // Default WebView mode exposes local helpers under the original public names.
   root.setDola30s = setDola30s;
   root.getDola30sStatus = getDola30sStatus;
-  root.rewriteDolaTimeline = rewriteDolaTimeline;
   root.dola30Android = Object.freeze({
     setDola30s: setDola30s,
     getDola30sStatus: getDola30sStatus,

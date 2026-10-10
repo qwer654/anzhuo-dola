@@ -12,7 +12,7 @@ Android WebView 没有 Chrome MV3 的 `chrome.runtime`、`chrome.debugger`、`we
 
 APK 额外注入 [`app/src/main/assets/dola30-android-adapter.js`](app/src/main/assets/dola30-android-adapter.js) 与纯文本工具 [`app/src/main/assets/prompt-tools.js`](app/src/main/assets/prompt-tools.js)。在 `doubao.com`/`dola.com` 白名单页面上，菜单中的 **30S 工具**和页面浮动按钮可以由用户主动切换 15/30 秒本地状态，并把提示词中的时间轴转换为全片百分比；结果可复制后由用户自行检查和提交。
 
-适配层保留原脚本使用的公开状态名（`setDola30s`、`getDola30sStatus`）以便页面兼容，但不会注入 Chrome API，不改写 `fetch`/XHR 请求，不伪造平台能力，不移除水印，也不会自动发送。平台最终是否提供 30 秒能力仍由网页和账号权限决定。原始 MV3 文件继续原样打包，未删除任何函数。
+默认适配层保留原脚本使用的公开状态名（`setDola30s`、`getDola30sStatus`），不注入 Chrome API、不改写 `fetch`/XHR 请求，也不会自动发送。浏览器菜单另提供**默认关闭**的“原版 Dola30 请求适配”开关：用户确认后，原样 document-start 注入 `duration-main.js` 至 Dola/Doubao HTTPS 白名单页；其原逻辑可能更改页面状态、提示词及匹配请求中的用户文本。开关不代表平台能力承诺，也不承诺去水印；应用本身不自动提交。原始 MV3 文件继续原样打包，未删除任何函数。
 
 ## 已选择的后续架构：Chromium 扩展运行时
 
