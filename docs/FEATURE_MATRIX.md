@@ -4,7 +4,7 @@
 
 桌面能力对照来源：桌面发布包的 `DolaMultiBrowser.deps.json`（版本 2.3.1）、现有旧版 1.4.8 源码、当前 `Extensions/dola30`（MV3 1.6.11）以及仅含部分现有类的新版 `v231` 源码。桌面来源用于识别移植范围，不将未知或缺失组件推定为 Android 已完成。
 
-| 能力 | 0.2.0 状态 | 实现与限制 |
+| 能力 | 0.2.1 状态 | 实现与限制 |
 |---|---|---|
 | 豆包/Dola/即梦/千问/云雀入口 | 已实现 | 可编辑 HTTPS 首页；第三方网站可能拒绝 WebView 登录，需真机验证。 |
 | 8 个隔离账号空间 | 已实现 | 8 个独立 Android 进程/Chromium 数据目录；空间内共享登录，空间之间不共享 Cookie/网页存储。 |
@@ -32,7 +32,8 @@
 - 工作流会运行媒体、原始 JS 完整性和 Android 适配层 Node 测试（`tests/media-probe.test.cjs`、`tests/dola30-source.test.cjs`、`tests/dola30-android-adapter.test.cjs`）。
 - 11 项 Java 单元测试已编写，但当前没有云端验证结果，不能记为已通过。
 - `android.yml` 的预期检查为上述 Node 测试、`testDebugUnitTest lintDebug assembleDebug`、APK 签名验证与构件上传；当前没有 0.2.1 云端运行结果。
-- `android-smoke.yml` 可在 Android 15/API 35 模拟器运行 `connectedDebugAndroidTest`；当前没有该 0.2.1 运行结果。
+- `android-smoke.yml` 在 Android 相关源码/测试 push、pull request 时自动运行，也可手动触发；使用 Android 15/API 35 模拟器运行 `connectedDebugAndroidTest`。当前没有本次修改对应的运行结果。
+- 模拟器测试包含 `WebViewAdapterInstrumentationTest`，验证 document-start 注入、本地 30S 状态和提示词转换；需工作流运行成功后才能记录通过。
 - 未完成 Android 真机验证；网页登录、空间隔离、标签恢复、Cookie 快照、上传、资源观察及下载中心仍需在目标设备/网站上验收。
 
 ## 安装与升级边界

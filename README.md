@@ -24,7 +24,7 @@ APK 额外注入 [`app/src/main/assets/dola30-android-adapter.js`](app/src/main/
 
 新增真实 Chromium 回显测试和独立扩展打包流水线；Cobalt 构建入口已固定上游版本并接入原有扩展安装 stager，但需专用 Linux runner 才能执行。详见 [`docs/COBALT_BUILD_GATE.md`](docs/COBALT_BUILD_GATE.md)。内核验证 APK 与现有 WebView 应用分开，未完成全功能回归前不替换现有应用。
 
-## 0.2.0 已实现范围
+## 0.2.1 已实现范围
 
 - **8 个隔离账号空间**：每个空间运行在独立 Android 进程与 Chromium 数据目录；空间内网页标签共享登录态，空间之间不共享 Cookie/网页存储。
 - **移动浏览器**：HTTPS 地址、前进/后退、刷新、系统文件选择器上传；每个空间最多 **6 个按需创建的标签**。只恢复标签 URL 与当前选中标签，不恢复表单、历史记录或页面内状态。
@@ -39,7 +39,7 @@ APK 额外注入 [`app/src/main/assets/dola30-android-adapter.js`](app/src/main/
 
 仓库为 `qwer654/anzhuo-dola`。在 **Actions → Android APK → Run workflow** 手动运行，或推送 `app/`、Gradle 文件、测试或工作流后自动运行。构建完成后从 workflow run 的 **Artifacts** 下载 `doulala-android-debug`，解压后安装 `app-debug.apk`，并可用同目录 SHA-256 文件校验完整性。
 
-主工作流使用 GitHub 托管的 Android SDK、JDK 17、Gradle 8.9 和 Node.js 20，执行 `node --test tests/media-probe.test.cjs tests/dola30-source.test.cjs tests/dola30-android-adapter.test.cjs`，随后运行 `testDebugUnitTest lintDebug assembleDebug`、APK 签名验证并上传报告。Java 单元测试已编写，但当前没有云端验证结果，不能在此声明通过。另有手动触发的 `Android UI smoke` 工作流，在 Android 15/API 35 模拟器运行 `connectedDebugAndroidTest`；当前没有该 0.2.1 工作流运行结果。
+主工作流使用 GitHub 托管的 Android SDK、JDK 17、Gradle 8.9 和 Node.js 20，执行 Node 测试，随后运行 `testDebugUnitTest lintDebug assembleDebug`、APK 签名验证并检查 APK 内原始 JS SHA-256。`Android UI smoke` 会在 Android 相关源码或测试变更的 push / pull request 时运行，也可手动触发；它在 Android 15/API 35 模拟器执行 `connectedDebugAndroidTest`，包括 UI 隔离检查和 WebView document-start 适配测试。未运行前不视为通过。审核和逐项差距见 [`docs/WEBVIEW_PARITY_AUDIT.md`](docs/WEBVIEW_PARITY_AUDIT.md)。
 
 工作流只生成 debug APK。正式发布需要用户自己的签名密钥与 release secrets，不能把 keystore 提交到仓库。debug 签名在每次 runner 上可能不同，升级时可能需要卸载并造成应用数据丢失；安装/升级前请先导出工作台 JSON 和需要保留的文件。最低系统目标仍按工程配置，以 Android 9（API 28）为预览下限；真实机兼容性需另行验收。
 

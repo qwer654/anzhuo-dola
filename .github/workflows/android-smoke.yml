@@ -2,6 +2,26 @@ name: Android UI smoke
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'app/src/main/**'
+      - 'app/src/androidTest/**'
+      - 'app/build.gradle'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'tests/android-smoke.sh'
+      - '.github/workflows/android-smoke.yml'
+  pull_request:
+    paths:
+      - 'app/src/main/**'
+      - 'app/src/androidTest/**'
+      - 'app/build.gradle'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'tests/android-smoke.sh'
+      - '.github/workflows/android-smoke.yml'
 
 permissions:
   contents: read

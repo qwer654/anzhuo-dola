@@ -15,7 +15,7 @@ public final class MainActivity extends Activity {
         LinearLayout root=Ui.column(this); root.setBackgroundColor(Ui.BG); Ui.pad(root,20);
         root.addView(Ui.text(this,"DOULALA  /  ANDROID",12,Ui.ACCENT));
         root.addView(Ui.title(this,"把灵感，带在身边。",27));
-        root.addView(Ui.text(this,"豆啦啦 · 安卓移植预览版 0.2.0\n独立账号空间与移动创作工作台",14,Ui.MUTED));
+        root.addView(Ui.text(this,"豆啦啦 · 安卓移植预览版 0.2.1\n独立账号空间与移动创作工作台",14,Ui.MUTED));
         LinearLayout hero=Ui.card(this);
         hero.addView(Ui.title(this,"创作工作台",20));
         hero.addView(Ui.text(this,"管理快捷文本、导入剧本、拆分分镜。选择一条，即可填入网页继续创作。",14,Ui.MUTED));
