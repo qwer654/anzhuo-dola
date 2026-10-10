@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
 const probe = require('../app/src/main/assets/media-probe.js');
 const prompts = require('../app/src/main/assets/prompt-tools.js');
 
@@ -52,6 +54,55 @@ test('cycles and extremely nested payloads are bounded', () => {
 test('SSE/partial response discovers only extension-bearing media URLs', () => {
   const result = probe.parseText('data: {"url":"https://cdn.example/a.mp4?sig=x"}\ndata: [DONE]');
   assert.equal(result[0].url, 'https://cdn.example/a.mp4?sig=x');
+});
+test('live observer keeps fetch/XHR responses untouched while collecting readable media URLs', async () => {
+  const script = fs.readFileSync(require.resolve('../app/src/main/assets/media-probe.js'), 'utf8');
+  const fetchBody = JSON.stringify({ video_url: 'https://cdn.example/fetch.mp4?sig=a%2Fb' });
+  const xhrBody = JSON.stringify({ image_ori_raw: { url: 'https://cdn.example/xhr.jpg?sig=c%3Dd' } });
+  const response = {
+    ok: true,
+    status: 200,
+    headers: { get(name) { return name === 'content-type' ? 'application/json' : String(fetchBody.length); } },
+    clone() {
+      let read = false;
+      return { body: { getReader() { return { async read() {
+        if (read) return { done: true };
+        read = true;
+        return { done: false, value: new TextEncoder().encode(fetchBody) };
+      }, cancel: async () => {} }; } } };
+    }
+  };
+  const listeners = new Map();
+  class FakeXhr {
+    constructor() { this.responseText = xhrBody; this.responseType = ''; }
+    addEventListener(name, callback) { listeners.set(name, callback); }
+    removeEventListener(name) { listeners.delete(name); }
+    getResponseHeader(name) { return name === 'content-length' ? String(xhrBody.length) : null; }
+    send() { listeners.get('loadend')?.(); return 'original-send-result'; }
+  }
+  const root = {
+    location: { hostname: 'www.dola.com' },
+    document: { title: 'observer fixture', readyState: 'loading', addEventListener() {}, querySelectorAll() {}, documentElement: null },
+    setTimeout() { return 1; },
+    fetch() { return Promise.resolve(response); },
+    XMLHttpRequest: FakeXhr
+  };
+  root.top = root;
+  vm.runInNewContext(script, { window: root, TextDecoder, TextEncoder, Promise, URL, Uint8Array, Map, Set });
+
+  const fetched = await root.fetch('/fixture');
+  assert.equal(fetched, response, 'fetch must return the exact original Response object');
+  const xhr = new root.XMLHttpRequest();
+  assert.equal(xhr.send(), 'original-send-result', 'XHR send return value must be preserved');
+  assert.equal(xhr.responseText, xhrBody, 'XHR response body must remain unchanged');
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
+  const items = Array.from(root.__dolaAndroidDrain(), item => item.url);
+  assert.deepEqual(items.sort(), [
+    'https://cdn.example/fetch.mp4?sig=a%2Fb',
+    'https://cdn.example/xhr.jpg?sig=c%3Dd'
+  ].sort());
+  assert.equal(Array.from(root.__dolaAndroidDrain()).length, 0);
 });
 test('prompt timeline handles timestamps and English/Chinese seconds', () => {
   assert.equal(prompts.rewriteTimeline('00:00-00:05 开场', 20), '全片进度 0%–25% 开场');
