@@ -162,6 +162,10 @@ public class WebViewAdapterInstrumentationTest {
     @Test public void privacyModeUsesNativeWebViewIdentityAndCanRestoreCookiePolicy() {
         AtomicReference<WebView> viewRef = new AtomicReference<>();
         AtomicReference<String> nativeAgentRef = new AtomicReference<>();
+        AtomicReference<String> cleanAgentRef = new AtomicReference<>();
+        AtomicReference<String> restoredAgentRef = new AtomicReference<>();
+        AtomicReference<Boolean> cleanCookiesRef = new AtomicReference<>();
+        AtomicReference<Boolean> restoredCookiesRef = new AtomicReference<>();
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             WebView view = new WebView(context);
             viewRef.set(view);
@@ -170,17 +174,21 @@ public class WebViewAdapterInstrumentationTest {
             view.getSettings().setUserAgentString(BrowserActivity.userAgentForPrivacyMode(nativeAgent, true));
             CookieManager.getInstance().setAcceptThirdPartyCookies(view,
                 BrowserActivity.acceptThirdPartyCookiesInPrivacyMode(true));
+            cleanAgentRef.set(view.getSettings().getUserAgentString());
+            cleanCookiesRef.set(CookieManager.getInstance().acceptThirdPartyCookies(view));
         });
         WebView view = viewRef.get();
-        assertEquals(nativeAgentRef.get(), view.getSettings().getUserAgentString());
-        assertFalse(CookieManager.getInstance().acceptThirdPartyCookies(view));
+        assertEquals(nativeAgentRef.get(), cleanAgentRef.get());
+        assertFalse(cleanCookiesRef.get());
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             view.getSettings().setUserAgentString(BrowserActivity.userAgentForPrivacyMode(nativeAgentRef.get(), false));
             CookieManager.getInstance().setAcceptThirdPartyCookies(view,
                 BrowserActivity.acceptThirdPartyCookiesInPrivacyMode(false));
+            restoredAgentRef.set(view.getSettings().getUserAgentString());
+            restoredCookiesRef.set(CookieManager.getInstance().acceptThirdPartyCookies(view));
         });
-        assertEquals(nativeAgentRef.get() + " DoulalaAndroid/0.2", view.getSettings().getUserAgentString());
-        assertTrue(CookieManager.getInstance().acceptThirdPartyCookies(view));
+        assertEquals(nativeAgentRef.get() + " DoulalaAndroid/0.2", restoredAgentRef.get());
+        assertTrue(restoredCookiesRef.get());
         InstrumentationRegistry.getInstrumentation().runOnMainSync(view::destroy);
     }
 }
