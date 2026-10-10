@@ -12,8 +12,8 @@
   if (!root || !root.document || root.top !== root) return;
   var host = String(root.location && root.location.hostname || "").toLowerCase();
   function allowed(name) {
-    return name === "doubao.com" || name.slice(-10) === ".doubao.com" ||
-      name === "dola.com" || name.slice(-9) === ".dola.com";
+    return name === "doubao.com" || name.endsWith(".doubao.com") ||
+      name === "dola.com" || name.endsWith(".dola.com");
   }
   if (!allowed(host) || root.__dola30AndroidAdapterInstalled) return;
   root.__dola30AndroidAdapterInstalled = true;
