@@ -33,8 +33,10 @@
 - 在 2026-10-10 的 PR 检查中，4 个 Node 测试文件共 26 项、11 项 Java 单元测试、`lintDebug`、APK 构建/签名及原始资源打包哈希验证均通过；APK 构件已由 GitHub Actions 上传。
 - 最新提交 `f361cc0` 的 GitHub Actions APK 工作流已通过：29 项 Node 测试、12 项 Java 单元测试、lint、debug/deviceValidation APK 构建与签名、原始资源哈希校验。新增的运行时 VM 夹具验证媒体观察器只读取 fetch/XHR 可读响应副本，维持原 Response 对象、XHR `send` 返回值和 `responseText` 不变。API 35 模拟器 6/6 instrumentation 已在同一 Android 代码状态的 `05093fc` 通过；Dola30 原版匹配请求的 fetch/XHR 转换测试也通过。
 - `android.yml` 现对匹配的 pull request 也执行构建验证；`android-smoke.yml` 对 Android 代码/测试 pull request 运行 Android 15/API 35 模拟器的 `connectedDeviceValidationAndroidTest`。PR #1 最新已完成检查中，两项工作流均通过。
+- 2026-10-10，媒体手动重扫测试代码提交 `5c1f993` 的 Android UI smoke 与 APK workflows 均通过；模拟器运行 7 项 instrumentation，构建产出 debug/deviceValidation APK，且两份 APK 均验证了 15 个原始扩展文件。随后仅文档提交更新到 head `4c162a9`，没有改动该已验证代码。
 - `WebViewAdapterInstrumentationTest` 在 Android WebView 中通过 document-start、本地 30S 状态、提示词转换及 opt-in 原版控制提示段断言、已观察媒体链接复制到系统剪贴板的精确性断言；`BrowserSmokeTest` 通过空间切换、标签/书签及空间隔离烟测。
 - **小米真机基础验收已完成**：`22127RK46C` / Android 16 / `com.google.android.webview 153.0.8010.36`。已校验并安装 CI `0.2.1-debug` APK，打开 `https://www.dola.com/chat/`；屏幕显示本地工具状态及资源计数（5）。本次未登录、未提交提示词或触发生成。
+- **当前 deviceValidation APK 尚未安装**：从 `5c1f993` CI artifact 提取并本地复核 SHA-256 `a764836780bbd13b9efe63d1e719f6f1775644670a532dc458261ad95614cd12`；目标 Xiaomi `22127RK46C` / Android 16 的 `adb install -r` 返回 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`。未卸载旧版，也未改动其数据；需要在手机端批准安装。
 - 真机已验证启动、该 Dola 页面加载、document-start 适配控件及资源观察状态；未验证登录/会话、实际下载、上传、Cookie 快照、不同空间数据隔离或平台是否接受 30 秒请求，仍需逐项真机验收。
 
 ## 安装与升级边界
