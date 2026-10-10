@@ -20,6 +20,13 @@ public class BrowserSmokeTest {
     }
     private void tap(String text){waitFor(By.text(text)).click();}
     private void menu(String item){waitFor(By.desc("浏览器菜单")).click();tap(item);}
+    private void launchHome() {
+        // Each smoke method starts from a clean foreground task. Prior isolated
+        // BrowserActivity tasks can otherwise be restored instead of the catalog.
+        device.pressHome();
+        context.startActivity(new Intent(context,MainActivity.class)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
+    }
     private void screenshot(String name) throws Exception {
         File dir=new File(context.getExternalFilesDir(null),"smoke");
         assertTrue(dir.isDirectory() || dir.mkdirs());
@@ -44,7 +51,7 @@ public class BrowserSmokeTest {
             .putBoolean("enabled0",false).putBoolean("enabled6",true).putBoolean("enabled7",true)
             .putString("name6","测试空间七").putString("name7","测试空间八")
             .putString("url6","https://example.com/").putString("url7","https://example.com/").commit());
-        context.startActivity(new Intent(context,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        launchHome();
         waitFor(By.text("账号空间"));screenshot("home");openSpace("测试空间七");
         waitFor(By.text("标签 1"));
         menu("新建标签");waitFor(By.text("标签 2"));screenshot("tabs");
@@ -66,7 +73,7 @@ public class BrowserSmokeTest {
         assertTrue(context.getSharedPreferences("catalog",Context.MODE_PRIVATE).edit().clear()
             .putBoolean("enabled0",false).putBoolean("enabled7",true)
             .putString("name7","隐私洁净验收").putString("url7","https://example.com/").commit());
-        context.startActivity(new Intent(context,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        launchHome();
         waitFor(By.text("账号空间"));openSpace("隐私洁净验收");
         waitFor(By.text("标签 1"));
         menu("隐私洁净模式：关闭");
