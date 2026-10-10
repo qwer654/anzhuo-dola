@@ -16,7 +16,7 @@ import java.util.*;
 
 /** Each Space runs in its own process/data directory. Tabs within a Space share its login. */
 public class BrowserActivity extends Activity {
-    private static final int MAX_TABS=6, MAX_MEDIA=300, MAX_BOOKMARKS=200;
+    private static final int MAX_TABS=6, MAX_MEDIA=300, MAX_BOOKMARKS=200, MAX_SAVED_TABS_CHARS=512*1024;
     private static final int FILE_CHOOSER=8101, PICK_PROMPT=8102;
     private final ArrayList<Tab> tabs=new ArrayList<>();
     private final Handler handler=new Handler(Looper.getMainLooper());
@@ -95,7 +95,7 @@ public class BrowserActivity extends Activity {
     }
     private void restoreTabs() {
         try {
-            String saved=prefs.getString("tabs","[]");if(saved.length()>128*1024)throw new JSONException("too large");
+            String saved=prefs.getString("tabs","[]");if(saved.length()>MAX_SAVED_TABS_CHARS)throw new JSONException("too large");
             JSONArray array=new JSONArray(saved);
             for(int i=0;i<array.length()&&tabs.size()<MAX_TABS;i++){
                 Object entry=array.opt(i);String u=entry instanceof JSONObject?((JSONObject)entry).optString("url",null):String.valueOf(entry);
