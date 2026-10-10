@@ -578,9 +578,20 @@ public class WebViewAdapterInstrumentationTest {
                 }
                 @Override public void onPageFinished(WebView webView, String url) {
                     if (!"https://www.dola.com/".equals(url)) return;
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> webView.evaluateJavascript(
-                        "JSON.stringify({items:window.__dolaAndroidDrain()})",
-                        value -> { resultHolder.set(value); finished.countDown(); }), 1000);
+                    Handler handler = new Handler(Looper.getMainLooper());
+                    Runnable[] poller = new Runnable[1];
+                    final int[] remaining = {20};
+                    poller[0] = () -> webView.evaluateJavascript(
+                        "JSON.stringify({items:window.__dolaAndroidDrain()})", value -> {
+                            resultHolder.set(value);
+                            if ((value != null && value.contains("frame.jpg?sig=a%2Fb")) || --remaining[0] <= 0) {
+                                finished.countDown();
+                            } else {
+                                // The challenge/response is asynchronous; poll the same drain API the app uses.
+                                handler.postDelayed(poller[0], 750);
+                            }
+                        });
+                    handler.postDelayed(poller[0], 1000);
                 }
             });
             view.loadDataWithBaseURL("https://www.dola.com/", "<!doctype html><html><body>"
