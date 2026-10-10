@@ -27,9 +27,9 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 5. **真机验收边界**：已在 Xiaomi `22127RK46C` / Android 16 / `com.google.android.webview 153.0.8010.36` 安装 CI 校验的 `0.2.1-debug` APK，并打开 `https://www.dola.com/chat/`。页面显示本地工具与资源观察状态，资源计数为 5；本次未登录、未提交提示词、未触发生成，也未读取 Cookie/令牌。该结果证明目标 Provider 与这一 Dola 页面下的基础加载/注入路径可用，但不证明登录、上传、实际下载、Cookie 迁移、跨空间隔离或平台接受 30 秒请求。
 
 6. **隐私洁净开关已按低风险定义接入**：开启时使用 native WebView UA、阻止第三方 Cookie，并明确关闭网页 Geolocation API；单元测试验证 UA 不被伪造、Cookie 策略与定位开关随模式切换。Android 文档指出 Geolocation 在 WebSettings 中默认开启，因此模式现显式控制此信号；此设置不等于全面抗指纹，也不保证防止个性化广告。[Android WebSettings API](https://developer.android.com/reference/android/webkit/WebSettings#setGeolocationEnabled(boolean))
-7. **CI 门禁与设备安装路径已验证**：PR #1 的 Android APK 工作流已对 `debug` 与独立包名 `deviceValidation` 变体运行编译、签名及原始资源完整性检查；API 35 模拟器的 `connectedDeviceValidationAndroidTest` 通过，并上传了可并装 APK 与 instrumentation APK。2026-10-10 媒体重扫测试代码提交 `5c1f993` 的两项工作流通过，API 35 模拟器运行 7 项 instrumentation。真机侧，旧版签名不兼容问题已通过并装变体绕开；本次对 Xiaomi 的安装仍返回 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`，未卸载旧版或清除数据，需要在设备端确认后再做新版本真机验收。
+7. **CI 门禁与设备安装路径已验证**：PR #1 的 Android APK 工作流已对 `debug` 与独立包名 `deviceValidation` 变体运行编译、签名及原始资源完整性检查；API 35 模拟器的 `connectedDeviceValidationAndroidTest` 通过，并上传了可并装 APK 与 instrumentation APK。2026-10-10 代码提交 `9e41d17` 的两项工作流通过，API 35 模拟器运行 9 项 instrumentation。真机侧，旧版签名不兼容问题已通过并装变体绕开；Xiaomi 安装仍返回 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`，未卸载旧版或清除数据，需要设备端确认后再做新版本真机验收。
 
-8. **媒体手动重扫**：媒体列表新增“重扫当前页”，调用现有 `__dolaAndroidScan()` 并排空观察器队列；原生侧仍仅接收有效 HTTP(S) 图片/视频 URL，且要求当前页面处于白名单。Node VM 集成测试覆盖 DOM 发现与队列排空；新增的 API 35 instrumentation 直接加载受信 Dola origin fixture，并断言重扫能保留签名 URL 查询串。`5c1f993` 上 API 35 模拟器 7 项 instrumentation 全通过；小米真机尚未装此版本，不能据模拟器结果声称已完成真机验收。
+8. **媒体重扫与脚本注入边界**：媒体列表新增“重扫当前页”，调用现有 `__dolaAndroidScan()` 并排空观察器队列；原生侧仍仅接收有效 HTTP(S) 图片/视频 URL，且要求当前页面处于白名单。Node VM 集成测试覆盖 DOM 发现与队列排空；API 35 instrumentation 直接加载 Dola fixture，断言重扫保留签名 URL 查询串；默认模式断言原版 fetch/XHR hooks 不变，非白名单 origin 不注入 Dola 脚本。提交 `9e41d17` 上 9 项 instrumentation 全通过。小米真机尚未安装此版本，不能据模拟器结果声称已完成真机验收。
 
 ## 下一阶段验收门槛
 
