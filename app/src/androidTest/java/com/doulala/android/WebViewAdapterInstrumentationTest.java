@@ -1,12 +1,12 @@
 package com.doulala.android;
 
 import android.content.Context;
-import android.os.Handler;
-import android.os.Looper;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.webkit.CookieManager;
 import android.webkit.WebView;
+import android.os.Handler;
+import android.os.Looper;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.webkit.WebViewCompat;
@@ -80,7 +80,6 @@ public class WebViewAdapterInstrumentationTest {
         assertFalse(result.getBoolean("autoSubmit"));
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
-
 
     @Test public void pageSelectionStatusIsReadOnlyAndSeparateFromLocalToggle() throws Exception {
         assertTrue(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
@@ -549,7 +548,7 @@ public class WebViewAdapterInstrumentationTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
 
-    @Test public void sameOriginIframeMediaRelaysToTopCollector() throws Exception {
+    @Test public void trustedCrossOriginIframeMediaRelaysToTopCollector() throws Exception {
         assertTrue("WebView provider lacks document-start JavaScript support",
             WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
         String probe = readAsset("media-probe.js");
@@ -568,8 +567,9 @@ public class WebViewAdapterInstrumentationTest {
                 throw new AssertionError("Could not install the media observer", e);
             }
             view.setWebViewClient(new android.webkit.WebViewClient() {
-                @Override public android.webkit.WebResourceResponse shouldInterceptRequest(WebView webView, android.webkit.WebResourceRequest request) {
-                    if ("https://www.dola.com/frame-fixture".equals(request.getUrl().toString())) {
+                @Override public android.webkit.WebResourceResponse shouldInterceptRequest(
+                        WebView webView, android.webkit.WebResourceRequest request) {
+                    if ("https://media.dola.com/frame-fixture".equals(request.getUrl().toString())) {
                         String html = "<!doctype html><html><body><img src='https://cdn.example/frame.jpg?sig=a%2Fb'></body></html>";
                         return new android.webkit.WebResourceResponse("text/html", "UTF-8",
                             new java.io.ByteArrayInputStream(html.getBytes(StandardCharsets.UTF_8)));
@@ -579,32 +579,31 @@ public class WebViewAdapterInstrumentationTest {
                 @Override public void onPageFinished(WebView webView, String url) {
                     if (!"https://www.dola.com/".equals(url)) return;
                     new Handler(Looper.getMainLooper()).postDelayed(() -> webView.evaluateJavascript(
-                        "JSON.stringify({items:window.__dolaAndroidDrain(),childOrigin:document.getElementById('same').contentWindow.location.origin})",
+                        "JSON.stringify({items:window.__dolaAndroidDrain()})",
                         value -> { resultHolder.set(value); finished.countDown(); }), 1000);
                 }
             });
             view.loadDataWithBaseURL("https://www.dola.com/", "<!doctype html><html><body>"
-                    + "<iframe id='same' src='https://www.dola.com/frame-fixture'></iframe>"
+                    + "<iframe id='cross' src='https://media.dola.com/frame-fixture'></iframe>"
                     + "<iframe id='opaque' sandbox='allow-scripts' srcdoc='<!doctype html><html><body><img src=&quot;https://cdn.example/opaque.jpg?sig=no&quot;></body></html>'></iframe>"
                     + "</body></html>", "text/html", "UTF-8", null);
         });
-        assertTrue("Same-origin frame fixture did not finish", finished.await(20, TimeUnit.SECONDS));
+        assertTrue("Cross-origin frame fixture did not finish", finished.await(20, TimeUnit.SECONDS));
         Object decoded = new JSONTokener(resultHolder.get()).nextValue();
         assertTrue("Unexpected WebView evaluation result: " + resultHolder.get(), decoded instanceof String);
         JSONObject result = new JSONObject((String) decoded);
-        assertEquals("https://www.dola.com", result.getString("childOrigin"));
         JSONArray items = result.getJSONArray("items");
-        boolean foundSameOrigin = false;
+        boolean foundCrossOrigin = false;
         boolean foundOpaque = false;
         for (int i = 0; i < items.length(); i++) {
             JSONObject item = items.getJSONObject(i);
             if ("https://cdn.example/frame.jpg?sig=a%2Fb".equals(item.getString("url"))) {
-                foundSameOrigin = true;
+                foundCrossOrigin = true;
                 assertTrue(item.getString("source").startsWith("frame:"));
             }
             if (item.getString("url").contains("opaque.jpg")) foundOpaque = true;
         }
-        assertTrue("Same-origin iframe media URL was not relayed", foundSameOrigin);
+        assertTrue("Trusted cross-origin iframe media URL was not relayed", foundCrossOrigin);
         assertFalse("Sandboxed opaque-origin iframe must not relay media", foundOpaque);
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
