@@ -366,7 +366,7 @@ public class BrowserActivity extends Activity {
         }));
         for(Map.Entry<TextView,String> request:downloadRequests.entrySet()){
             TextView stateView=request.getKey();stateView.setTag(dialog);
-            downloads.statusForUrl(request.getValue(),value->{Object owner=stateView.getTag();if(owner instanceof AlertDialog&&((AlertDialog)owner).isShowing())stateView.setText(value);});
+            downloads.statusForUrl(request.getValue(),value->{Object stateOwner=stateView.getTag();if(stateOwner instanceof AlertDialog&&((AlertDialog)stateOwner).isShowing())stateView.setText(value);});
         }
     }
     static boolean mediaDialogMayRefresh(boolean showing,boolean ownerActive,boolean navigationMatches,boolean sameOwner){
