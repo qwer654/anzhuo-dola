@@ -43,9 +43,22 @@
     var size = viewportSize();
     var width = Math.max(1, control.offsetWidth || 160);
     var height = Math.max(1, control.offsetHeight || 40);
+    var minLeft = 8, maxLeft = size.width - width - 8;
+    var minBottom = 8, maxBottom = size.height - height - 8;
+    var visible = root.visualViewport;
+    if (visible && visible.width > 0 && visible.height > 0) {
+      var offsetLeft = Number(visible.offsetLeft) || 0;
+      var offsetTop = Number(visible.offsetTop) || 0;
+      minLeft = Math.max(minLeft, offsetLeft + 8);
+      maxLeft = Math.min(maxLeft, offsetLeft + visible.width - width - 8);
+      minBottom = Math.max(minBottom, size.height - (offsetTop + visible.height - 8));
+      maxBottom = Math.min(maxBottom, size.height - offsetTop - height - 16);
+    }
+    if (maxLeft < minLeft) maxLeft = minLeft;
+    if (maxBottom < minBottom) maxBottom = minBottom;
     return {
-      left: Math.max(8, Math.min(size.width - width - 8, left)),
-      bottom: Math.max(8, Math.min(size.height - height - 8, bottom))
+      left: Math.max(minLeft, Math.min(maxLeft, left)),
+      bottom: Math.max(minBottom, Math.min(maxBottom, bottom))
     };
   }
   function applyPosition(control, left, bottom) {
