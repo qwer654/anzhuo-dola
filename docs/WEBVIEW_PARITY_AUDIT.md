@@ -47,7 +47,7 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 
 16. **视频媒体分类与 poster 回归（PR head `9a0062fc`）**：API 35 instrumentation 新增 `<video>`、`<source>` 和 poster fixture。首轮发现 Performance API 可能将 poster 请求标成 `video`，修复为已知 URL 扩展名优先；随后的 WebView 测试发现 DOM poster 属性读取在真实 Provider 下缺失，改为同时回退读取 `getAttribute("poster")`。最终 API 35 smoke run `38040564234` 通过；APK run `38040564223` 完成构建、签名及原始扩展资源完整性检查。Node media probe 15/15、原始来源清单 1/1、Android adapter 10/10 通过。原始 Dola30 包仍由 manifest 校验保持不变。
 
-16. **洁净模式 WebGL 子集**：隐私洁净开关现于 document-start 为受支持 Provider 顶层页面注入独立 fingerprint module，仅启用 `WEBGL_debug_renderer_info` 屏蔽；Android 保留真实 WebView UA，不使用该模块固定的 Chrome 140 identity，不启用 Canvas/Audio/WebRTC 限制。Node VM 覆盖初始 setting seed；Android instrumentation 比对 navigator UA 与 WebView 原生 UA，并验证 WebGL debug API 返回被屏蔽。尚待 GitHub API 35 smoke 与 APK 工作流确认后，方可视作已验证代码。
+16. **洁净模式 WebGL 子集**：隐私洁净开关现于 document-start 为受支持 Provider 顶层页面注入独立 fingerprint module，仅启用 `WEBGL_debug_renderer_info` 屏蔽；Android 保留真实 WebView UA，不使用该模块固定的 Chrome 140 identity，不启用 Canvas/Audio/WebRTC 限制。Node VM 覆盖初始 setting seed；Android instrumentation 比对 navigator UA 与 WebView 原生 UA，并验证 WebGL debug API 返回被屏蔽。PR head `0a51423` 所含代码由后续代码提交 `f87f8e1` 触发的 APK workflow `38041152167` 与 API 35 smoke workflow `38041152221` 验证通过，模拟器 instrumentation 12/12 全过。只证明该 WebView Provider/夹具行为，不等于真实站点或完整抗指纹验收。
 
 ## 下一阶段验收门槛
 
@@ -58,5 +58,6 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 - 后续功能边界说明代码 head `399c1b6` 曾触发的工作流被紧随其后的文件更新取消；已在包含该代码、单测和路径触发修复的 head `37a82f1b` 重跑完整验证。Android APK run `38029307145` 与 UI smoke run `38029307232` 均成功；APK 流程完成 Node/Java 单测、lint、构建/签名和原始资源哈希校验，UI 流程完成 Android 15/API 35 仿真验收。
 - 模拟器：API 35 `connectedDeviceValidationAndroidTest` 中空间隔离/标签、document-start 适配与媒体链接剪贴板测试通过；并装验收 APK 不需替换原 app 包。
 - Xiaomi 真机：已在原安装包上确认 `DOCUMENT_START_SCRIPT` 路径及 Dola 页面显示；新版并装包受系统安装限制拒绝，需设备端允许安装后验证提示词转换、资源复制/下载、上传、Cookie 快照及空间隔离。不得因本次 smoke 通过而声称页面请求或平台功能已全面等价。
+- 洁净模式 WebGL 子集提交 `f87f8e1`：Android APK 工作流 `38041152167` 与 UI smoke `38041152221` 均成功。CI 运行 12/12 instrumentation（0 skipped/0 failed），APK 路径验证 Node/Java 测试、lint、打包签名和原始资源完整性。工作流 commit 是 PR merge ref，代码改动以 PR head `0a51423` 为准；纯 docs 后续更新不影响运行代码。
 - 等价声明：没有覆盖的 MV3 API 必须继续标“未移植/非等价”，尤其 debugger、下载认证头、跨 Worker/iframe 注入、响应替换和扩展弹窗/Service Worker 生命周期。
 
