@@ -32,7 +32,6 @@
   // remains compatible with the original content-panel.js state.
   var PANEL_POS_KEY = "intl_doubao_media_panel_pos_v3";
   var drag = null;
-  var suppressClick = false;
 
   function viewportSize() {
     return {
@@ -68,9 +67,7 @@
   }
   function beginDrag(event, control) {
     if (event.button != null && event.button !== 0) return;
-    // A fresh pointer sequence means any stale synthetic click has already
-    // been skipped; allow the next intentional tap to activate the control.
-    suppressClick = false;
+    if (event.preventDefault) event.preventDefault();
     var size = viewportSize();
     var left = parseFloat(control.style.left);
     var bottom = parseFloat(control.style.bottom);
@@ -96,10 +93,12 @@
     var moved = drag.moved;
     drag = null;
     try { control.releasePointerCapture(event.pointerId); } catch (_) {}
-    if (!moved) return;
-    // Suppress the click synthesized by a completed pointer drag until the
-    // next intentional pointer sequence (WebView timing varies by provider).
-    suppressClick = true;
+    if (!moved) {
+      // Handle taps on pointerup rather than the provider-dependent synthetic
+      // click that follows it. This makes drag and activation mutually exclusive.
+      root.setDola30s(!isEnabled());
+      return;
+    }
     try { root.localStorage.setItem(PANEL_POS_KEY, JSON.stringify({
       left: parseFloat(control.style.left), bottom: parseFloat(control.style.bottom)
     })); } catch (_) {}
@@ -165,13 +164,9 @@
       control.addEventListener("pointerup", function (event) { finishDrag(event, control); });
       control.addEventListener("pointercancel", function (event) { finishDrag(event, control); });
       control.addEventListener("click", function (event) {
-        if (suppressClick) {
-          suppressClick = false;
-          if (event && event.preventDefault) event.preventDefault();
-          if (event && event.stopPropagation) event.stopPropagation();
-          return;
-        }
-        root.setDola30s(!isEnabled());
+        // Ignore provider-generated mouse clicks; pointerup owns touch/mouse
+        // activation. Keep keyboard activation available for accessibility.
+        if (event && event.detail === 0 && event.isTrusted) root.setDola30s(!isEnabled());
       });
       root.document.body.appendChild(control);
     }
