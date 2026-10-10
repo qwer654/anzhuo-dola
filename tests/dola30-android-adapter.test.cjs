@@ -24,6 +24,8 @@ test("Android adapter does not install request interception or Chrome APIs", () 
 test("opt-in adapter preserves the original script's public controls", () => {
   const originalSet = () => "original-set";
   const originalGet = () => "original-get";
+  const originalLegacySet = () => "original-legacy-set";
+  const originalLegacyGet = () => "original-legacy-get";
   const page = {
     top: null,
     location: { hostname: "www.doubao.com" },
@@ -32,18 +34,57 @@ test("opt-in adapter preserves the original script's public controls", () => {
     __watermarkFreeDuration30Installed: true,
     setDola30s: originalSet,
     getDola30sStatus: originalGet,
+    setDoubao30s: originalLegacySet,
+    getDoubao30sStatus: originalLegacyGet,
     DolaPromptTools: { rewriteTimeline(text) { return text; } }
   };
   page.top = page;
   vm.runInNewContext(source, { window: page });
   assert.equal(page.setDola30s, originalSet);
   assert.equal(page.getDola30sStatus, originalGet);
+  assert.equal(page.setDoubao30s, originalLegacySet);
+  assert.equal(page.getDoubao30sStatus, originalLegacyGet);
   assert.equal(page.dola30Android.setDola30s, originalSet);
   assert.equal(page.dola30Android.getDola30sStatus, originalGet);
   assert.equal(page.dola30Android.limitations.networkRewrite, true);
   assert.equal(page.dola30Android.limitations.autoSubmit, false);
   assert.equal(typeof page.dola30Android.getOriginalOptions, "function");
   assert.equal(typeof page.dola30Android.setOriginalOptions, "function");
+});
+
+test("default adapter provides the original legacy host aliases and status shape", () => {
+  const values = new Map();
+  const page = {
+    top: null,
+    location: { hostname: "www.doubao.com" },
+    document: {
+      documentElement: { setAttribute() {} },
+      readyState: "loading",
+      addEventListener() {},
+      dispatchEvent() {}
+    },
+    localStorage: {
+      getItem(key) { return values.has(key) ? values.get(key) : null; },
+      setItem(key, value) { values.set(key, String(value)); }
+    }
+  };
+  page.top = page;
+  vm.runInNewContext(source, { window: page });
+
+  assert.equal(typeof page.setDoubao30s, "function");
+  assert.equal(typeof page.getDoubao30sStatus, "function");
+  assert.equal(page.dola30Android.setDoubao30s, page.setDoubao30s);
+  assert.equal(page.dola30Android.getDoubao30sStatus, page.getDoubao30sStatus);
+  assert.equal(page.setDoubao30s(true), true);
+  assert.deepEqual(JSON.parse(page.getDoubao30sStatus()), {
+    on: true, applied: 0, duration: 30, ready: true
+  });
+  assert.equal(values.get("intl_doubao_enable_30s_v1"), "1");
+  assert.equal(values.get("intl_doubao_target_duration_v1"), "30");
+  assert.equal(page.setDoubao30s(false), false);
+  assert.deepEqual(JSON.parse(page.getDoubao30sStatus()), {
+    on: false, applied: 0, duration: 15, ready: true
+  });
 });
 
 test("adapter reads and writes only the original script's existing option keys", () => {
