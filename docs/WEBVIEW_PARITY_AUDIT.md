@@ -16,7 +16,7 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 | `skill-pack-main.js` 能力响应钩子 | **保留、未注入** | 原文件哈希保持不变，但不向站点运行；不伪造/扩大平台返回的模型、会员或生成能力。 |
 | `host-bridge.js` 与 Chrome 消息通道 | **未移植** | 未创建 `chrome.*` 兼容假层，避免出现“看似成功、实际消息丢失”的伪兼容。若实现原生桥，必须限制白名单源、命令集合、消息大小和调用权限，并单测来源校验。 |
 | MV3 `manifest.json` | **仅作为原始资料保留** | Android APK 不会把它当作 Chrome 扩展安装。 |
-| MV3 fingerprint-privacy 扩展 | **MV3 扩展未接入；Android 原生隐私子集已实现** | WebView 菜单洁净模式保留实际 WebView UA（仅移除应用自标识后缀）、拒收第三方 Cookie，并禁用网页 Geolocation API；不伪造设备身份或高熵 Client Hints。Canvas/Audio/WebRTC 限制和 DNR 请求头规则仍未接入，也不保证无广告。 |
+| MV3 fingerprint-privacy 扩展 | **Android 保守子集已接入，MV3 运行时未接入** | WebView 菜单洁净模式保留实际 WebView UA（仅移除应用自标识后缀）、拒收第三方 Cookie、禁用网页 Geolocation API，并在豆包/Dola/千问/剪映白名单顶层页面隐藏 WebGL 调试渲染器扩展；不伪造设备身份或高熵 Client Hints。Canvas/Audio/WebRTC 限制、iframe/Worker 覆盖和 DNR 请求头规则仍未接入，也不保证无广告。 |
 
 ## 审核发现与改进
 
@@ -46,6 +46,8 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 15. **移动面板触控位置**：Android 30S 悬浮控件新增 Pointer Events 拖动，边界限制在当前 viewport 内；位置写入原版 `content-panel.js` 使用的 `intl_doubao_media_panel_pos_v3` 键，释放拖动不会误触 30S 开关。Node VM 回归测试覆盖坐标更新/持久化和误触抑制；Android WebView instrumentation 验证 Chromium Provider 中 pointer 事件、坐标变更及 localStorage 写入。完整面板、最小化状态和解析 UI 仍未移植。
 
 16. **视频媒体分类与 poster 回归（PR head `9a0062fc`）**：API 35 instrumentation 新增 `<video>`、`<source>` 和 poster fixture。首轮发现 Performance API 可能将 poster 请求标成 `video`，修复为已知 URL 扩展名优先；随后的 WebView 测试发现 DOM poster 属性读取在真实 Provider 下缺失，改为同时回退读取 `getAttribute("poster")`。最终 API 35 smoke run `38040564234` 通过；APK run `38040564223` 完成构建、签名及原始扩展资源完整性检查。Node media probe 15/15、原始来源清单 1/1、Android adapter 10/10 通过。原始 Dola30 包仍由 manifest 校验保持不变。
+
+16. **洁净模式 WebGL 子集**：隐私洁净开关现于 document-start 为受支持 Provider 顶层页面注入独立 fingerprint module，仅启用 `WEBGL_debug_renderer_info` 屏蔽；Android 保留真实 WebView UA，不使用该模块固定的 Chrome 140 identity，不启用 Canvas/Audio/WebRTC 限制。Node VM 覆盖初始 setting seed；Android instrumentation 比对 navigator UA 与 WebView 原生 UA，并验证 WebGL debug API 返回被屏蔽。尚待 GitHub API 35 smoke 与 APK 工作流确认后，方可视作已验证代码。
 
 ## 下一阶段验收门槛
 
