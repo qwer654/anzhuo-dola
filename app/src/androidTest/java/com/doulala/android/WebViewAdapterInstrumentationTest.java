@@ -611,15 +611,24 @@ public class WebViewAdapterInstrumentationTest {
         JSONArray media = new JSONArray(resultHolder.get());
         java.util.Map<String, String> mediaTypes = new java.util.HashMap<>();
         java.util.Map<String, String> posters = new java.util.HashMap<>();
+        JSONArray observedChannels = null;
         for (int i = 0; i < media.length(); i++) {
             JSONObject item = media.getJSONObject(i);
             mediaTypes.put(item.getString("url"), item.getString("type"));
             posters.put(item.getString("url"), item.optString("posterUrl", null));
+            if (item.getString("url").equals("https://www.dola.com/movie.mp4?sig=g%2Fh")) observedChannels=item.optJSONArray("channels");
         }
         assertEquals("Observed media: " + resultHolder.get(), "image", mediaTypes.get("https://www.dola.com/media.jpg?sig=a%2Fb"));
         assertEquals("image", mediaTypes.get("https://www.dola.com/picture-1.avif?sig=c%2Fd"));
         assertEquals("image", mediaTypes.get("https://www.dola.com/picture-2.avif?sig=e%2Ff"));
         assertEquals("video", mediaTypes.get("https://www.dola.com/movie.mp4?sig=g%2Fh"));
+        assertNotNull("video exposes grouped alternatives", observedChannels);
+        assertEquals("https://www.dola.com/movie.mp4?sig=g%2Fh", observedChannels.getString(0));
+        assertEquals("https://www.dola.com/movie-alt.webm?sig=k%2Fl", observedChannels.getString(1));
+        java.util.List<String> normalized=BrowserActivity.normalizeMediaChannels(observedChannels,"https://www.dola.com/movie.mp4?sig=g%2Fh");
+        assertEquals(2,normalized.size());
+        assertEquals("https://www.dola.com/movie-alt.webm?sig=k%2Fl",BrowserActivity.mediaChannelAt(normalized,1));
+        assertNull(BrowserActivity.mediaChannelAt(normalized,2));
         assertEquals("https://www.dola.com/poster.jpg?sig=i%2Fj", posters.get("https://www.dola.com/movie.mp4?sig=g%2Fh"));
         assertEquals("image", mediaTypes.get("https://www.dola.com/poster.jpg?sig=i%2Fj"));
         assertEquals("video", mediaTypes.get("https://www.dola.com/movie-alt.webm?sig=k%2Fl"));
