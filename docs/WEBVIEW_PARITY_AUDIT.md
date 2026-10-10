@@ -37,12 +37,14 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 
 11. **烟测任务前台隔离**：Android UI smoke 测试改为 press Home 后通过 `NEW_TASK|CLEAR_TASK` 启动 `MainActivity`，避免前一次测试的隔离 BrowserActivity task 令后续断言看到 launcher。head `fd7d1ead` 的 Android 15/API 35 UI smoke workflow 已通过。
 
+12. **旧 C# 宿主别名兼容**：原版 `duration-main.js` 声明 `setDoubao30s` / `getDoubao30sStatus` 是旧宿主的兼容 API。默认 WebView adapter 现在提供别名，将 setter 映射到同一套本地状态，getter 保持原 JSON 字段并给出 `applied: 0`，不暗示平台应用成功；opt-in 原版模式保留原别名引用。Node VM 验证开/关状态、JSON 响应和 localStorage，检查原始资产清单通过。head `9be9f105` 的 APK build 与 API 35 Android UI smoke workflows 均通过。
+
 ## 下一阶段验收门槛
 
 - 自动化：`f361cc0` Android APK 工作流通过 Node 29 项、Java 单测 12 项、lint、APK 构建/签名和打包原始资源完整性；`05093fc` API 35 模拟器 6/6 instrumentation 通过。新增 Node VM 测试实际执行被注入媒体观察器，确认 fetch/XHR 响应维持原行为而只收集可读媒体 URL。
 - 最新提交 `0189e434`：Node 27 项、11 项 Java 单测、lint、debug/deviceValidation 构建与签名、原始 JS 打包哈希检查以及 API 35 模拟器 instrumentation 均通过。
 - `c6d01ca` 提交对应工作流均通过：Node 28 项、Android 单测/build/lint/APK 签名与原始 JS 完整性检查成功；API 35 模拟器完成 6/6 instrumentation 测试（0 失败）。覆盖原版 duration 脚本 opt-in 初始化、Android adapter 不覆盖其公开 API，以及本地 fetch 与 XHR 夹具中匹配 completion 的 user 时间线变换（system 文本与非目标路径保持不变）。`0514cdb` 后续构建及 API 35 模拟器 6/6 检查均通过，洁净模式 UA/Cookie/网页定位规则有单元测试。
-- 最新修复 head `fd7d1ead` 的 GitHub Actions Android APK 与 UI smoke 均通过（runs `38028214325`、`38028214350`）；包括 adapter 主机匹配、原版选项开关测试、apk 及原始资源校验和 Android 15/API 35 UI smoke。
+- 最新代码 head `9be9f105` 的 GitHub Actions Android APK 与 UI smoke 均通过（runs `38028683538`、`38028683531`）；包括旧宿主 API 别名测试、adapter host 边界、原版选项与 APK/原始资源完整性校验，以及 Android 15/API 35 UI smoke。
 - 模拟器：API 35 `connectedDeviceValidationAndroidTest` 中空间隔离/标签、document-start 适配与媒体链接剪贴板测试通过；并装验收 APK 不需替换原 app 包。
 - Xiaomi 真机：已在原安装包上确认 `DOCUMENT_START_SCRIPT` 路径及 Dola 页面显示；新版并装包受系统安装限制拒绝，需设备端允许安装后验证提示词转换、资源复制/下载、上传、Cookie 快照及空间隔离。不得因本次 smoke 通过而声称页面请求或平台功能已全面等价。
 - 等价声明：没有覆盖的 MV3 API 必须继续标“未移植/非等价”，尤其 debugger、下载认证头、跨 Worker/iframe 注入、响应替换和扩展弹窗/Service Worker 生命周期。
