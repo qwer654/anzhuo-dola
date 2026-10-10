@@ -533,14 +533,17 @@ public class WebViewAdapterInstrumentationTest {
         assertTrue("Trusted media fixture did not finish", finished.await(20, TimeUnit.SECONDS));
         JSONArray media = new JSONArray(resultHolder.get());
         java.util.Map<String, String> mediaTypes = new java.util.HashMap<>();
+        java.util.Map<String, String> posters = new java.util.HashMap<>();
         for (int i = 0; i < media.length(); i++) {
             JSONObject item = media.getJSONObject(i);
             mediaTypes.put(item.getString("url"), item.getString("type"));
+            posters.put(item.getString("url"), item.optString("posterUrl", null));
         }
         assertEquals("Observed media: " + resultHolder.get(), "image", mediaTypes.get("https://www.dola.com/media.jpg?sig=a%2Fb"));
         assertEquals("image", mediaTypes.get("https://www.dola.com/picture-1.avif?sig=c%2Fd"));
         assertEquals("image", mediaTypes.get("https://www.dola.com/picture-2.avif?sig=e%2Ff"));
         assertEquals("video", mediaTypes.get("https://www.dola.com/movie.mp4?sig=g%2Fh"));
+        assertEquals("https://www.dola.com/poster.jpg?sig=i%2Fj", posters.get("https://www.dola.com/movie.mp4?sig=g%2Fh"));
         assertEquals("image", mediaTypes.get("https://www.dola.com/poster.jpg?sig=i%2Fj"));
         assertEquals("video", mediaTypes.get("https://www.dola.com/movie-alt.webm?sig=k%2Fl"));
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
