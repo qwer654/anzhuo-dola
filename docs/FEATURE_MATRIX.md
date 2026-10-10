@@ -35,9 +35,10 @@
 - `android.yml` 现对匹配的 pull request 也执行构建验证；`android-smoke.yml` 对 Android 代码/测试 pull request 运行 Android 15/API 35 模拟器的 `connectedDeviceValidationAndroidTest`。PR #1 最新已完成检查中，两项工作流均通过。
 - 2026-10-10，媒体手动重扫测试代码提交 `5c1f993` 的 Android UI smoke 与 APK workflows 均通过；模拟器运行 7 项 instrumentation，构建产出 debug/deviceValidation APK，且两份 APK 均验证了 15 个原始扩展文件。随后仅文档提交更新到 head `4c162a9`，没有改动该已验证代码。
 - 后续 instrumentation 提交 `9e41d17` 的两项 Android 工作流也通过；API 35 模拟器共运行 9 项 instrumentation，新增覆盖默认关闭时原版 fetch/XHR hooks 保持原状，以及 Dola/Doubao document-start 脚本不注入非白名单 origin。APK 构建和 15 个原始文件校验通过。
+- 最新代码提交 `bcf7919` 的 APK 与 Android UI smoke 工作流均通过；API 35 模拟器 10/10 instrumentation 通过，新增“隐私洁净模式”用户确认/重载/关闭回归。剪贴板测试不再依赖后台读取系统剪贴板，改为精确验证即将写入的 `ClipData` 保留完整签名 URL。
 - `WebViewAdapterInstrumentationTest` 在 Android WebView 中通过 document-start、本地 30S 状态、提示词转换及 opt-in 原版控制提示段断言、已观察媒体链接复制到系统剪贴板的精确性断言；`BrowserSmokeTest` 通过空间切换、标签/书签及空间隔离烟测。
 - **小米真机基础验收已完成**：`22127RK46C` / Android 16 / `com.google.android.webview 153.0.8010.36`。已校验并安装 CI `0.2.1-debug` APK，打开 `https://www.dola.com/chat/`；屏幕显示本地工具状态及资源计数（5）。本次未登录、未提交提示词或触发生成。
-- **真机安装待确认**：从最新 instrumentation 提交 `9e41d17` 的 CI artifact 提取 `deviceValidation` APK，并本地复核 SHA-256 `d7f3b8562c48b677b7eb594184f40bf4bdc0a6114b012f2e10e29201c477d95c`，包含 15 个原始扩展文件。对最新 APK 执行 `adb install -r` 仍返回 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`。未卸载旧版或更改其数据；需在手机端允许通过调试安装。
+- **真机安装待确认**：从最新代码提交 `bcf7919` 的 CI artifact 提取 `deviceValidation` APK，并本地复核 SHA-256 `4e6111300ffb50eb10126d275b5479cd7360268041c4bb8f71808d386373a87a`，包含 15 个原始扩展文件。对前一版 APK 执行 `adb install -r` 曾返回 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`；最新 APK 尚未安装。未卸载旧版或更改其数据；需在手机端允许通过调试安装。
 - 真机已验证启动、该 Dola 页面加载、document-start 适配控件及资源观察状态；未验证登录/会话、实际下载、上传、Cookie 快照、不同空间数据隔离或平台是否接受 30 秒请求，仍需逐项真机验收。
 
 ## 安装与升级边界
