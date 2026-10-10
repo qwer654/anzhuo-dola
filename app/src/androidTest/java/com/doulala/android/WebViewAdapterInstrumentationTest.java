@@ -210,6 +210,9 @@ public class WebViewAdapterInstrumentationTest {
                         + "installed:!!window.__watermarkFreeDuration30Installed,"
                         + "setterPreserved:window.setDola30s===window.__originalDola30Setter,"
                         + "previewAvailable:typeof window.rewriteDolaTimeline==='function',"
+                        + "optionsAvailable:typeof window.dola30Android.getOriginalOptions==='function'&&typeof window.dola30Android.setOriginalOptions==='function',"
+                        + "initialOptions:window.dola30Android.getOriginalOptions(),"
+                        + "changedOptions:window.dola30Android.setOriginalOptions({promptGuard:true,timelineRewrite:false}),"
                         + "networkRewrite:window.dola30Android.limitations.networkRewrite,"
                         + "autoSubmit:window.dola30Android.limitations.autoSubmit});})()",
                         value -> { pageResultHolder.set(value); originalLoaded.countDown(); });
@@ -225,6 +228,11 @@ public class WebViewAdapterInstrumentationTest {
         assertTrue(result.getBoolean("installed"));
         assertTrue(result.getBoolean("setterPreserved"));
         assertTrue(result.getBoolean("previewAvailable"));
+        assertTrue(result.getBoolean("optionsAvailable"));
+        assertFalse(result.getJSONObject("initialOptions").getBoolean("promptGuard"));
+        assertTrue(result.getJSONObject("initialOptions").getBoolean("timelineRewrite"));
+        assertTrue(result.getJSONObject("changedOptions").getBoolean("promptGuard"));
+        assertFalse(result.getJSONObject("changedOptions").getBoolean("timelineRewrite"));
         assertTrue(result.getBoolean("networkRewrite"));
         assertFalse(result.getBoolean("autoSubmit"));
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
