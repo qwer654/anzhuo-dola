@@ -28,6 +28,78 @@
   var STATE_ATTRIBUTE = "data-watermark-free-duration-30";
   var STATE_EVENT = "watermark-free-duration-30-change";
   var CONTROL_ID = "dola30-android-control";
+  // Reuse the supplied panel's position key so moving the Android control
+  // remains compatible with the original content-panel.js state.
+  var PANEL_POS_KEY = "intl_doubao_media_panel_pos_v3";
+  var drag = null;
+  var suppressClick = false;
+
+  function viewportSize() {
+    return {
+      width: Math.max(1, Number(root.innerWidth) || 360),
+      height: Math.max(1, Number(root.innerHeight) || 640)
+    };
+  }
+  function clampPosition(left, bottom, control) {
+    var size = viewportSize();
+    var width = Math.max(1, control.offsetWidth || 160);
+    var height = Math.max(1, control.offsetHeight || 40);
+    return {
+      left: Math.max(8, Math.min(size.width - width - 8, left)),
+      bottom: Math.max(8, Math.min(size.height - height - 8, bottom))
+    };
+  }
+  function applyPosition(control, left, bottom) {
+    var position = clampPosition(left, bottom, control);
+    control.style.left = position.left + "px";
+    control.style.bottom = position.bottom + "px";
+    control.style.right = "auto";
+    return position;
+  }
+  function restorePosition(control) {
+    var saved = null;
+    try { saved = JSON.parse(storageGet(PANEL_POS_KEY, "null")); } catch (_) {}
+    if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.bottom)) {
+      applyPosition(control, saved.left, saved.bottom);
+    } else {
+      var size = viewportSize();
+      applyPosition(control, size.width - (control.offsetWidth || 160) - 12, 12);
+    }
+  }
+  function beginDrag(event, control) {
+    if (event.button != null && event.button !== 0) return;
+    var size = viewportSize();
+    var left = parseFloat(control.style.left);
+    var bottom = parseFloat(control.style.bottom);
+    drag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      left: Number.isFinite(left) ? left : size.width - (control.offsetWidth || 160) - 12,
+      bottom: Number.isFinite(bottom) ? bottom : 12,
+      moved: false
+    };
+    try { control.setPointerCapture(event.pointerId); } catch (_) {}
+  }
+  function moveDrag(event, control) {
+    if (!drag || (drag.pointerId != null && event.pointerId !== drag.pointerId)) return;
+    var dx = event.clientX - drag.startX;
+    var dy = event.clientY - drag.startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.moved = true;
+    if (drag.moved) applyPosition(control, drag.left + dx, drag.bottom - dy);
+  }
+  function finishDrag(event, control) {
+    if (!drag || (drag.pointerId != null && event.pointerId !== drag.pointerId)) return;
+    var moved = drag.moved;
+    drag = null;
+    try { control.releasePointerCapture(event.pointerId); } catch (_) {}
+    if (!moved) return;
+    suppressClick = true;
+    try { root.localStorage.setItem(PANEL_POS_KEY, JSON.stringify({
+      left: parseFloat(control.style.left), bottom: parseFloat(control.style.bottom)
+    })); } catch (_) {}
+    root.setTimeout(function () { suppressClick = false; }, 0);
+  }
 
   function storageGet(key, fallback) {
     try {
@@ -81,8 +153,22 @@
       control.setAttribute("aria-label", "Android WebView 30 秒工具");
       control.style.cssText = "position:fixed;right:12px;bottom:12px;z-index:2147483647;" +
         "border:1px solid rgba(255,255,255,.35);border-radius:18px;padding:8px 12px;" +
-        "background:#202638;color:#fff;font:13px sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.25);";
-      control.addEventListener("click", function () { root.setDola30s(!isEnabled()); });
+        "background:#202638;color:#fff;font:13px sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.25);" +
+        "touch-action:none;user-select:none;cursor:move;";
+      restorePosition(control);
+      control.addEventListener("pointerdown", function (event) { beginDrag(event, control); });
+      control.addEventListener("pointermove", function (event) { moveDrag(event, control); });
+      control.addEventListener("pointerup", function (event) { finishDrag(event, control); });
+      control.addEventListener("pointercancel", function (event) { finishDrag(event, control); });
+      control.addEventListener("click", function (event) {
+        if (suppressClick) {
+          suppressClick = false;
+          if (event && event.preventDefault) event.preventDefault();
+          if (event && event.stopPropagation) event.stopPropagation();
+          return;
+        }
+        root.setDola30s(!isEnabled());
+      });
       root.document.body.appendChild(control);
     }
     control.textContent = isEnabled() ? "30S 已启用" : "30S 工具（当前 15S）";

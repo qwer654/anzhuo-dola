@@ -181,6 +181,55 @@ public class WebViewAdapterInstrumentationTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(view::destroy);
     }
 
+    @Test public void floatingControlDragUsesAndPersistsOriginalPanelPositionKey() throws Exception {
+        assertTrue("WebView provider lacks document-start JavaScript support",
+            WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
+        String adapter = readAsset("dola30-android-adapter.js");
+        AtomicReference<WebView> viewRef = new AtomicReference<>();
+        AtomicReference<String> result = new AtomicReference<>();
+        CountDownLatch finished = new CountDownLatch(1);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            WebView view = new WebView(context);
+            view.getSettings().setJavaScriptEnabled(true);
+            view.getSettings().setDomStorageEnabled(true);
+            viewRef.set(view);
+            try {
+                WebViewCompat.addDocumentStartJavaScript(view, adapter,
+                    new HashSet<>(Arrays.asList("https://dola.com", "https://*.dola.com")));
+            } catch (Exception e) {
+                throw new AssertionError("Could not install Android adapter", e);
+            }
+            view.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override public void onPageFinished(WebView webView, String url) {
+                    webView.evaluateJavascript("(function(){"
+                        + "var button=document.getElementById('dola30-android-control');"
+                        + "if(!button)return JSON.stringify({missing:true});"
+                        + "var original=JSON.parse(window.getDola30sStatus());"
+                        + "var left=parseFloat(button.style.left),bottom=parseFloat(button.style.bottom);"
+                        + "function fire(type,x,y){button.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:9,clientX:x,clientY:y,button:0}));}"
+                        + "fire('pointerdown',200,600);fire('pointermove',150,560);fire('pointerup',150,560);"
+                        + "button.dispatchEvent(new MouseEvent('click',{bubbles:true}));"
+                        + "var saved=JSON.parse(localStorage.getItem('intl_doubao_media_panel_pos_v3'));"
+                        + "return JSON.stringify({left:left,bottom:bottom,finalLeft:parseFloat(button.style.left),finalBottom:parseFloat(button.style.bottom),saved:saved,enabled:JSON.parse(window.getDola30sStatus()).on});"
+                        + "})()", value -> { result.set(value); finished.countDown(); });
+                }
+            });
+            view.loadDataWithBaseURL("https://www.dola.com/", "<!doctype html><html><body>drag fixture</body></html>",
+                "text/html", "UTF-8", null);
+        });
+        assertTrue("WebView drag fixture did not finish", finished.await(20, TimeUnit.SECONDS));
+        Object decoded = new JSONTokener(result.get()).nextValue();
+        assertTrue(decoded instanceof String);
+        JSONObject state = new JSONObject((String) decoded);
+        assertFalse(state.optBoolean("missing", false));
+        assertEquals(state.getInt("left") - 50, state.getInt("finalLeft"));
+        assertEquals(state.getInt("bottom") + 40, state.getInt("finalBottom"));
+        assertEquals(state.getInt("finalLeft"), state.getJSONObject("saved").getInt("left"));
+        assertEquals(state.getInt("finalBottom"), state.getJSONObject("saved").getInt("bottom"));
+        assertFalse("A drag release must not toggle the 30S control", state.getBoolean("enabled"));
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
+    }
+
     @Test public void originalDurationScriptCanRunOptInWithoutAdapterOverwritingItsApi() throws Exception {
         assertTrue("WebView provider lacks document-start JavaScript support",
             WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));

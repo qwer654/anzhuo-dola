@@ -141,3 +141,53 @@ test("adapter allows exact Dola/Doubao subdomains but not lookalike domains", ()
   assert.equal(createPage("dola.com.attacker.test").dola30Android, undefined);
 });
 
+test("floating Android control is draggable and persists the original panel position key", () => {
+  const values = new Map();
+  const listeners = new Map();
+  let button;
+  const page = {
+    top: null,
+    innerWidth: 360,
+    innerHeight: 640,
+    location: { hostname: "www.dola.com" },
+    localStorage: {
+      getItem(key) { return values.has(key) ? values.get(key) : null; },
+      setItem(key, value) { values.set(key, String(value)); }
+    },
+    setTimeout() {},
+    Event: function Event() {},
+    CustomEvent: function CustomEvent() {},
+    MutationObserver: null,
+    document: {
+      readyState: "complete",
+      documentElement: { setAttribute() {} },
+      dispatchEvent() {},
+      getElementById() { return button || null; },
+      createElement() {
+        button = {
+          style: {}, offsetWidth: 160, offsetHeight: 40,
+          setAttribute() {},
+          addEventListener(name, callback) { listeners.set(name, callback); },
+          setPointerCapture() {}, releasePointerCapture() {}
+        };
+        return button;
+      },
+      body: { appendChild() {} }
+    }
+  };
+  page.top = page;
+  vm.runInNewContext(source, { window: page });
+  assert.equal(button.style.left, "188px");
+  assert.equal(button.style.bottom, "12px");
+  listeners.get("pointerdown")({ button: 0, pointerId: 4, clientX: 200, clientY: 610 });
+  listeners.get("pointermove")({ pointerId: 4, clientX: 80, clientY: 500 });
+  listeners.get("pointerup")({ pointerId: 4 });
+  assert.equal(button.style.left, "68px");
+  assert.equal(button.style.bottom, "122px");
+  assert.deepEqual(JSON.parse(values.get("intl_doubao_media_panel_pos_v3")), { left: 68, bottom: 122 });
+  let prevented = false;
+  listeners.get("click")({ preventDefault() { prevented = true; }, stopPropagation() {} });
+  assert.equal(prevented, true, "drag release must not toggle the 30S state");
+  assert.equal(page.dola30Android.getDola30sStatus().includes('"on":false'), true);
+});
+

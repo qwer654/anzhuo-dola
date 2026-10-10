@@ -11,7 +11,7 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 | 原文件/能力 | WebView 状态 | 审核判断与下一步 |
 |---|---|---|
 | `duration-main.js` 页面时长 UI、状态和提示词时间轴 | **可选原版运行；条件有限** | 默认用 `dola30-android-adapter.js` 及人工工具；用户显式同意后原样 document-start 注入保留的 `duration-main.js` 到 Dola/Doubao HTTPS 页面。默认适配器兼容原版公开的 `setDola30s` / `getDola30sStatus` 和旧宿主别名 `setDoubao30s` / `getDoubao30sStatus`，但只保存本地状态且回报 `applied:0`（不控制平台）；opt-in 下不覆盖原脚本方法。Android 原生菜单可读写原脚本已有的提示段/时间轴开关 localStorage 键；脚本自身判断页面状态、提示词和匹配请求中的用户文本处理。应用不自动提交；实际网页控件识别与真实平台行为仍需真机逐项验证。 |
-| `content-panel.js` 扩展浮层 | **未运行原件** | Android 原生菜单提供媒体、下载和 30S 工具入口；30S 对话框现明确报告媒体观察、MV3 Debugger 深度/自动嗅探和 fallback API 解析的实际能力边界。原面板拖动/最小化 UI 未复刻；原面板调用扩展消息 API，WebView 中无 `chrome.runtime`。 |
+| `content-panel.js` 扩展浮层 | **未运行原件** | Android 原生菜单提供媒体、下载和 30S 工具入口；WebView 的 30S 悬浮控件新增触屏拖动，使用原面板 `intl_doubao_media_panel_pos_v3` 位置键并保存左/底坐标。原完整媒体面板、最小化/解析 UI 未复刻；原面板调用扩展消息 API，WebView 中无 `chrome.runtime`。 |
 | `service-worker.js` 标签、下载、Debugger、资源提取、响应替换 | **安全子集** | 书签/标签/下载由原生 UI 提供；`media-probe.js` 被动观察 DOM、Performance、fetch/XHR 中已暴露的媒体 URL，用户可手动触发重扫；Debugger/CDP、fallback API 获取、解码/请求链和响应替换未移植。 |
 | `skill-pack-main.js` 能力响应钩子 | **保留、未注入** | 原文件哈希保持不变，但不向站点运行；不伪造/扩大平台返回的模型、会员或生成能力。 |
 | `host-bridge.js` 与 Chrome 消息通道 | **未移植** | 未创建 `chrome.*` 兼容假层，避免出现“看似成功、实际消息丢失”的伪兼容。若实现原生桥，必须限制白名单源、命令集合、消息大小和调用权限，并单测来源校验。 |
@@ -42,6 +42,8 @@ Android WebView 可承载页面脚本、同源/白名单页面 UI、网页 DOM �
 13. **运行中功能边界提示**：30S 原生工具对话框补充当前页面媒体探针状态，并明确指出 Android WebView 没有 Chrome MV3 Debugger 深度/自动嗅探，fallback API 解析未实现；能力报告按 probe 是否注入区分。Java 单元测试锁定正/负状态下的提示文案，避免 UI 把页面可见 URL 观察包装成原版扩展的深度嗅探。APK 与模拟器验收在 workflow-trigger commit `37a82f1b` 均通过。
 
 14. **最新 APK 的真机并装尝试**：通过的 run `38029307145` 上传了 `deviceValidation` variant；下载后的本地 APK SHA-256 为 `0fef409e982b777740e79b527fc8981eb8a804c9022cfda3d6e826cf1265d072`，`verify_apk_assets.py` 确认 15 个原始扩展资源匹配。对连接设备 `22127RK46C` 执行未覆盖安装时，ADB 返回 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`。未重试、未关闭安全限制、未卸载或更改已安装的 `com.doulala.android.debug`；最新 variant 尚未运行于真机。
+
+15. **移动面板触控位置**：Android 30S 悬浮控件新增 Pointer Events 拖动，边界限制在当前 viewport 内；位置写入原版 `content-panel.js` 使用的 `intl_doubao_media_panel_pos_v3` 键，释放拖动不会误触 30S 开关。Node VM 回归测试覆盖坐标更新/持久化和误触抑制；Android WebView instrumentation 验证 Chromium Provider 中 pointer 事件、坐标变更及 localStorage 写入。完整面板、最小化状态和解析 UI 仍未移植。
 
 ## 下一阶段验收门槛
 
