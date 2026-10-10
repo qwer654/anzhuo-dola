@@ -167,9 +167,12 @@
       if (i >= value.length) break;
       var start = i;
       while (i < value.length && !/\s/.test(value[i])) i++;
-      var token = value.slice(start, i).replace(/,+$/, "");
+      var rawToken = value.slice(start, i);
+      var endedCandidate = /,+$/.test(rawToken);
+      var token = rawToken.replace(/,+$/, "");
       var url = normalizeMediaUrl(token);
       if (url) candidates.push(url);
+      if (endedCandidate) continue;
       // Skip a width/density descriptor until the next candidate separator.
       while (i < value.length && value[i] !== ",") i++;
       if (value[i] === ",") i++;
