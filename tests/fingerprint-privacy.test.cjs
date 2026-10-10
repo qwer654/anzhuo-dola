@@ -10,11 +10,11 @@ const vm = require("node:vm");
 function pageFixture(withHints = true, initialSettings = null) {
   const prototype = { userAgent: "Original UA", appVersion: "Original version", platform: "Original platform", language: "en-US", languages: ["en-US"], hardwareConcurrency: 12, maxTouchPoints: 5, vendor: "Original vendor" };
   if (withHints) { prototype.userAgentData = { platform: "Original platform" }; prototype.deviceMemory = 8; }
-  const navigator = Object.create(prototype);
+  const navigator = Object.create(prototype);\n  navigator.mediaDevices = { enumerateDevices: function () { return Promise.resolve(["camera", "microphone"]); } };
   Object.defineProperty(navigator, "language", { configurable: true, enumerable: false, value: "ja-JP" });
   function GL() {}
   GL.prototype.getExtension = function (name) { return "native:" + name; };
-  const window = { navigator, WebGLRenderingContext: GL, dispatchEvent() {}, addEventListener() {} };
+  function Canvas() {}\n  Canvas.prototype.toDataURL = function () { return "data:image/png;base64,AA=="; };\n  Canvas.prototype.toBlob = function () {};\n  function Canvas2D() {}\n  Canvas2D.prototype.getImageData = function () { return { data: [] }; };\n  function OfflineAudioContext() {}\n  function RTCPeerConnection() {}\n  const window = { navigator, WebGLRenderingContext: GL, HTMLCanvasElement: Canvas, CanvasRenderingContext2D: Canvas2D,\n    OfflineAudioContext, RTCPeerConnection, dispatchEvent() {}, addEventListener() {} };
   if (initialSettings) window.__dolaFingerprintInitialSettings = initialSettings;
   window.top = window;
   const context = vm.createContext({ window, DOMException, CustomEvent: function (type, options) { this.type = type; this.detail = options.detail; } });
@@ -43,9 +43,9 @@ function workerFixture() {
 test("Android document-start seed can opt into WebGL-only reduction without enabling identity spoofing", () => {
   const { window, navigator, api } = pageFixture(true, { hideWebglDebugInfo: true });
   const gl = new window.WebGLRenderingContext();
-  assert.equal(api.getSettings().hideWebglDebugInfo, true);
+  assert.equal(api.getSettings().hideWebglDebugInfo, true);\n  assert.equal(api.getSettings().blockCanvasReadback, true);\n  assert.equal(api.getSettings().blockAudioFingerprint, true);\n  assert.equal(api.getSettings().blockWebRTC, true);\n  assert.equal(api.getSettings().blockDeviceEnumeration, true);
   assert.equal(api.getSettings().cleanMode, false);
-  assert.equal(gl.getExtension("WEBGL_debug_renderer_info"), null);
+  assert.equal(gl.getExtension("WEBGL_debug_renderer_info"), null);\n  assert.throws(() => new window.HTMLCanvasElement().toDataURL(), { name: "SecurityError" });\n  assert.throws(() => new window.CanvasRenderingContext2D().getImageData(), { name: "SecurityError" });\n  assert.throws(() => new window.OfflineAudioContext(), { name: "SecurityError" });\n  assert.throws(() => new window.RTCPeerConnection(), { name: "SecurityError" });\n  assert.deepEqual(Array.from(await navigator.mediaDevices.enumerateDevices()), []);
   assert.equal(navigator.userAgent, "Original UA");
   assert.equal("__dolaFingerprintInitialSettings" in window, false);
 });
