@@ -73,6 +73,7 @@ test('live observer keeps fetch/XHR responses untouched while collecting readabl
     }
   };
   const listeners = new Map();
+  let domNodes = [];
   class FakeXhr {
     constructor() { this.responseText = xhrBody; this.responseType = ''; }
     addEventListener(name, callback) { listeners.set(name, callback); }
@@ -82,7 +83,7 @@ test('live observer keeps fetch/XHR responses untouched while collecting readabl
   }
   const root = {
     location: { hostname: 'www.dola.com' },
-    document: { title: 'observer fixture', readyState: 'loading', addEventListener() {}, querySelectorAll() {}, documentElement: null },
+    document: { title: 'observer fixture', readyState: 'loading', addEventListener() {}, querySelectorAll() { return domNodes; }, documentElement: null },
     setTimeout() { return 1; },
     fetch() { return Promise.resolve(response); },
     XMLHttpRequest: FakeXhr
@@ -103,6 +104,11 @@ test('live observer keeps fetch/XHR responses untouched while collecting readabl
     'https://cdn.example/xhr.jpg?sig=c%3Dd'
   ].sort());
   assert.equal(Array.from(root.__dolaAndroidDrain()).length, 0);
+  domNodes = [{ tagName: 'IMG', currentSrc: 'https://cdn.example/dom.jpg?sig=e%2Ff', src: '' }];
+  root.__dolaAndroidScan();
+  assert.deepEqual(Array.from(root.__dolaAndroidDrain(), item => item.url), [
+    'https://cdn.example/dom.jpg?sig=e%2Ff'
+  ]);
 });
 test('prompt timeline handles timestamps and English/Chinese seconds', () => {
   assert.equal(prompts.rewriteTimeline('00:00-00:05 开场', 20), '全片进度 0%–25% 开场');

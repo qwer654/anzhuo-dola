@@ -245,28 +245,44 @@ public class BrowserActivity extends Activity {
         if(destroyed||t==null||t.closed||t.view==null||!UrlRules.trusted(t.view.getUrl()))return;
         final int navigation=t.navigation;
         t.view.evaluateJavascript("(window.__dolaAndroidDrain?window.__dolaAndroidDrain():[])",value->{
-            if(destroyed||t.closed||t.view==null||navigation!=t.navigation||!UrlRules.trusted(t.view.getUrl())||value==null||value.length()>4*1024*1024)return;
-            try {
-                JSONArray a=new JSONArray(value);
-                for(int i=0;i<a.length()&&t.media.size()<MAX_MEDIA;i++){
-                    JSONObject o=a.optJSONObject(i);if(o==null)continue;
-                    String u=webUrl(o.optString("url",null)),type=o.optString("type","");
-                    if(u==null||!(type.equals("image")||type.equals("video")))continue;
-                    if(t.mediaKeys.add(type+"|"+u)){String label=o.optString("title","资源");t.media.add(new MediaItem(u,type,label.substring(0,Math.min(label.length(),120))));}
-                }
-                if(t==active)mediaButton.setText("资源 "+t.media.size());
-            }catch(Exception ignored){}
+            collectMediaResult(t,navigation,value);
+        });
+    }
+    private void collectMediaResult(Tab t,int navigation,String value) {
+        if(destroyed||t.closed||t.view==null||navigation!=t.navigation||!UrlRules.trusted(t.view.getUrl())||value==null||value.length()>4*1024*1024)return;
+        try {
+            JSONArray a=new JSONArray(value);
+            for(int i=0;i<a.length()&&t.media.size()<MAX_MEDIA;i++){
+                JSONObject o=a.optJSONObject(i);if(o==null)continue;
+                String u=webUrl(o.optString("url",null)),type=o.optString("type","");
+                if(u==null||!(type.equals("image")||type.equals("video")))continue;
+                if(t.mediaKeys.add(type+"|"+u)){String label=o.optString("title","资源");t.media.add(new MediaItem(u,type,label.substring(0,Math.min(label.length(),120))));}
+            }
+            if(t==active)mediaButton.setText("资源 "+t.media.size());
+        }catch(Exception ignored){}
+    }
+    private void rescanMedia() {
+        if(active==null||active.view==null||!UrlRules.trusted(active.view.getUrl())){
+            Ui.toast(this,"当前页面不可扫描");return;
+        }
+        final Tab t=active;final int navigation=t.navigation;
+        t.view.evaluateJavascript("(function(){if(window.__dolaAndroidScan)window.__dolaAndroidScan();return window.__dolaAndroidDrain?window.__dolaAndroidDrain():[]})()",value->{
+            if(destroyed||t.closed||t.view==null||navigation!=t.navigation||t!=active)return;
+            collectMediaResult(t,navigation,value);
+            showMedia();
         });
     }
     private void showMedia() {
         if(active.media.isEmpty()){
-            new AlertDialog.Builder(this).setTitle("当前标签资源").setMessage("尚未观察到图片或视频。请在白名单站点完成一次加载。只观察页面已经暴露的 URL，不请求 fallback_api，不保证原图或无水印结果。").setPositiveButton("知道了",null).show();return;
+            new AlertDialog.Builder(this).setTitle("当前标签资源").setMessage("尚未观察到图片或视频。可重新扫描当前白名单页面；只观察页面已经暴露的 URL，不请求 fallback_api，不保证原图或无水印结果。")
+                .setNegativeButton("关闭",null).setPositiveButton("重扫当前页",(d,w)->rescanMedia()).show();return;
         }
         LinearLayout list=Ui.column(this);Ui.pad(list,8);
         for(MediaItem item:new ArrayList<>(active.media)){
             LinearLayout row=Ui.row(this);TextView label=Ui.text(this,item.type+" · "+item.title,13,Ui.INK);
             row.addView(label,new LinearLayout.LayoutParams(0,-2,1));row.addView(Ui.button(this,"复制链接",()->copyMediaUrl(item.url)));row.addView(Ui.button(this,"打开",()->newTab(item.url)));row.addView(Ui.button(this,"下载",()->downloads.confirm(item.url,null,null)));list.addView(row);
         }
+        list.addView(Ui.button(this,"重扫当前页",this::rescanMedia));
         new AlertDialog.Builder(this).setTitle("当前标签资源（"+active.media.size()+"）").setView(Ui.scroll(this,list)).setPositiveButton("关闭",null).show();
     }
     static boolean writeMediaUrlToClipboard(Context context,String url) {
