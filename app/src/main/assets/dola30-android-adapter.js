@@ -171,10 +171,41 @@
     storageSet(TIMELINE_REWRITE_KEY, options.timelineRewrite === false ? "0" : "1");
     return getOriginalOptions();
   }
+  // Read only: mirror the original Dola control selectors without reconciling
+  // local state, clicking controls, editing labels, or touching requests.
+  function getDolaPlatformSelectionStatus() {
+    if (host !== "dola.com" && !host.endsWith(".dola.com")) {
+      return { status: "not_applicable", model: "", duration: "" };
+    }
+    try {
+      var model = root.document.querySelector('[data-input-engine-actionbar-control-key="video-model"]');
+      var durationControl = root.document.querySelector('[data-input-engine-actionbar-control-key="video-duration"]');
+      function text(element) {
+        return String(element.textContent || element.getAttribute("aria-label") || element.getAttribute("title") || "")
+          .replace(/[\s✓✔√]/g, "");
+      }
+      function visible(element) {
+        var rect = element && element.getBoundingClientRect && element.getBoundingClientRect();
+        var style = element && root.getComputedStyle && root.getComputedStyle(element);
+        return !!(element && element.isConnected && rect && rect.width > 1 && rect.height > 1 && style &&
+          style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity || 1) > 0.01);
+      }
+      if (!visible(model) || !visible(durationControl)) {
+        return { status: "controls_not_detected", model: "", duration: "" };
+      }
+      var modelText = text(model), durationText = text(durationControl);
+      var model25 = /2\.5|seedance[^\d]*2[^\d]*5/i.test(modelText);
+      var duration30 = /^30(?:s|秒)$/i.test(durationText);
+      return { status: model25 && duration30 ? "selection_matches_30s" : "detected_not_30s",
+        model: modelText.slice(0, 80), duration: durationText.slice(0, 40) };
+    } catch (_) {
+      return { status: "controls_not_detected", model: "", duration: "" };
+    }
+  }
   function publish() {
     var on = isEnabled();
     var documentElement = root.document.documentElement;
-    if (documentElement) documentElement.setAttribute(STATE_ATTRIBUTE, on ? "true" : "false");
+    if (documentElement) documentElement.setAttribute(STATE_ATTRIBUTE, on ? "1" : "0");
     try { root.document.dispatchEvent(new Event(STATE_EVENT)); } catch (_) {}
   }
   function render() {
@@ -251,6 +282,7 @@
       rewriteDolaTimeline: rewriteDolaTimeline,
       getOriginalOptions: getOriginalOptions,
       setOriginalOptions: setOriginalOptions,
+      getDolaPlatformSelectionStatus: getDolaPlatformSelectionStatus,
       limitations: Object.freeze({ networkRewrite: true, autoSubmit: false, watermarkBypass: false })
     });
     return;
@@ -268,6 +300,7 @@
     rewriteDolaTimeline: rewriteDolaTimeline,
     getOriginalOptions: getOriginalOptions,
     setOriginalOptions: setOriginalOptions,
+    getDolaPlatformSelectionStatus: getDolaPlatformSelectionStatus,
     limitations: Object.freeze({ networkRewrite: false, autoSubmit: false, watermarkBypass: false })
   });
 

@@ -119,7 +119,36 @@ test("adapter reads and writes only the original script's existing option keys",
   });
 });
 
-test("adapter allows exact Dola/Doubao subdomains but not lookalike domains", () => {
+
+test("read-only page-selection status separates displayed Dola controls from local state", () => {
+  function fixture(host, modelText, durationText, shown = true) {
+    const attrs = [], values = new Map();
+    const model = { textContent:modelText,isConnected:shown,getBoundingClientRect(){return {width:100,height:24};} };
+    const duration = { textContent:durationText,isConnected:shown,getBoundingClientRect(){return {width:60,height:24};} };
+    const page = {
+      top:null,location:{hostname:host},
+      getComputedStyle(){return {display:shown?"block":"none",visibility:"visible",opacity:"1"};},
+      document:{documentElement:{setAttribute(k,v){attrs.push([k,v]);}},readyState:"loading",addEventListener(){},dispatchEvent(){},
+        querySelector(selector){return selector.includes("video-model")?model:duration;}},
+      localStorage:{getItem(k){return values.has(k)?values.get(k):null;},setItem(k,v){values.set(k,String(v));}}
+    };
+    page.top=page;vm.runInNewContext(source,{window:page,Event:function Event(){}});
+    return {page,attrs,model,duration};
+  }
+  const match=fixture("www.dola.com","Seedance 2.5","30s");
+  assert.equal(match.page.dola30Android.getDolaPlatformSelectionStatus().status,"selection_matches_30s");
+  const different=fixture("www.dola.com","Seedance 2.0","15秒");
+  assert.equal(different.page.dola30Android.getDolaPlatformSelectionStatus().status,"detected_not_30s");
+  const hidden=fixture("www.dola.com","Seedance 2.5","30s",false);
+  assert.equal(hidden.page.dola30Android.getDolaPlatformSelectionStatus().status,"controls_not_detected");
+  const doubao=fixture("www.doubao.com","Seedance 2.5","30s");
+  assert.equal(doubao.page.dola30Android.getDolaPlatformSelectionStatus().status,"not_applicable");
+  match.page.setDola30s(true);
+  assert.deepEqual(match.attrs.at(-1),["data-watermark-free-duration-30","1"]);
+  assert.equal(match.model.textContent,"Seedance 2.5");
+  assert.equal(match.duration.textContent,"30s");
+});
+\ntest("adapter allows exact Dola/Doubao subdomains but not lookalike domains", () => {
   function createPage(hostname) {
     const page = {
       top: null,

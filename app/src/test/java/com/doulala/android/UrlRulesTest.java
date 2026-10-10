@@ -48,6 +48,13 @@ public class UrlRulesTest {
         assertTrue(unavailable.contains("页面资源观察：未启用"));
         assertTrue(unavailable.contains("fallback API 解析：未实现"));
     }
+    @Test public void platformSelectionLabelsRemainReadOnlyAndNonPromissory(){
+        assertTrue(BrowserActivity.platformSelectionSummary("selection_matches_30s").contains("只读"));
+        assertTrue(BrowserActivity.platformSelectionSummary("selection_matches_30s").contains("不代表服务端接受"));
+        assertTrue(BrowserActivity.platformSelectionSummary("detected_not_30s").contains("当前选择不是"));
+        assertTrue(BrowserActivity.platformSelectionSummary("not_applicable").contains("仅适用于 Dola"));
+        assertTrue(BrowserActivity.platformSelectionSummary("controls_not_detected").contains("不推断平台能力"));
+    }
     @Test public void filenamesAreBoundedAndFlat() {
         String file = UrlRules.safeFilename("../../secret:?.mp4", "media.mp4");
         assertFalse(file.contains("/"));

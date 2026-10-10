@@ -79,6 +79,44 @@ public class WebViewAdapterInstrumentationTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
     }
 
+
+    @Test public void pageSelectionStatusIsReadOnlyAndSeparateFromLocalToggle() throws Exception {
+        assertTrue(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
+        String adapter=readAsset("dola30-android-adapter.js");
+        AtomicReference<WebView> viewRef=new AtomicReference<>();
+        AtomicReference<String> resultHolder=new AtomicReference<>();
+        CountDownLatch finished=new CountDownLatch(1);
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(()->{
+            WebView view=new WebView(context);view.getSettings().setJavaScriptEnabled(true);view.getSettings().setDomStorageEnabled(true);
+            viewRef.set(view);
+            try { WebViewCompat.addDocumentStartJavaScript(view,adapter,new HashSet<>(Arrays.asList("https://dola.com","https://*.dola.com"))); }
+            catch(Exception e){throw new AssertionError("Could not install Android adapter",e);}
+            view.setWebViewClient(new android.webkit.WebViewClient(){
+                @Override public void onPageFinished(WebView webView,String url){
+                    webView.evaluateJavascript("(function(){"
+                        +"var api=window.dola30Android;window.setDola30s(false);"
+                        +"var match=api.getDolaPlatformSelectionStatus();"
+                        +"document.querySelector('[data-input-engine-actionbar-control-key=video-model]').textContent='Seedance 2.0';"
+                        +"var mismatch=api.getDolaPlatformSelectionStatus();"
+                        +"return JSON.stringify({match:match,mismatch:mismatch,local:JSON.parse(window.getDola30sStatus()),model:document.querySelector('[data-input-engine-actionbar-control-key=video-model]').textContent});"
+                        +"})()",value->{resultHolder.set(value);finished.countDown();});
+                }
+            });
+            view.loadDataWithBaseURL("https://www.dola.com/","<!doctype html><html><body>"
+                +"<button data-input-engine-actionbar-control-key=\"video-model\">Seedance 2.5</button>"
+                +"<button data-input-engine-actionbar-control-key=\"video-duration\">30s</button>"
+                +"</body></html>","text/html","UTF-8",null);
+        });
+        assertTrue("Selection fixture did not finish",finished.await(20,TimeUnit.SECONDS));
+        Object decoded=new JSONTokener(resultHolder.get()).nextValue();assertTrue(decoded instanceof String);
+        JSONObject result=new JSONObject((String)decoded);
+        assertEquals("selection_matches_30s",result.getJSONObject("match").getString("status"));
+        assertEquals("detected_not_30s",result.getJSONObject("mismatch").getString("status"));
+        assertFalse(result.getJSONObject("local").getBoolean("on"));
+        assertEquals("Seedance 2.0",result.getString("model"));
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(viewRef.get()::destroy);
+    }
+
     @Test public void privacyCleanModeBlocksFingerprintApisWithoutSpoofingWebViewUa() throws Exception {
         assertTrue(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
         String privacy = readAsset("fingerprint-privacy/content-main.js");

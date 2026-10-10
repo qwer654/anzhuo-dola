@@ -371,13 +371,21 @@ public class BrowserActivity extends Activity {
             Ui.toast(this,"30S 工具仅在白名单网页可用");return;
         }
         final Tab t=active;final int navigation=t.navigation;
-        t.view.evaluateJavascript("window.getDola30sStatus?window.getDola30sStatus():null",value->{
+        String query="(function(){var state=window.getDola30sStatus?JSON.parse(window.getDola30sStatus()):null;"+
+            "var page=window.dola30Android&&window.dola30Android.getDolaPlatformSelectionStatus?"+
+            "window.dola30Android.getDolaPlatformSelectionStatus():{status:'controls_not_detected'};"+
+            "return JSON.stringify({state:state,page:page});})()";
+        t.view.evaluateJavascript(query,value->{
             if(destroyed||t.closed||t.view==null||t.navigation!=navigation||t!=active)return;
-            JSONObject state=parseJsObject(value);
+            JSONObject result=parseJsObject(value);
+            JSONObject state=result==null?null:result.optJSONObject("state");
             if(state==null){Ui.toast(this,"当前 WebView 未加载 30S 工具");return;}
             boolean on=state.optBoolean("on",false);
+            JSONObject page=result.optJSONObject("page");
+            String pageSelection=platformSelectionSummary(page==null?"controls_not_detected":page.optString("status","controls_not_detected"));
             boolean originalEnabled=prefs.getBoolean("originalDola30",false);
-            String message="当前页面目标时长："+state.optInt("duration",15)+" 秒\n"+
+            String message="Android 本地请求状态："+state.optInt("duration",15)+" 秒（"+(on?"已启用":"未启用")+"）\n"+
+                pageSelection+"\n"+
                 (originalEnabled?"原版 Dola30 JS 已启用：按原脚本逻辑可能更改页面状态、提示词或匹配请求中的用户文本；应用不会自动提交。\n":
                     "Android 默认适配只保存页面状态并提供本地提示词工具，不改写网页请求。\n")+
                 durationToolCapabilitySummary(t.probe)+"\n"+
@@ -387,6 +395,12 @@ public class BrowserActivity extends Activity {
                 .setNeutralButton("转换提示词时间轴",(d,w)->showTimelineRewrite())
                 .setPositiveButton(on?"切换为 15S":"启用 30S",(d,w)->setDurationState(!on)).show();
         });
+    }
+    static String platformSelectionSummary(String status) {
+        if("selection_matches_30s".equals(status))return "页面控件检测：显示 Seedance 2.5 + 30s（只读；不代表服务端接受或实际生成时长）";
+        if("detected_not_30s".equals(status))return "页面控件检测：已找到视频模型/时长控件，但当前选择不是 Seedance 2.5 + 30s";
+        if("not_applicable".equals(status))return "页面控件检测：此功能仅适用于 Dola 页面";
+        return "页面控件检测：未检测到可见的视频模型/时长控件；不推断平台能力";
     }
     static String durationToolCapabilitySummary(boolean pageProbeEnabled) {
         return "页面资源观察："+(pageProbeEnabled?"已注入，仅观察页面已暴露的 URL":"未启用，当前网页或 WebView 未提供该能力")+"\n"+
