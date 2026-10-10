@@ -346,7 +346,7 @@ test("floating 30S control minimizes, persists the supplied key, and expands wit
     document: {
       readyState: "complete", documentElement: { setAttribute() {} }, dispatchEvent() {},
       getElementById(id) { return elements.get(id) || null; },
-      createElement() { return { id: "", style: {}, offsetWidth: 160, offsetHeight: 40, setAttribute() {},
+      createElement() { return { id: "", style: {}, offsetWidth: 160, offsetHeight: 40, setAttribute(name, value) { this[name] = value; },
         addEventListener(name, callback) { listeners.set(this.id + ":" + name, callback); }, setPointerCapture() {}, releasePointerCapture() {} }; },
       body: { appendChild(element) { elements.set(element.id, element); } }
     }
@@ -360,6 +360,7 @@ test("floating 30S control minimizes, persists the supplied key, and expands wit
   listeners.get("dola30-android-control-minimize:click")();
   assert.equal(values.get("intl_doubao_media_panel_minimized_v1"), "1");
   assert.equal(control.textContent, "30S");
+  assert.equal(control["aria-label"], "展开 Android WebView 30 秒工具");
   assert.equal(control.style.display, undefined);
   assert.equal(minimize.style.display, "none");
   assert.equal(page.dola30Android.getDola30sStatus().includes('"on":false'), true);
