@@ -137,7 +137,17 @@ public class WebViewAdapterInstrumentationTest {
                 throw new AssertionError("Could not install privacy-clean WebGL reduction", e);
             }
             view.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override public android.webkit.WebResourceResponse shouldInterceptRequest(
+                        WebView webView, android.webkit.WebResourceRequest request) {
+                    if ("https://www.dola.com/privacy-frame".equals(request.getUrl().toString())) {
+                        String html = "<!doctype html><html><body>privacy frame</body></html>";
+                        return new android.webkit.WebResourceResponse("text/html", "UTF-8",
+                            new java.io.ByteArrayInputStream(html.getBytes(StandardCharsets.UTF_8)));
+                    }
+                    return super.shouldInterceptRequest(webView, request);
+                }
                 @Override public void onPageFinished(WebView webView, String url) {
+                    if (!"https://www.dola.com/".equals(url)) return;
                     String expectedUa = JSONObject.quote(webView.getSettings().getUserAgentString());
                     webView.evaluateJavascript("JSON.stringify({"
                         + "settings:window.__dolaFingerprintPrivacy.getSettings(),"
@@ -145,11 +155,14 @@ public class WebViewAdapterInstrumentationTest {
                         + "debugResult:(window.WebGLRenderingContext ? WebGLRenderingContext.prototype.getExtension.call({},'WEBGL_debug_renderer_info') : 'unavailable'),"
                         + "canvasBlocked:(()=>{try{document.createElement('canvas').toDataURL();return false}catch(e){return e.name==='SecurityError'}})(),"
                         + "audioBlocked:(!window.OfflineAudioContext || (()=>{try{new OfflineAudioContext(1,1,44100);return false}catch(e){return e.name==='SecurityError'}})()),"
-                        + "rtcBlocked:(!window.RTCPeerConnection || (()=>{try{new RTCPeerConnection();return false}catch(e){return e.name==='SecurityError'}})())"
+                        + "rtcBlocked:(!window.RTCPeerConnection || (()=>{try{new RTCPeerConnection();return false}catch(e){return e.name==='SecurityError'}})()),"
+                        + "frameApi:!!document.getElementById('privacy-frame').contentWindow.__dolaFingerprintPrivacy,"
+                        + "frameCanvasBlocked:(()=>{try{document.getElementById('privacy-frame').contentWindow.document.createElement('canvas').toDataURL();return false}catch(e){return e.name==='SecurityError'}})()"
                         + "})", value -> { resultHolder.set(value); finished.countDown(); });
                 }
             });
-            view.loadDataWithBaseURL("https://www.dola.com/", "<!doctype html><html><body>privacy fixture</body></html>",
+            view.loadDataWithBaseURL("https://www.dola.com/", "<!doctype html><html><body>privacy fixture"
+                + "<iframe id='privacy-frame' src='https://www.dola.com/privacy-frame'></iframe></body></html>",
                 "text/html", "UTF-8", null);
         });
         assertTrue("Privacy fixture did not finish", finished.await(20, TimeUnit.SECONDS));
@@ -164,6 +177,8 @@ public class WebViewAdapterInstrumentationTest {
         assertFalse("Android must keep actual WebView UA instead of injecting the extension's fixed UA",
             result.getJSONObject("settings").getBoolean("cleanMode"));
         assertEquals(result.getString("expectedUa"), result.getString("ua"));
+        assertTrue("Eligible same-origin iframe did not install the privacy module", result.getBoolean("frameApi"));
+        assertTrue("Privacy API reductions were not applied in eligible iframe", result.getBoolean("frameCanvasBlocked"));
         assertTrue("Canvas readback was not disabled", result.getBoolean("canvasBlocked"));
         assertTrue("Offline audio was not disabled where exposed", result.getBoolean("audioBlocked"));
         assertTrue("WebRTC was not disabled where exposed", result.getBoolean("rtcBlocked"));
