@@ -113,11 +113,14 @@ test('live observer keeps fetch/XHR responses untouched while collecting readabl
   ].sort());
   assert.equal(Array.from(root.__dolaAndroidDrain()).length, 0);
   domNodes = [{ tagName: 'IMG', currentSrc: 'https://cdn.example/dom.jpg?sig=e%2Ff', src: '',
-    srcset: 'https://cdn.example/dom.jpg?sig=e%2Ff 1x, https://cdn.example/dom2.jpg?sig=g%2Fh 2x' }];
+    srcset: 'https://cdn.example/dom.jpg?sig=e%2Ff 1x, https://cdn.example/dom2.jpg?sig=g%2Fh 2x' },
+  { tagName: 'SOURCE', parentElement: { tagName: 'PICTURE' }, src: '',
+    srcset: 'https://cdn.example/picture.avif?sig=i%2Fj 1x' }];
   root.__dolaAndroidScan();
   assert.deepEqual(Array.from(root.__dolaAndroidDrain(), item => item.url).sort(), [
     'https://cdn.example/dom.jpg?sig=e%2Ff',
-    'https://cdn.example/dom2.jpg?sig=g%2Fh'
+    'https://cdn.example/dom2.jpg?sig=g%2Fh',
+    'https://cdn.example/picture.avif?sig=i%2Fj'
   ].sort());
 });
 test('prompt timeline handles timestamps and English/Chinese seconds', () => {
