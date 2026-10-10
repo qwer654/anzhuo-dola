@@ -53,4 +53,4 @@
 APK 为 debug 构建，runner 的临时签名可能导致无法覆盖旧 APK。必要时卸载再装会清除应用数据；升级前应先导出工作台 JSON、Cookie 快照（若确有需要）及下载中心中已另存的文件。Cookie 快照包含明文会话凭证，不能作为安全备份或提交到仓库。
 
 
-- WebView 标签现在以兼容旧 URL 数组的 JSON 对象格式保存导航历史；Parcel/Base64 总预算限制为 96 KiB，单标签原始状态限制 36 KiB，损坏或过大状态安全回退到 URL。新增 instrumentation 使用本地受控页面检查两步历史可恢复和返回栈；这不代表恢复表单/DOM/JavaScript 页面状态。此次本地尚无 Android SDK/Gradle 环境，需 GitHub Actions 结果验证。
+- WebView 标签现在以兼容旧 URL 数组的 JSON 对象格式保存导航历史；Parcel/Base64 总预算限制为 96 KiB，标签 JSON 总上限 512 KiB，单标签原始状态限制 36 KiB，损坏或过大状态安全回退到 URL。新增 instrumentation 使用本地受控页面检查两步历史可恢复和返回栈；这不代表恢复表单/DOM/JavaScript 页面状态。此次本地尚无 Android SDK/Gradle 环境，需 GitHub Actions 结果验证。
