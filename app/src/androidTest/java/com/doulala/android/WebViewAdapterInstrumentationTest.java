@@ -383,7 +383,7 @@ public class WebViewAdapterInstrumentationTest {
                         + "var minimize=document.getElementById('dola30-android-control-minimize');"
                         + "if(!control||!minimize)return JSON.stringify({missing:true});"
                         + "window.setDola30s(false);minimize.click();"
-                        + "var minimized={key:localStorage.getItem('intl_doubao_media_panel_minimized_v1'),text:control.textContent,hidden:minimize.style.display==='none',on:JSON.parse(window.getDola30sStatus()).on};"
+                        + "var minimized={key:localStorage.getItem('intl_doubao_media_panel_minimized_v1'),text:control.textContent,label:control.getAttribute('aria-label'),hidden:minimize.style.display==='none',on:JSON.parse(window.getDola30sStatus()).on};"
                         + "control.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:7,clientX:300,clientY:600,button:0}));"
                         + "control.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:7,clientX:300,clientY:600,button:0}));"
                         + "return JSON.stringify({minimized:minimized,key:localStorage.getItem('intl_doubao_media_panel_minimized_v1'),text:control.textContent,on:JSON.parse(window.getDola30sStatus()).on});"
@@ -401,6 +401,7 @@ public class WebViewAdapterInstrumentationTest {
         JSONObject minimized = result.getJSONObject("minimized");
         assertEquals("1", minimized.getString("key"));
         assertEquals("30S", minimized.getString("text"));
+        assertEquals("展开 Android WebView 30 秒工具", minimized.getString("label"));
         assertTrue(minimized.getBoolean("hidden"));
         assertFalse(minimized.getBoolean("on"));
         assertEquals("0", result.getString("key"));
