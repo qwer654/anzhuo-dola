@@ -256,12 +256,15 @@ public class BrowserActivity extends Activity {
         }
         new AlertDialog.Builder(this).setTitle("当前标签资源（"+active.media.size()+"）").setView(Ui.scroll(this,list)).setPositiveButton("关闭",null).show();
     }
-    private void copyMediaUrl(String url) {
-        if(url==null||url.trim().isEmpty()){Ui.toast(this,"资源链接为空");return;}
-        ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-        if(clipboard==null){Ui.toast(this,"剪贴板不可用");return;}
+    static boolean writeMediaUrlToClipboard(Context context,String url) {
+        if(context==null||url==null||url.trim().isEmpty())return false;
+        ClipboardManager clipboard=(ClipboardManager)context.getSystemService(CLIPBOARD_SERVICE);
+        if(clipboard==null)return false;
         clipboard.setPrimaryClip(ClipData.newPlainText("媒体链接",url));
-        Ui.toast(this,"资源链接已复制");
+        return true;
+    }
+    private void copyMediaUrl(String url) {
+        Ui.toast(this,writeMediaUrlToClipboard(this,url)?"资源链接已复制":"资源链接复制失败");
     }
     private void showDurationTool() {
         if(active==null||active.view==null||!UrlRules.trusted(active.view.getUrl())){

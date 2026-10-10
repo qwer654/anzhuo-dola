@@ -1,6 +1,8 @@
 package com.doulala.android;
 
 import android.content.Context;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.webkit.WebView;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -79,6 +81,19 @@ public class WebViewAdapterInstrumentationTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(view::destroy);
     }
 
+    @Test public void observedMediaLinkCopyWritesExactUrlToClipboard() {
+        ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        assertNotNull(clipboard);
+        String fixture = "https://cdn.example.test/media?id=abc%2F123&quality=hd";
+        try {
+            clipboard.clearPrimaryClip();
+            assertTrue(BrowserActivity.writeMediaUrlToClipboard(context, fixture));
+            assertEquals(fixture, clipboard.getPrimaryClip().getItemAt(0).coerceToText(context).toString());
+            assertFalse(BrowserActivity.writeMediaUrlToClipboard(context, "  "));
+        } finally {
+            clipboard.clearPrimaryClip();
+        }
+    }
     private String readAsset(String name) throws Exception {
         try (InputStream in = context.getAssets().open(name); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[8192];
