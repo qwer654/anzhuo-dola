@@ -103,7 +103,7 @@ final class CookieTransfer {
                         List<String> pairs=CookieRules.parse(o.getString("cookieHeader"));
                         activity.runOnUiThread(()->{busy=false;if(alive())confirmImport(target,pairs,false);});
                     }
-                } catch(Exception ignored){activity.runOnUiThread(()->{busy=false;tell("导入被拒绝：需同站点、UTF-8、版本 1 的 Cookie 快照，且格式/大小有效");});}
+                } catch(Exception ignored){activity.runOnUiThread(()->{busy=false;tell("导入被拒绝：需有效 UTF-8 快照或 Dola CK 汇总，且来源站点、大小和 Cookie 格式符合限制");});}
             });
         }
         return true;
