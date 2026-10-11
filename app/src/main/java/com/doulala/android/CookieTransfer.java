@@ -115,8 +115,12 @@ final class CookieTransfer {
         }
         String[] labels=new String[entries.size()];
         for(int i=0;i<entries.size();i++) labels[i]=entries.get(i).label+"（"+entries.get(i).cookies.size()+" 项 Cookie）";
+        if(entries.size()==1) {
+            confirmImport(target,entries.get(0).cookies,true);
+            return;
+        }
         new AlertDialog.Builder(activity).setTitle("选择一个 Dola CK 账号")
-            .setMessage("每次仅导入一个账号。来源站点由你确认；不读取或应用 UA、指纹、代理字段。")
+            // AlertDialog lists cannot render a message and list together reliably on MIUI.
             .setItems(labels,(dialog,index)->{
                 if(index>=0 && index<entries.size())confirmImport(target,entries.get(index).cookies,true);
             }).setNegativeButton("取消",null).show();
