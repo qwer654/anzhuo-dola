@@ -7,8 +7,8 @@ import android.widget.*;
 
 public final class MainActivity extends Activity {
     private SharedPreferences settings;
-    public static final String[] SITES={"豆包","Dola","即梦","千问","云雀"};
-    public static final String[] URLS={"https://www.doubao.com/chat/","https://www.dola.com/","https://jimeng.jianying.com/","https://www.qianwen.com/","https://yunq.jianying.com/"};
+    public static final String[] SITES={"Dola","豆包","即梦","千问","云雀"};
+    public static final String[] URLS={"https://www.dola.com/","https://www.doubao.com/chat/","https://jimeng.jianying.com/","https://www.qianwen.com/","https://yunq.jianying.com/"};
     private static final Class<?>[] SPACES={BrowserActivity.Space0.class,BrowserActivity.Space1.class,BrowserActivity.Space2.class,BrowserActivity.Space3.class,BrowserActivity.Space4.class,BrowserActivity.Space5.class,BrowserActivity.Space6.class,BrowserActivity.Space7.class};
     @Override public void onCreate(Bundle state) { super.onCreate(state); Ui.setup(this); settings=getSharedPreferences("catalog",MODE_PRIVATE); render(); }
     private void render() {
@@ -35,7 +35,9 @@ public final class MainActivity extends Activity {
             Button enterSpace=Ui.button(this,"进入空间",()->open(slot));
             enterSpace.setContentDescription("进入空间："+settings.getString("name"+i,"创作空间 "+(i+1)));
             Ui.equal(buttons,enterSpace);
-            Ui.equal(buttons,Ui.button(this,"设置",()->edit(slot))); card.addView(buttons); root.addView(card);
+            Ui.equal(buttons,Ui.button(this,"设置",()->edit(slot)));
+            if(slot!=0) Ui.equal(buttons,Ui.button(this,"删除",()->confirmDeleteSpace(slot)));
+            card.addView(buttons); root.addView(card);
         }
         if(used<8) root.addView(Ui.button(this,"＋ 新建独立空间",()->{ for(int i=0;i<8;i++) if(!settings.getBoolean("enabled"+i,i==0)) {edit(i); break;} }));
         root.addView(Ui.button(this,"移植范围与使用说明",this::about));
@@ -48,6 +50,26 @@ public final class MainActivity extends Activity {
         i.putExtra("home",settings.getString("url"+slot,URLS[0]));
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(i);
+    }
+    private void confirmDeleteSpace(int slot) {
+        String name=settings.getString("name"+slot,"创作空间 "+(slot+1));
+        new AlertDialog.Builder(this).setTitle("删除账号空间？")
+            .setMessage("将删除“"+name+"”及该空间在本机保存的 Cookie、网页存储、标签、书签和应用下载。已通过系统“另存到”保存到其它位置的文件不受影响。此操作不可撤销；不会影响其他空间。")
+            .setNegativeButton("取消",null).setPositiveButton("删除",(d,w)->{
+                Intent i=new Intent(this,SPACES[slot]).putExtra(BrowserActivity.EXTRA_CLEAR_PROFILE,true);
+                try { startActivityForResult(i,1000+slot); }
+                catch(RuntimeException e) { Ui.toast(this,"无法启动空间清理，未删除空间"); }
+            }).show();
+    }
+    @Override protected void onActivityResult(int request,int result,Intent data) {
+        super.onActivityResult(request,result,data);
+        int slot=request-1000;
+        if(slot<1||slot>=SPACES.length)return;
+        if(result==RESULT_OK && data!=null && data.getBooleanExtra(BrowserActivity.EXTRA_PROFILE_CLEARED,false)) {
+            boolean removed=settings.edit().remove("enabled"+slot).remove("name"+slot).remove("url"+slot).commit();
+            if(removed){Ui.toast(this,"账号空间及本机数据已删除");render();}
+            else Ui.toast(this,"空间数据已清理，但目录更新失败；请重试");
+        } else Ui.toast(this,"空间未删除；清理未确认成功");
     }
     private void edit(int slot) {
         LinearLayout form=Ui.column(this); Ui.pad(form,20);
