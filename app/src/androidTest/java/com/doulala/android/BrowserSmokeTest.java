@@ -60,7 +60,7 @@ public class BrowserSmokeTest {
         device.waitForIdle();
         menu("打开书签");waitFor(By.text("Smoke bookmark"));screenshot("bookmarks");tap("关闭");
         menu("下载中心");waitFor(By.text("暂无下载记录"));screenshot("downloads");tap("关闭");
-        menu("Cookie 手动迁移");waitFor(By.text("Cookie 手动迁移（有限快照）"));screenshot("cookies");tap("取消");
+        menu("Cookie / CK 导入导出");waitFor(By.text("Cookie 手动迁移（有限快照）"));screenshot("cookies");tap("取消");
         menu("回到空间列表");openSpace("测试空间七");
         waitFor(By.text("标签 2"));menu("打开书签");waitFor(By.text("Smoke bookmark"));tap("关闭");
         menu("回到空间列表");openSpace("测试空间八");
@@ -91,6 +91,7 @@ public class BrowserSmokeTest {
         tap("恢复此空间");
         waitFor(By.text("恢复账号空间？"));
         tap("恢复");
+        assertTrue("Restored test space is not reachable",catalog.scrollIntoView(new UiSelector().description("进入空间：可恢复测试空间")));
         waitFor(By.desc("进入空间：可恢复测试空间"));
         assertTrue(context.getSharedPreferences("catalog",Context.MODE_PRIVATE).getBoolean("enabled1",false));
         assertFalse(context.getSharedPreferences("catalog",Context.MODE_PRIVATE).getBoolean("archived1",true));
