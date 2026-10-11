@@ -12,6 +12,7 @@ public final class MainActivity extends Activity {
     private static final Class<?>[] SPACES={BrowserActivity.Space0.class,BrowserActivity.Space1.class,BrowserActivity.Space2.class,BrowserActivity.Space3.class,BrowserActivity.Space4.class,BrowserActivity.Space5.class,BrowserActivity.Space6.class,BrowserActivity.Space7.class};
     @Override public void onCreate(Bundle state) { super.onCreate(state); Ui.setup(this); settings=getSharedPreferences("catalog",MODE_PRIVATE); render(); }
     private void render() {
+        migrateRetiredSpaceState();
         LinearLayout root=Ui.column(this); root.setBackgroundColor(Ui.BG); Ui.pad(root,20);
         root.addView(Ui.text(this,"DOULALA  /  ANDROID",12,Ui.ACCENT));
         root.addView(Ui.title(this,"把灵感，带在身边。",27));
@@ -36,11 +37,29 @@ public final class MainActivity extends Activity {
             enterSpace.setContentDescription("进入空间："+settings.getString("name"+i,"创作空间 "+(i+1)));
             Ui.equal(buttons,enterSpace);
             Ui.equal(buttons,Ui.button(this,"设置",()->edit(slot)));
-            if(slot!=0) Ui.equal(buttons,Ui.button(this,"删除",()->confirmDeleteSpace(slot)));
+            if(slot!=0) Ui.equal(buttons,Ui.button(this,"归档",()->confirmArchiveSpace(slot)));
             card.addView(buttons); root.addView(card);
         }
-        int reusable=0; for(int i=1;i<8;i++) if(!settings.getBoolean("enabled"+i,false)&&!settings.getBoolean("retired"+i,false)) reusable++;
-        if(reusable>0) root.addView(Ui.button(this,"＋ 新建独立空间",()->{ for(int i=1;i<8;i++) if(!settings.getBoolean("enabled"+i,false)&&!settings.getBoolean("retired"+i,false)) {edit(i); break;} }));
+        int archived=0;
+        LinearLayout archivedList=Ui.column(this); Ui.pad(archivedList,4);
+        for(int i=1;i<8;i++) if(settings.getBoolean("archived"+i,false)) {
+            archived++;
+            final int slot=i;
+            String archivedName=settings.getString("archivedName"+i,"创作空间 "+(i+1));
+            LinearLayout card=Ui.card(this);
+            card.addView(Ui.text(this,"已归档 · SPACE "+String.format(java.util.Locale.ROOT,"%02d",i+1),11,Ui.MUTED));
+            card.addView(Ui.title(this,archivedName,17));
+            card.addView(Ui.text(this,settings.getString("archivedUrl"+i,URLS[0]),12,Ui.MUTED));
+            card.addView(Ui.button(this,"恢复此空间",()->confirmRestoreSpace(slot)));
+            archivedList.addView(card);
+        }
+        if(archived>0) {
+            root.addView(Ui.title(this,"已归档空间",19));
+            root.addView(Ui.text(this,"归档仅从主列表隐藏。恢复会重新开放原空间，并保留其原有网页登录态、标签和本机数据。",12,Ui.MUTED));
+            root.addView(archivedList);
+        }
+        int reusable=0; for(int i=1;i<8;i++) if(!settings.getBoolean("enabled"+i,false)&&!settings.getBoolean("archived"+i,false)&&!settings.getBoolean("retired"+i,false)) reusable++;
+        if(reusable>0) root.addView(Ui.button(this,"＋ 新建独立空间",()->{ for(int i=1;i<8;i++) if(!settings.getBoolean("enabled"+i,false)&&!settings.getBoolean("archived"+i,false)&&!settings.getBoolean("retired"+i,false)) {edit(i); break;} }));
         root.addView(Ui.button(this,"移植范围与使用说明",this::about));
         root.addView(Ui.text(this,"数据保存在本机 · 不自动同步桌面登录态\n空间由 Android 管理，后台进程可能被系统回收。",12,Ui.MUTED));
         setContentView(Ui.scroll(this,root));
@@ -52,14 +71,40 @@ public final class MainActivity extends Activity {
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(i);
     }
-    private void confirmDeleteSpace(int slot) {
+    private void migrateRetiredSpaceState() {
+        SharedPreferences.Editor e=settings.edit(); boolean changed=false;
+        for(int i=1;i<8;i++) if(settings.getBoolean("retired"+i,false)&&!settings.getBoolean("archived"+i,false)) {
+            e.putBoolean("archived"+i,true)
+                .putString("archivedName"+i,settings.getString("name"+i,"创作空间 "+(i+1)))
+                .putString("archivedUrl"+i,settings.getString("url"+i,URLS[0]))
+                .remove("retired"+i);
+            changed=true;
+        }
+        if(changed)e.commit();
+    }
+    private void confirmArchiveSpace(int slot) {
         String name=settings.getString("name"+slot,"创作空间 "+(slot+1));
-        new AlertDialog.Builder(this).setTitle("从列表移除账号空间？")
-            .setMessage("将移除“"+name+"”的空间入口和配置。重要：此版本不能安全地单独擦除该 WebView 进程的 Cookie/网页存储，因此本机网页登录态会保留且无法从列表访问；该槽位不会再分配给新空间，避免把旧登录态带给新账号。需要彻底清除本机所有空间数据时，请使用 Android 系统的应用存储清除功能。")
-            .setNegativeButton("取消",null).setPositiveButton("移除",(d,w)->{
-                boolean removed=settings.edit().remove("enabled"+slot).remove("name"+slot).remove("url"+slot).putBoolean("retired"+slot,true).commit();
-                if(removed){Ui.toast(this,"空间入口已移除；本机网页数据保留");render();}
-                else Ui.toast(this,"移除失败；设置未更改");
+        new AlertDialog.Builder(this).setTitle("归档账号空间？")
+            .setMessage("“"+name+"”会从主列表隐藏，但不会清除 Cookie、网页存储、标签、书签或下载。它仍占用一个名额；你可在“已归档空间”中恢复原空间和原登录态。")
+            .setNegativeButton("取消",null).setPositiveButton("归档空间",(d,w)->{
+                String url=settings.getString("url"+slot,URLS[0]);
+                boolean saved=settings.edit().putBoolean("enabled"+slot,false).putBoolean("archived"+slot,true)
+                    .putString("archivedName"+slot,name).putString("archivedUrl"+slot,url)
+                    .remove("name"+slot).remove("url"+slot).commit();
+                if(saved){Ui.toast(this,"空间已归档；本机数据保留，可随时恢复");render();}
+                else Ui.toast(this,"归档失败；设置未更改");
+            }).show();
+    }
+    private void confirmRestoreSpace(int slot) {
+        String name=settings.getString("archivedName"+slot,"创作空间 "+(slot+1));
+        new AlertDialog.Builder(this).setTitle("恢复账号空间？")
+            .setMessage("恢复“"+name+"”会重新开放同一隔离空间，并恢复本机原有网页登录态、标签和数据；不会创建空白空间。")
+            .setNegativeButton("取消",null).setPositiveButton("恢复",(d,w)->{
+                boolean restored=settings.edit().putBoolean("enabled"+slot,true).putString("name"+slot,name)
+                    .putString("url"+slot,settings.getString("archivedUrl"+slot,URLS[0]))
+                    .remove("archived"+slot).remove("archivedName"+slot).remove("archivedUrl"+slot).commit();
+                if(restored){Ui.toast(this,"原账号空间已恢复");render();}
+                else Ui.toast(this,"恢复失败；归档数据仍保留");
             }).show();
     }
     private void edit(int slot) {
