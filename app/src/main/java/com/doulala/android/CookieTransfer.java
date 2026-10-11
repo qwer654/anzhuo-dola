@@ -139,7 +139,10 @@ final class CookieTransfer {
                 busy=true;writing=true;apply(target,pairs,0,0);
             });
         if(fromCk)confirmation.setNeutralButton("Dola兼容方式",(d,w)->confirmDolaCompatibility(target,pairs));
-        confirmation.show();
+        AlertDialog shown=confirmation.show();
+        // Framework button themes may transform "Dola" to "DOLA".
+        // Keep the visible action identical to the documented/tested label.
+        if(fromCk)shown.getButton(AlertDialog.BUTTON_NEUTRAL).setAllCaps(false);
     }
 
     private void confirmDolaCompatibility(String target,List<String> pairs) {
