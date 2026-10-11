@@ -39,7 +39,8 @@ public final class MainActivity extends Activity {
             if(slot!=0) Ui.equal(buttons,Ui.button(this,"删除",()->confirmDeleteSpace(slot)));
             card.addView(buttons); root.addView(card);
         }
-        if(used<8) root.addView(Ui.button(this,"＋ 新建独立空间",()->{ for(int i=0;i<8;i++) if(!settings.getBoolean("enabled"+i,i==0)) {edit(i); break;} }));
+        int reusable=0; for(int i=1;i<8;i++) if(!settings.getBoolean("enabled"+i,false)&&!settings.getBoolean("retired"+i,false)) reusable++;
+        if(reusable>0) root.addView(Ui.button(this,"＋ 新建独立空间",()->{ for(int i=1;i<8;i++) if(!settings.getBoolean("enabled"+i,false)&&!settings.getBoolean("retired"+i,false)) {edit(i); break;} }));
         root.addView(Ui.button(this,"移植范围与使用说明",this::about));
         root.addView(Ui.text(this,"数据保存在本机 · 不自动同步桌面登录态\n空间由 Android 管理，后台进程可能被系统回收。",12,Ui.MUTED));
         setContentView(Ui.scroll(this,root));
@@ -53,23 +54,13 @@ public final class MainActivity extends Activity {
     }
     private void confirmDeleteSpace(int slot) {
         String name=settings.getString("name"+slot,"创作空间 "+(slot+1));
-        new AlertDialog.Builder(this).setTitle("删除账号空间？")
-            .setMessage("将删除“"+name+"”及该空间在本机保存的 Cookie、网页存储、标签、书签和应用下载。已通过系统“另存到”保存到其它位置的文件不受影响。此操作不可撤销；不会影响其他空间。")
-            .setNegativeButton("取消",null).setPositiveButton("删除",(d,w)->{
-                Intent i=new Intent(this,SPACES[slot]).putExtra(BrowserActivity.EXTRA_CLEAR_PROFILE,true);
-                try { startActivityForResult(i,1000+slot); }
-                catch(RuntimeException e) { Ui.toast(this,"无法启动空间清理，未删除空间"); }
+        new AlertDialog.Builder(this).setTitle("从列表移除账号空间？")
+            .setMessage("将移除“"+name+"”的空间入口和配置。重要：此版本不能安全地单独擦除该 WebView 进程的 Cookie/网页存储，因此本机网页登录态会保留且无法从列表访问；该槽位不会再分配给新空间，避免把旧登录态带给新账号。需要彻底清除本机所有空间数据时，请使用 Android 系统的应用存储清除功能。")
+            .setNegativeButton("取消",null).setPositiveButton("移除",(d,w)->{
+                boolean removed=settings.edit().remove("enabled"+slot).remove("name"+slot).remove("url"+slot).putBoolean("retired"+slot,true).commit();
+                if(removed){Ui.toast(this,"空间入口已移除；本机网页数据保留");render();}
+                else Ui.toast(this,"移除失败；设置未更改");
             }).show();
-    }
-    @Override protected void onActivityResult(int request,int result,Intent data) {
-        super.onActivityResult(request,result,data);
-        int slot=request-1000;
-        if(slot<1||slot>=SPACES.length)return;
-        if(result==RESULT_OK && data!=null && data.getBooleanExtra(BrowserActivity.EXTRA_PROFILE_CLEARED,false)) {
-            boolean removed=settings.edit().remove("enabled"+slot).remove("name"+slot).remove("url"+slot).commit();
-            if(removed){Ui.toast(this,"账号空间及本机数据已删除");render();}
-            else Ui.toast(this,"空间数据已清理，但目录更新失败；请重试");
-        } else Ui.toast(this,"空间未删除；清理未确认成功");
     }
     private void edit(int slot) {
         LinearLayout form=Ui.column(this); Ui.pad(form,20);
