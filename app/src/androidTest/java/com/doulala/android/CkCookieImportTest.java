@@ -20,6 +20,18 @@ public class CkCookieImportTest {
         assertEquals(1,entries.get(1).cookies.size());
     }
 
+    @Test public void parsesSingleAccountDolaFetchCkExportAndIgnoresMetadata() throws Exception {
+        String json="{\"email\":\"private@example.test\",\"uid\":\"fixture-uid\","
+            +"\"cookie\":\"sid=fixture123; csrf=fixture456\",\"registered_at\":\"fixture-date\","
+            +"\"fingerprint\":\"fixture-fp\",\"user_agent\":\"fixture-UA\",\"proxy\":\"fixture-proxy\"}";
+        List<CkCookieImport.Entry> entries=CkCookieImport.parse(json);
+        assertEquals(1,entries.size());
+        assertEquals("账号 1",entries.get(0).label);
+        assertEquals(2,entries.get(0).cookies.size());
+        assertEquals("sid=fixture123",entries.get(0).cookies.get(0));
+        assertEquals("csrf=fixture456",entries.get(0).cookies.get(1));
+    }
+
     @Test public void rejectsMalformedCookieAndExcessiveAccountCount() throws Exception {
         try {
             CkCookieImport.parse("{\"accounts\":[{\"cookie\":\"sid=ok; Domain=evil.test\"}]}");
