@@ -21,19 +21,28 @@ final class CkCookieImport {
         if(json==null || json.isEmpty() || json.length()>128*1024) throw new JSONException("invalid CK file size");
         JSONObject root=new JSONObject(json);
         JSONArray accounts=root.optJSONArray("accounts");
-        if(accounts==null || accounts.length()<1 || accounts.length()>MAX_ACCOUNTS) throw new JSONException("invalid accounts");
         ArrayList<Entry> out=new ArrayList<>();
-        for(int i=0;i<accounts.length();i++) {
-            JSONObject account=accounts.optJSONObject(i);
-            if(account==null) throw new JSONException("invalid account entry");
-            Object rawCookie=account.opt("cookie");
-            if(!(rawCookie instanceof String)) throw new JSONException("missing cookie");
-            List<String> pairs;
-            try { pairs=CookieRules.parse((String)rawCookie); }
-            catch(IllegalArgumentException invalid) { throw new JSONException("invalid cookie header"); }
-            out.add(new Entry("账号 "+(i+1),pairs));
-        }
+        if(accounts!=null) {
+            if(accounts.length()<1 || accounts.length()>MAX_ACCOUNTS) throw new JSONException("invalid accounts");
+            for(int i=0;i<accounts.length();i++) {
+                JSONObject account=accounts.optJSONObject(i);
+                if(account==null) throw new JSONException("invalid account entry");
+                out.add(parseEntry(account,i+1));
+            }
+        } else if(root.has("cookie")) {
+            // DolaFetchCk exports one account per JSON file at the document root.
+            out.add(parseEntry(root,1));
+        } else throw new JSONException("missing CK cookie data");
         return Collections.unmodifiableList(out);
+    }
+
+    private static Entry parseEntry(JSONObject account,int index) throws JSONException {
+        Object rawCookie=account.opt("cookie");
+        if(!(rawCookie instanceof String)) throw new JSONException("missing cookie");
+        List<String> pairs;
+        try { pairs=CookieRules.parse((String)rawCookie); }
+        catch(IllegalArgumentException invalid) { throw new JSONException("invalid cookie header"); }
+        return new Entry("账号 "+index,pairs);
     }
 
     static boolean isDolaTarget(String target) {
