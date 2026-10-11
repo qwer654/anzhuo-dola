@@ -4,6 +4,10 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class UrlRulesTest {
+    @Test public void primaryAccountSpaceDefaultsToDola() {
+        assertEquals("Dola", MainActivity.SITES[0]);
+        assertEquals("https://www.dola.com/", MainActivity.URLS[0]);
+    }
     @Test public void normalizeAcceptsWebUrlsOnly() {
         assertEquals("https://example.com/a?q=1", UrlRules.normalize("example.com/a?q=1"));
         assertNull(UrlRules.normalize("javascript:alert(1)"));
