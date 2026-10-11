@@ -33,6 +33,14 @@ android {
             versionNameSuffix '-validation'
             matchingFallbacks = ['debug']
         }
+        // Separate package for CK session checks: never requires deleting user data
+        // from the previously installed runner-signed debug/validation packages.
+        sessionValidation {
+            initWith debug
+            applicationIdSuffix '.ckcheck'
+            versionNameSuffix '-ckcheck'
+            matchingFallbacks = ['debug']
+        }
         release {
             minifyEnabled false
         }
