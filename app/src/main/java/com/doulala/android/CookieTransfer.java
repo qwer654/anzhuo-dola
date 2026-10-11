@@ -31,7 +31,7 @@ final class CookieTransfer {
         final String target;
         try {target=CookieRules.target(url);} catch(Exception e){tell("请先打开 HTTPS 网页");return;}
         new AlertDialog.Builder(activity).setTitle("Cookie 手动迁移（有限快照）")
-            .setMessage("当前站点："+target+"\n\n只处理你主动选择的文件，不读取电脑数据。快照只有当前 URL 的名称和值，不含原始 Domain、Path、到期时间或安全属性，也不含网页本地存储。\n\n导入支持本应用快照；也支持 DolaFetchCk 的单账号 CK 文件和 CK汇总.json；汇总文件每次只能选一个账号且仅限 HTTPS dola.com 页面。CK 文件没有来源站点字段，请确认来源确为 dola.com。只导入 Cookie；UA、设备指纹、代理等字段全部忽略。导入均使用当前主机、根路径、Secure / HttpOnly / SameSite=Lax 会话 Cookie；不能保证恢复登录。")
+            .setMessage("当前站点："+target+"\n\n只处理你主动选择的文件，不读取电脑数据。快照只有当前 URL 的名称和值，不含原始 Domain、Path、到期时间或安全属性，也不含网页本地存储。\n\n导入支持本应用快照；也支持 DolaFetchCk 的单账号 CK 文件和 CK汇总.json；汇总文件每次只能选一个账号且仅限 HTTPS dola.com 页面。CK 文件没有来源站点字段，请确认来源确为 dola.com。只导入 Cookie；UA、设备指纹、代理等字段全部忽略。普通导入使用当前主机、根路径、Secure / HttpOnly / SameSite=Lax 会话 Cookie。Dola CK 另提供需要二次确认的兼容方式：推定为 dola.com 域 Cookie，仅两个明确的 CSRF 字段允许网页读取；其它凭证保持 HttpOnly。CK 缺失原始属性，两种方式均不能保证恢复登录。")
             .setNegativeButton("取消",null)
             .setNeutralButton("导出快照",(d,w)->confirmExport(url,target))
             .setPositiveButton("导入文件",(d,w)->pickImport(target)).show();
@@ -132,14 +132,40 @@ final class CookieTransfer {
         String detail=fromCk
             ?"来源：Dola CK 文件（仅所选账号的 Cookie）；UA、设备指纹和代理均不会导入。\n\n导入前请确认这是你自己的 Dola 账号 CK。Cookie 是登录凭证，可能立即访问账号；将覆盖同名根路径 Cookie，其他 Cookie 不删除。"
             :"仅导入自己的账号文件。将覆盖同名根路径 Cookie；其他路径和其他 Cookie 不删除。导入不是完整登录恢复。建议先导出当前快照。";
-        new AlertDialog.Builder(activity).setTitle("确认修改本空间登录态？")
+        AlertDialog.Builder confirmation=new AlertDialog.Builder(activity).setTitle("确认修改本空间登录态？")
             .setMessage("站点："+target+"\n数量："+pairs.size()+"\n\n"+detail)
             .setNegativeButton("取消",null).setPositiveButton("导入",(d,w)->{
                 if(!CookieRules.sameSite(target,currentUrl.get())){tell("站点已变更，操作取消");return;}
                 busy=true;writing=true;apply(target,pairs,0,0);
+            });
+        if(fromCk)confirmation.setNeutralButton("Dola兼容方式",(d,w)->confirmDolaCompatibility(target,pairs));
+        confirmation.show();
+    }
+
+    private void confirmDolaCompatibility(String target,List<String> pairs) {
+        if(!CkCookieImport.isDolaTarget(target) || !CookieRules.sameSite(target,currentUrl.get())) {
+            tell("当前 Dola 站点已变更，未导入");return;
+        }
+        try {for(String pair:pairs)CookieRules.restoredDolaCookie(pair,target);}
+        catch(IllegalArgumentException invalid) {tell("Cookie 不符合 Dola 兼容格式，未写入");return;}
+        new AlertDialog.Builder(activity).setTitle("确认使用 Dola CK 兼容方式？")
+            .setMessage("这不是原始 Cookie 属性的完整恢复。只用于你自己的 Dola CK。\n\n"
+                +"将先删除当前主机同名根路径 Cookie（不清空空间），再写入 dola.com 域，供其子域使用；__Host- Cookie 仍仅限当前主机。"
+                +"仅 passport_csrf_token 和 passport_csrf_token_default 允许网页脚本读取；会话与其它 Cookie 保持 HttpOnly。"
+                +"使用 Secure / SameSite=Lax 会话 Cookie，不延长服务端有效期，不导入 UA、指纹或代理。"
+                +"\n\n部分失败可能改变旧登录态；建议先导出快照。不同路径旧 Cookie 不清除，仍可能冲突。不能保证不掉线，若失败应在本空间正常登录。")
+            .setNegativeButton("取消",null).setPositiveButton("确认兼容导入",(d,w)->{
+                if(!CkCookieImport.isDolaTarget(target) || !CookieRules.sameSite(target,currentUrl.get())) {
+                    tell("站点已变更，未导入");return;
+                }
+                busy=true;writing=true;apply(target,pairs,0,0,true);
             }).show();
     }
+
     private void apply(String target,List<String> pairs,int index,int accepted) {
+        apply(target,pairs,index,accepted,false);
+    }
+    private void apply(String target,List<String> pairs,int index,int accepted,boolean compatibility) {
         if(index==pairs.size()) {
             // Flush asynchronously; do not claim that accepting a cookie means successful login.
             io.execute(()->{
@@ -153,12 +179,27 @@ final class CookieTransfer {
             });return;
         }
         try {
-            CookieManager.getInstance().setCookie(target,CookieRules.restoredCookie(pairs.get(index)),
-                ok->apply(target,pairs,index+1,accepted+(Boolean.TRUE.equals(ok)?1:0)));
+            String pair=pairs.get(index);
+            String cookie=compatibility?CookieRules.restoredDolaCookie(pair,target):CookieRules.restoredCookie(pair);
+            if(compatibility) {
+                // Replace the old host-only root cookie, not every cookie in this profile.
+                // Otherwise a domain cookie can coexist with a stale HttpOnly host cookie.
+                CookieManager.getInstance().setCookie(target,CookieRules.expiredHostCookie(pair),cleared->{
+                    if(Boolean.TRUE.equals(cleared))writeCookie(target,pairs,index,accepted,true,cookie);
+                    else apply(target,pairs,index+1,accepted,true);
+                });
+            } else writeCookie(target,pairs,index,accepted,false,cookie);
         } catch(RuntimeException ignored) {
             // A rejected item must not leave the whole transfer permanently busy.
-            apply(target,pairs,index+1,accepted);
+            apply(target,pairs,index+1,accepted,compatibility);
         }
+    }
+    private void writeCookie(String target,List<String> pairs,int index,int accepted,
+            boolean compatibility,String cookie) {
+        try {
+            CookieManager.getInstance().setCookie(target,cookie,
+                ok->apply(target,pairs,index+1,accepted+(Boolean.TRUE.equals(ok)?1:0),compatibility));
+        } catch(RuntimeException ignored) {apply(target,pairs,index+1,accepted,compatibility);}
     }
     void close(){closed=true;if(pendingExport!=null)Arrays.fill(pendingExport,(byte)0);pendingExport=null;importTarget=null;/* Allow an already confirmed import to finish. */if(!writing)io.shutdown();}
 }

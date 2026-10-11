@@ -85,6 +85,32 @@ public class CkCookieImportUiRegressionTest {
         device.findObject(By.text("取消")).click();
     }
 
+
+    @Test public void compatibilityImportRequiresSecondConfirmationAndCanBeCancelled() throws Exception {
+        invokeChoose(CkCookieImport.parse("{\"cookie\":\"sessionid=fixture; passport_csrf_token=fixture\"}"));
+        assertTrue(device.wait(Until.hasObject(By.text("Dola兼容方式")),10_000));
+        device.findObject(By.text("Dola兼容方式")).click();
+        assertTrue(device.wait(Until.hasObject(By.text("确认使用 Dola CK 兼容方式？")),10_000));
+        assertTrue(device.wait(Until.hasObject(By.textContains("不延长服务端有效期")),5_000));
+        assertTrue(device.wait(Until.hasObject(By.text("确认兼容导入")),5_000));
+        device.findObject(By.text("取消")).click();
+        assertTrue("Cancelled import dialog must close",
+            device.wait(Until.gone(By.text("确认使用 Dola CK 兼容方式？")),5_000));
+    }
+
+    @Test public void ordinarySnapshotCannotSelectDolaCompatibility() throws Exception {
+        Method confirm=CookieTransfer.class.getDeclaredMethod("confirmImport",String.class,List.class,boolean.class);
+        confirm.setAccessible(true);
+        List<String> pairs=CookieRules.parse("sessionid=fixture");
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(()->{
+            try {confirm.invoke(transfer,"https://www.dola.com/",pairs,false);}
+            catch(Exception e){throw new AssertionError(e);}
+        });
+        assertTrue(device.wait(Until.hasObject(By.text("确认修改本空间登录态？")),10_000));
+        org.junit.Assert.assertFalse(device.hasObject(By.text("Dola兼容方式")));
+        device.findObject(By.text("取消")).click();
+    }
+
     private void invokeChoose(List<CkCookieImport.Entry> entries) throws Exception {
         Method choose = CookieTransfer.class.getDeclaredMethod(
             "chooseCkAccount", String.class, List.class);

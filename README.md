@@ -32,6 +32,8 @@ APK 额外注入 [`app/src/main/assets/dola30-android-adapter.js`](app/src/main/
 - **账号空间归档/恢复**：非默认空间可归档以从主列表隐藏，槽位仍计入 8 个名额，不会分配给新账号；可从“已归档空间”恢复到同一槽位，并保留原 Cookie、网页存储、标签和本机状态。归档不是安全擦除；当前不提供单空间数据删除，系统清除应用数据会清除全部空间。
 - **白名单资源观察**：仅观察页面已有 JSON/fetch/XHR/DOM/Performance 中的图片/视频 URL；不请求 `fallback_api`、不修改响应，也不保证原图或无水印版本。图片可由用户显式点击预览；已观察到视频 poster 时也可预览封面，但不播放视频。图片/封面预览仅 HTTPS、最多 8 MiB、拒绝重定向，不携带 WebView Cookie/授权头/Referer；视频保留“打开/下载”路径。
 - **Cookie / Dola CK 手动迁移（有限快照）**：通过 SAF 由用户主动导出/导入当前完全相同 origin 的快照，仅保存名称和值；另支持 DolaFetchCk 导出的单账号 JSON 和 CK 汇总 JSON，每次只选择一个账号，且仅可导入 HTTPS `dola.com` 页面。导入仅使用 `cookie` 字段，忽略 UA、指纹、代理等其它元数据；这些 CK 文件不含来源站点，导入前需由用户确认来源确为 Dola。导入写入当前主机根路径、`Secure`、`HttpOnly`、`SameSite=Lax` 会话 Cookie；原始 Domain、Path、过期时间及其它属性会丢失，因此不是完整登录备份，不能保证恢复登录。CK 与快照都包含登录凭证，应仅处理本人账号文件，不上传仓库或 CI，并在用后删除。
+- **旧 Dola CK 兼容方式（显式选择）**：CK 确认框另有“Dola兼容方式”，需二次确认。它先替换当前主机同名根路径 Cookie，再推定为 `dola.com` 域 Cookie（`__Host-` 仍为 host-only）；仅 `passport_csrf_token` 与 `passport_csrf_token_default` 可由网页脚本读取，所有其它 Cookie 保持 `HttpOnly`。使用 `Secure / SameSite=Lax` 会话 Cookie，不改 UA、设备指纹、代理，不延长服务端有效期；普通快照不提供此方式。**这是旧 CK 缺属性时的有限兼容选项，不是无损恢复，也未经真实 Dola 对话稳定性验收**。部分失败不会自动回滚，其它路径旧 Cookie 不会清除；建议先导出快照。若仍掉线，应在该空间正常登录，而不是反复导入旧 CK。
+
 - **下载中心**：基于 Android `DownloadManager`，提供状态刷新、打开、分享、SAF 另存、删除；下载记录上限 100 条，应用私有外部下载目录会在卸载时删除。不会自动附加 Cookie/认证头，需登录或已过期的链接可能失败或过期。
 - **本地创作工作台**：快捷文本 CRUD、复制或填入当前网页；UTF-8 文本按空行导入并编辑分镜、三态手动状态、JSON 备份。不会伪造平台生成状态或自动发送。
 - **Android WebView 30S 工具**：白名单页面的本地 15/30 秒状态、提示词时间轴转换、结果复制；所有动作均由用户确认，不拦截网络请求或自动发送。
