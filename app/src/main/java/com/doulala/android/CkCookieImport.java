@@ -31,8 +31,7 @@ final class CkCookieImport {
             List<String> pairs;
             try { pairs=CookieRules.parse((String)rawCookie); }
             catch(IllegalArgumentException invalid) { throw new JSONException("invalid cookie header"); }
-            String email=account.optString("email","");
-            out.add(new Entry(mask(email,i+1),pairs));
+            out.add(new Entry("账号 "+(i+1),pairs));
         }
         return Collections.unmodifiableList(out);
     }
@@ -48,13 +47,4 @@ final class CkCookieImport {
         } catch(Exception ignored) { return false; }
     }
 
-    private static String mask(String email,int index) {
-        String s=email==null?"":email.trim();
-        if(s.length()>128 || s.chars().anyMatch(c->c<32 || c==127)) s="";
-        int at=s.indexOf('@');
-        if(at<1 || at==s.length()-1) return "账号 "+index;
-        String local=s.substring(0,at);
-        String domain=s.substring(at+1);
-        return (local.length()<3?local.substring(0,1)+"***":local.substring(0,2)+"***")+"@"+domain;
-    }
 }
