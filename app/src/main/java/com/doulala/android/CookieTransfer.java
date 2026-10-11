@@ -31,7 +31,7 @@ final class CookieTransfer {
         final String target;
         try {target=CookieRules.target(url);} catch(Exception e){tell("请先打开 HTTPS 网页");return;}
         new AlertDialog.Builder(activity).setTitle("Cookie 手动迁移（有限快照）")
-            .setMessage("当前站点："+target+"\n\n只处理你主动选择的文件，不读取电脑数据。快照只有当前 URL 的名称和值，不含原始 Domain、Path、到期时间或安全属性，也不含网页本地存储。\n\n导入均使用当前主机、根路径、Secure / HttpOnly / SameSite=Lax 会话 Cookie。脚本依赖的 Cookie、跨域登录可能失效；不能保证恢复登录。")
+            .setMessage("当前站点："+target+"\n\n只处理你主动选择的文件，不读取电脑数据。快照只有当前 URL 的名称和值，不含原始 Domain、Path、到期时间或安全属性，也不含网页本地存储。\n\n导入支持本应用快照；也支持 CK汇总.json，但每次只能选一个账号且仅限 HTTPS dola.com 页面。CK 文件没有来源站点字段，请确认来源确为 dola.com。只导入 Cookie；UA、设备指纹、代理等字段全部忽略。导入均使用当前主机、根路径、Secure / HttpOnly / SameSite=Lax 会话 Cookie；不能保证恢复登录。")
             .setNegativeButton("取消",null)
             .setNeutralButton("导出快照",(d,w)->confirmExport(url,target))
             .setPositiveButton("导入文件",(d,w)->pickImport(target)).show();
@@ -92,21 +92,44 @@ final class CookieTransfer {
                             .decode(ByteBuffer.wrap(out.toByteArray())).toString();
                     }
                     JSONObject o=new JSONObject(text);
-                    if(!Integer.valueOf(1).equals(o.get("schemaVersion")) || !"doulala-cookie-snapshot".equals(o.get("kind"))
-                        || !(o.get("origin") instanceof String) || !(o.get("cookieHeader") instanceof String)
-                        || !CookieRules.sameSite(o.getString("origin"),target))throw new IOException();
-                    List<String> pairs=CookieRules.parse(o.getString("cookieHeader"));
-                    activity.runOnUiThread(()->{busy=false;if(alive())confirmImport(target,pairs);});
+                    if(o.has("accounts")) {
+                        if(!CkCookieImport.isDolaTarget(target))throw new IOException();
+                        List<CkCookieImport.Entry> entries=CkCookieImport.parse(text);
+                        activity.runOnUiThread(()->{busy=false;if(alive())chooseCkAccount(target,entries);});
+                    } else {
+                        if(!Integer.valueOf(1).equals(o.get("schemaVersion")) || !"doulala-cookie-snapshot".equals(o.get("kind"))
+                            || !(o.get("origin") instanceof String) || !(o.get("cookieHeader") instanceof String)
+                            || !CookieRules.sameSite(o.getString("origin"),target))throw new IOException();
+                        List<String> pairs=CookieRules.parse(o.getString("cookieHeader"));
+                        activity.runOnUiThread(()->{busy=false;if(alive())confirmImport(target,pairs,false);});
+                    }
                 } catch(Exception ignored){activity.runOnUiThread(()->{busy=false;tell("导入被拒绝：需同站点、UTF-8、版本 1 的 Cookie 快照，且格式/大小有效");});}
             });
         }
         return true;
     }
 
-    private void confirmImport(String target,List<String> pairs) {
+    private void chooseCkAccount(String target,List<CkCookieImport.Entry> entries) {
+        if(!CkCookieImport.isDolaTarget(target) || !CookieRules.sameSite(target,currentUrl.get())) {
+            tell("当前页面不是原始 Dola 站点，未导入 CK");return;
+        }
+        String[] labels=new String[entries.size()];
+        for(int i=0;i<entries.size();i++) labels[i]=entries.get(i).label+"（"+entries.get(i).cookies.size()+" 项 Cookie）";
+        new AlertDialog.Builder(activity).setTitle("选择一个 Dola CK 账号")
+            .setMessage("每次仅导入一个账号。来源站点由你确认；不读取或应用 UA、指纹、代理字段。")
+            .setItems(labels,(dialog,index)->{
+                if(index>=0 && index<entries.size())confirmImport(target,entries.get(index).cookies,true);
+            }).setNegativeButton("取消",null).show();
+    }
+
+    private void confirmImport(String target,List<String> pairs,boolean fromCk) {
         if(!CookieRules.sameSite(target,currentUrl.get())){tell("当前站点已变更，未导入任何 Cookie");return;}
+        if(fromCk && !CkCookieImport.isDolaTarget(target)){tell("CK 仅能导入 Dola HTTPS 页面");return;}
+        String detail=fromCk
+            ?"来源：CK汇总.json（仅所选账号的 Cookie）；UA、设备指纹和代理均不会导入。\n\n导入前请确认这是你自己的 Dola 账号 CK。Cookie 是登录凭证，可能立即访问账号；将覆盖同名根路径 Cookie，其他 Cookie 不删除。"
+            :"仅导入自己的账号文件。将覆盖同名根路径 Cookie；其他路径和其他 Cookie 不删除。导入不是完整登录恢复。建议先导出当前快照。";
         new AlertDialog.Builder(activity).setTitle("确认修改本空间登录态？")
-            .setMessage("站点："+target+"\n数量："+pairs.size()+"\n\n仅导入自己的账号文件。将覆盖同名根路径 Cookie；其他路径和其他 Cookie 不删除。导入不是完整登录恢复。建议先导出当前快照。")
+            .setMessage("站点："+target+"\n数量："+pairs.size()+"\n\n"+detail)
             .setNegativeButton("取消",null).setPositiveButton("导入",(d,w)->{
                 if(!CookieRules.sameSite(target,currentUrl.get())){tell("站点已变更，操作取消");return;}
                 busy=true;writing=true;apply(target,pairs,0,0);
