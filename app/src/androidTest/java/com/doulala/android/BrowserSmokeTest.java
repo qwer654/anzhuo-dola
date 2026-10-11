@@ -69,6 +69,28 @@ public class BrowserSmokeTest {
         assertNotNull("Browser menu is missing after switching to space eight",device.findObject(By.desc("浏览器菜单")));
     }
 
+    @Test public void archivedAccountSpaceCanBeRestoredInItsOriginalSlot() throws Exception {
+        assertTrue(context.getSharedPreferences("catalog",Context.MODE_PRIVATE).edit().clear()
+            .putBoolean("enabled0",true).putBoolean("enabled1",true)
+            .putString("name1","可恢复测试空间").putString("url1","https://example.com/").commit());
+        launchHome();
+        waitFor(By.text("账号空间"));
+        waitFor(By.text("可恢复测试空间"));
+        tap("归档");
+        waitFor(By.text("归档账号空间？"));
+        tap("归档空间");
+        waitFor(By.text("已归档空间"));
+        waitFor(By.text("可恢复测试空间"));
+        assertFalse("Archived space must not remain in the active card list",
+            device.findObjects(By.desc("进入空间：可恢复测试空间")).size()>0);
+        tap("恢复此空间");
+        waitFor(By.text("恢复账号空间？"));
+        tap("恢复");
+        waitFor(By.desc("进入空间：可恢复测试空间"));
+        assertTrue(context.getSharedPreferences("catalog",Context.MODE_PRIVATE).getBoolean("enabled1",false));
+        assertFalse(context.getSharedPreferences("catalog",Context.MODE_PRIVATE).getBoolean("archived1",true));
+    }
+
     @Test public void privacyCleanModeRequiresConsentAndCanBeReverted() throws Exception {
         assertTrue(context.getSharedPreferences("catalog",Context.MODE_PRIVATE).edit().clear()
             .putBoolean("enabled0",false).putBoolean("enabled7",true)
