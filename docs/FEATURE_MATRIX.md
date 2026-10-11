@@ -50,10 +50,18 @@
 
 ## 用户提供的 v1.6.9 JavaScript 基线
 
-用户提供的 `D:\AIDM\dola30-v1.6.9` 是 v1.6.9 源，和随项目已有的 `D:\AIDM\anzhuodoulala\豆啦啦无印浏览器\Extensions\dola30` 基线不是同一版。前者 `manifest.json` 声明了 `media-upload-main.js`；manifest 和四个页面脚本（含该上传脚本）已另存为 `app/src/main/assets/dola30-user-source-v1.6.9/` 下的独立、原字节只读基线，Node 测试及 APK 内哈希验证检查这些文件。该目录不加入扩展 CRX 打包清单、不注入页面；网页标准文件选择仍走 WebView 原生选择器。原上传脚本依赖私有 Webpack/chatIMService 上传/消息管线，Android 不执行它也不宣称等价。原版 background service worker 暂不随公开包发布（已在来源清单明确标为排除），页面上传按钮实际行为仍待设备验证。
+用户提供的 `D:\AIDM\dola30-v1.6.9` 是 v1.6.9 源，和随项目已有的 `D:\AIDM\anzhuodoulala\豆啦啦无印浏览器\Extensions\dola30` 基线不是同一版。前者 `manifest.json` 声明了 `media-upload-main.js`；manifest 和四个页面脚本（含该上传脚本）已另存为 `app/src/main/assets/dola30-user-source-v1.6.9/` 下的独立、原字节只读基线，Node 测试及 APK 内哈希验证检查这些文件。该目录不加入扩展 CRX 打包清单；页面注入范围见下方 2026-10-12 更新；网页标准文件选择仍走 WebView 原生选择器。原上传脚本依赖私有 Webpack/chatIMService 上传/消息管线，现在可由本空间 30s 开关显式安装页面桥，但不宣称完整上传面板等价。原版 background service worker 暂不随公开包发布（已在来源清单明确标为排除），页面上传按钮实际行为仍待设备验证。
 
 ## 安装与升级边界
 
 APK 为 debug 构建，runner 的临时签名可能导致无法覆盖旧 APK。必要时卸载再装会清除应用数据；升级前应先导出工作台 JSON、Cookie 快照（若确有需要）及下载中心中已另存的文件。Cookie 快照包含明文会话凭证，不能作为安全备份或提交到仓库。
 
 - WebView 标签导航历史现支持有界 best-effort 保存/恢复：兼容旧 URL 数组，历史编码 96 KiB 总预算、单标签 36 KiB Parcel 上限、512 KiB 标签 JSON 上限；损坏/超限回退 URL。Android instrumentation 在受控双页 fixture 上验证恢复的返回栈。此功能不恢复 DOM、表单或 JS 堆；PR head `241f2ff1` 的 APK CI 与 Android 15/API 35 UI smoke 已通过；16/16 instrumentation 全绿（run `38054679861`）。
+
+## WebView 文档开始页面脚本（2026-10-12）
+
+- 每个空间菜单新增 **30s（本空间）**；默认关闭、独立持久保存，不从旧版 duration 开关自动开启。切换需确认并重建本空间标签 WebView，未提交内容可能丢失；其他空间不受影响。
+- 开启后仅在 Dola HTTPS 页面以单条 document-start 链按附件顺序执行 `dola30-user-source-v1.6.9/skill-pack-main.js` → `media-upload-main.js`，两个源文件字节不变。首次页面脚本执行前种入该空间的默认 30s 状态；页面本地时长仍可单独调整。关闭后新文档不安装二者钩子，并恢复默认 15s 状态。
+- 旧版 `duration-main.js` 的请求适配保留其独立开关。没有自动打开旧版请求改写，也没有注入 `content-panel.js` 或 service worker；Chrome Debugger、runtime/扩展面板后台交互明确不可用。不创建假的 chrome API。
+- `skill-pack` 会更改页面收到的本地能力配置显示，不能据此判定服务器支持；`media-upload` 安装页面事件桥和地址规范化，但依赖站点私有 Webpack/上传管线。本次未复刻 Chrome 上传面板，未自动上传、提交或验证真实生成。
+- “30S 工具”区分设置已保存、注入注册不可用、两个脚本实际执行标记以及服务器未验证状态。脚本加载不等于上传成功或实际 30 秒生成。

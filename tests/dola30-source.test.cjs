@@ -17,7 +17,7 @@ test("original Dola30 JS assets are present and match their source manifest", ()
   }
 });
 
-test("user-supplied Dola30 v1.6.9 scripts are preserved as a separate, non-executed source baseline", () => {
+test("user-supplied Dola30 v1.6.9 scripts are preserved as a separate, byte-exact source baseline", () => {
   const baseline = path.resolve(__dirname, "../app/src/main/assets/dola30-user-source-v1.6.9");
   const manifest = JSON.parse(fs.readFileSync(path.join(baseline, "SOURCE-MANIFEST.json"), "utf8"));
   const upstream = JSON.parse(fs.readFileSync(path.join(baseline, "manifest.json"), "utf8"));

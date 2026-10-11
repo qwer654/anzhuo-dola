@@ -58,3 +58,11 @@ APK 额外注入 [`app/src/main/assets/dola30-android-adapter.js`](app/src/main/
 ## 未移植或明确不承诺的桌面能力
 
 完整指纹/代理伪装、Windows 代理认证与链式代理、CDP 深度嗅探与 `Fetch.fulfillRequest`、批量自动生成/发送/后台任务、遮罩/人脸/参考音频、创作中心/百宝箱、桌面本地 API、Windows DLL/注册表/机器码、Chrome 扩展，以及桌面版的完整 Cookie 属性与本地存储迁移，均未等价移植。30S 适配层只提供本地状态和提示词转换，不等价于平台能力解锁。详见 [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.md)。
+
+## WebView 文档开始页面脚本（2026-10-12）
+
+- 每个空间菜单新增 **30s（本空间）**；默认关闭、独立持久保存，不从旧版 duration 开关自动开启。切换需确认并重建本空间标签 WebView，未提交内容可能丢失；其他空间不受影响。
+- 开启后仅在 Dola HTTPS 页面以单条 document-start 链按附件顺序执行 `dola30-user-source-v1.6.9/skill-pack-main.js` → `media-upload-main.js`，两个源文件字节不变。首次页面脚本执行前种入该空间的默认 30s 状态；页面本地时长仍可单独调整。关闭后新文档不安装二者钩子，并恢复默认 15s 状态。
+- 旧版 `duration-main.js` 的请求适配保留其独立开关。没有自动打开旧版请求改写，也没有注入 `content-panel.js` 或 service worker；Chrome Debugger、runtime/扩展面板后台交互明确不可用。不创建假的 chrome API。
+- `skill-pack` 会更改页面收到的本地能力配置显示，不能据此判定服务器支持；`media-upload` 安装页面事件桥和地址规范化，但依赖站点私有 Webpack/上传管线。本次未复刻 Chrome 上传面板，未自动上传、提交或验证真实生成。
+- “30S 工具”区分设置已保存、注入注册不可用、两个脚本实际执行标记以及服务器未验证状态。脚本加载不等于上传成功或实际 30 秒生成。

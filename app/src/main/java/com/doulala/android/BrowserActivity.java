@@ -29,7 +29,7 @@ public class BrowserActivity extends Activity {
     private FrameLayout viewport;
     private EditText address;
     private TextView status,mediaButton,tabsButton,caption;
-    private String home,title,probeScript,promptScript,androidDolaScript,originalDolaScript,fingerprintScript;
+    private String home,title,probeScript,promptScript,androidDolaScript,originalDolaScript,fingerprintScript,skillPackScript,mediaUploadScript;
     private ValueCallback<Uri[]> fileCallback;
     private DownloadCenter downloads;
     private CookieTransfer cookies;
@@ -44,7 +44,7 @@ public class BrowserActivity extends Activity {
         WebView view;
         String url,title="新标签",message="等待加载",savedState;
         int navigation;
-        boolean probe,androidTools,closed,failed;
+        boolean probe,androidTools,pageScriptsRegistered,closed,failed;
         final ArrayList<MediaItem> media=new ArrayList<>();
         final Set<String> mediaKeys=new HashSet<>();
         Tab(String u){url=u;}
@@ -52,7 +52,7 @@ public class BrowserActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);Ui.setup(this);readLaunch(getIntent());
-        prefs=getSharedPreferences("browser_"+getClass().getSimpleName(),MODE_PRIVATE);
+        prefs=getSharedPreferences(DolaPageScripts.preferenceName(getClass().getSimpleName()),MODE_PRIVATE);
         downloads=new DownloadCenter(this,prefs,getClass().getSimpleName());
         cookies=new CookieTransfer(this,()->active==null?null:active.url);
         build();restoreTabs();
@@ -242,7 +242,7 @@ public class BrowserActivity extends Activity {
         }else message(t,"已阻止非 HTTPS 或不支持的链接");return true;
     }
     private void installProbe(Tab t) {
-        t.probe=false;t.androidTools=false;if(!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))return;
+        t.probe=false;t.androidTools=false;t.pageScriptsRegistered=false;if(!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))return;
         Set<String> origins=new HashSet<>(Arrays.asList(
             "https://doubao.com","https://*.doubao.com","https://dola.com","https://*.dola.com",
             "https://qianwen.com","https://*.qianwen.com","https://jianying.com","https://*.jianying.com"));
@@ -257,6 +257,19 @@ public class BrowserActivity extends Activity {
             if(fingerprintScript==null)fingerprintScript=readAsset("fingerprint-privacy/content-main.js");
             WebViewCompat.addDocumentStartJavaScript(t.view,privacyFingerprintBootstrap(fingerprintScript,true),origins);
         }catch(Exception ignored){}
+        // The attachment's two MAIN-world scripts use page APIs, not Chrome background APIs.
+        // Register in one chain before site scripts, only on Dola, and never silently opt in.
+        try {
+            boolean enabled=prefs.getBoolean(DolaPageScripts.PREF_KEY,false);
+            if(enabled){
+                if(skillPackScript==null)skillPackScript=readAsset(DolaPageScripts.SKILL_ASSET);
+                if(mediaUploadScript==null)mediaUploadScript=readAsset(DolaPageScripts.UPLOAD_ASSET);
+            }
+            WebViewCompat.addDocumentStartJavaScript(t.view,
+                DolaPageScripts.bootstrap(enabled,prefs.contains(DolaPageScripts.PREF_KEY),skillPackScript,mediaUploadScript),
+                new HashSet<>(Arrays.asList("https://dola.com","https://*.dola.com")));
+            t.pageScriptsRegistered=true;
+        }catch(Exception ignored){t.pageScriptsRegistered=false;}
         // The supplied duration script remains byte-for-byte preserved. It is
         // explicitly opt-in because it can rewrite outgoing generation prompts.
         try {
@@ -534,7 +547,7 @@ public class BrowserActivity extends Activity {
         String query="(function(){var state=window.getDola30sStatus?JSON.parse(window.getDola30sStatus()):null;"+
             "var page=window.dola30Android&&window.dola30Android.getDolaPlatformSelectionStatus?"+
             "window.dola30Android.getDolaPlatformSelectionStatus():{status:'controls_not_detected'};"+
-            "return JSON.stringify({state:state,page:page});})()";
+            "return JSON.stringify({state:state,page:page,scripts:window.__dolaWebViewPageScripts||null});})()";
         t.view.evaluateJavascript(query,value->{
             if(destroyed||t.closed||t.view==null||t.navigation!=navigation||t!=active)return;
             JSONObject result=parseJsObject(value);
@@ -544,12 +557,16 @@ public class BrowserActivity extends Activity {
             JSONObject page=result.optJSONObject("page");
             String pageSelection=platformSelectionSummary(page==null?"controls_not_detected":page.optString("status","controls_not_detected"));
             boolean originalEnabled=prefs.getBoolean("originalDola30",false);
-            String message="Android 本地请求状态："+state.optInt("duration",15)+" 秒（"+(on?"已启用":"未启用")+"）\n"+
+            JSONObject scripts=result.optJSONObject("scripts");
+            boolean pageScriptsEnabled=prefs.getBoolean(DolaPageScripts.PREF_KEY,false);
+            String scriptSummary=DolaPageScripts.summary(pageScriptsEnabled,t.pageScriptsRegistered,
+                scripts!=null&&scripts.optBoolean("skillPack",false),scripts!=null&&scripts.optBoolean("mediaUpload",false));
+            String message=scriptSummary+"\nAndroid 页面本地时长状态："+state.optInt("duration",15)+" 秒（"+(on?"已启用":"未启用")+"）\n"+
                 pageSelection+"\n"+
                 (originalEnabled?"原版 Dola30 JS 已启用：按原脚本逻辑可能更改页面状态、提示词或匹配请求中的用户文本；应用不会自动提交。\n":
-                    "Android 默认适配只保存页面状态并提供本地提示词工具，不改写网页请求。\n")+
+                    "旧版 duration 请求适配关闭。新页面脚本是否执行见上方状态。\n")+
                 durationToolCapabilitySummary(t.probe)+"\n"+
-                "不会伪造平台能力；30 秒能力由页面选项与平台决定。";
+                "附件 skill-pack 会调整本地能力配置显示；显示 30 秒不等于服务器支持。上传桥依赖站点私有运行时，未移植 Chrome 扩展面板。";
             new AlertDialog.Builder(this).setTitle("30S 工具（Android WebView）")
                 .setMessage(message).setNegativeButton("关闭",null)
                 .setNeutralButton("转换提示词时间轴",(d,w)->showTimelineRewrite())
@@ -565,7 +582,8 @@ public class BrowserActivity extends Activity {
     static String durationToolCapabilitySummary(boolean pageProbeEnabled) {
         return "页面资源观察："+(pageProbeEnabled?"已注入，仅观察页面已暴露的 URL":"未启用，当前网页或 WebView 未提供该能力")+"\n"+
             "Debugger 深度/自动嗅探：不可用（Android WebView 不提供 Chrome MV3 Debugger）\n"+
-            "fallback API 解析：未实现";
+            "Chrome 扩展面板/后台接口：不可注入，未生效\n"+
+            "fallback API 解析：未实现（页面脚本可被动记录 URL，不等于后台解析可用）";
     }
     private JSONObject parseJsObject(String value) {
         if(value==null||"null".equals(value))return null;
@@ -659,11 +677,26 @@ public class BrowserActivity extends Activity {
     private void showMenu() {
         boolean originalEnabled=prefs.getBoolean("originalDola30",false);
         boolean cleanPrivacy=prefs.getBoolean("privacyCleanMode",false);
-        new AlertDialog.Builder(this).setTitle(title).setItems(new String[]{"前进","回到首页","新建标签","添加当前页书签","打开书签","下载中心","30S 工具","Cookie / CK 导入导出","原版 Dola30 请求适配："+(originalEnabled?"已启用":"关闭"),"隐私洁净模式："+(cleanPrivacy?"已启用":"关闭"),"原版 Dola30 选项","回到空间列表"},(d,n)->{
+        boolean pageScriptsEnabled=prefs.getBoolean(DolaPageScripts.PREF_KEY,false);
+        new AlertDialog.Builder(this).setTitle(title).setItems(new String[]{"前进","回到首页","新建标签","添加当前页书签","打开书签","下载中心","30S 工具","Cookie / CK 导入导出","原版 Dola30 请求适配："+(originalEnabled?"已启用":"关闭"),"隐私洁净模式："+(cleanPrivacy?"已启用":"关闭"),"原版 Dola30 选项","回到空间列表","30s（本空间）："+(pageScriptsEnabled?"开启":"关闭")},(d,n)->{
             switch(n){case 0:if(active.view!=null&&active.view.canGoForward())active.view.goForward();break;
                 case 1:load(home);break;case 2:newTab(home);break;case 3:addBookmark();break;
-                case 4:showBookmarks();break;case 5:downloads.show();break;case 6:showDurationTool();break;case 7:cookies.show();break;case 8:confirmOriginalDolaMode(!originalEnabled);break;case 9:confirmPrivacyCleanMode(!cleanPrivacy);break;case 10:showOriginalScriptOptions();break;case 11:returnToCatalog();break;}
+                case 4:showBookmarks();break;case 5:downloads.show();break;case 6:showDurationTool();break;case 7:cookies.show();break;case 8:confirmOriginalDolaMode(!originalEnabled);break;case 9:confirmPrivacyCleanMode(!cleanPrivacy);break;case 10:showOriginalScriptOptions();break;case 11:returnToCatalog();break;case 12:confirmPageScriptsMode(!pageScriptsEnabled);break;}
         }).show();
+    }
+    private void confirmPageScriptsMode(boolean enabled) {
+        if(enabled&&!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)){
+            Ui.toast(this,"当前 WebView 不支持文档开始注入，未开启 30s");return;
+        }
+        String detail=enabled
+            ?"仅为本空间开启。Dola HTTPS 文档开始时，按附件顺序原样执行 skill-pack-main.js、media-upload-main.js，默认页面时长设为 30s。前者会调整本地能力配置显示，后者安装上传桥/地址规范化；仍依赖站点运行时，不保证实际上传、30 秒生成或平台接受请求。Chrome 调试器、后台及扩展面板接口不可注入，不会伪装可用。旧版 duration 请求适配仍由其独立开关控制。"
+            :"仅关闭本空间两个页面主脚本，并将下次 Dola 页面本地时长设为 15s。不会删除 Cookie/账号数据，也不会改变其他空间或旧版 duration 独立开关。";
+        new AlertDialog.Builder(this).setTitle(enabled?"开启本空间 30s？":"关闭本空间 30s？")
+            .setMessage(detail+"\n为移除/安装脚本钩子，本空间所有打开标签将重新加载；未提交输入会丢失。")
+            .setNegativeButton("取消",null).setPositiveButton(enabled?"开启并重载":"关闭并重载",(d,w)->{
+                if(!prefs.edit().putBoolean(DolaPageScripts.PREF_KEY,enabled).commit()){Ui.toast(this,"设置未保存");return;}
+                reloadTabsForScriptMode();
+            }).show();
     }
     private void confirmPrivacyCleanMode(boolean enabled) {
         String detail=enabled
@@ -678,7 +711,7 @@ public class BrowserActivity extends Activity {
     private void confirmOriginalDolaMode(boolean enabled) {
         String detail=enabled
             ?"将原样注入 assets/dola30-original/duration-main.js（不改源码），仅匹配 Dola/Doubao HTTPS 页面。开启后由原脚本自行判断是否修改页面状态、提示词或匹配请求中的用户文本（可能改变生成请求行为）；应用不会自动提交。不会承诺平台接受请求或去除水印。重新加载会丢失未提交的网页输入。"
-            :"关闭原版请求适配并恢复 Android 默认无请求改写模式。为移除 document-start 脚本，所有打开标签会重新加载，未提交的网页输入将丢失。";
+            :"仅关闭旧版 duration 请求适配；本空间 30s 页面脚本及隐私设置不变。为移除 document-start 脚本，所有打开标签会重新加载，未提交的网页输入将丢失。";
         new AlertDialog.Builder(this).setTitle(enabled?"启用原版 Dola30 JS？":"关闭原版 Dola30 JS？")
             .setMessage(detail).setNegativeButton("取消",null).setPositiveButton(enabled?"启用并重新加载":"关闭并重新加载",(d,w)->{
                 if(!prefs.edit().putBoolean("originalDola30",enabled).commit()){Ui.toast(this,"设置未保存");return;}
@@ -691,11 +724,10 @@ public class BrowserActivity extends Activity {
         promptTab=null;
         for(Tab tab:tabs){
             if(tab.view!=null){try{tab.view.stopLoading();tab.view.destroy();}catch(Exception ignored){}tab.view=null;}
-            tab.navigation++;tab.probe=false;tab.androidTools=false;tab.failed=false;tab.media.clear();tab.mediaKeys.clear();
+            tab.navigation++;tab.probe=false;tab.androidTools=false;tab.pageScriptsRegistered=false;tab.failed=false;tab.media.clear();tab.mediaKeys.clear();
         }
         if(active!=null&&!active.closed)select(active);
-        Ui.toast(this,prefs.getBoolean("privacyCleanMode",false)?"隐私洁净模式已开启（原生 UA / 第三方 Cookie / 定位 / Canvas、WebGL、离线音频、WebRTC、设备枚举保护）":
-            (prefs.getBoolean("originalDola30",false)?"原版 Dola30 JS 已开启":"已恢复 Android 默认适配"));
+        Ui.toast(this,"本空间设置已保存，标签 WebView 已重建；实际脚本状态见 30S 工具");
     }
     private JSONArray bookmarks(){try{return new JSONArray(prefs.getString("bookmarks","[]"));}catch(Exception e){return new JSONArray();}}
     private void addBookmark() {
@@ -769,4 +801,3 @@ public class BrowserActivity extends Activity {
     public static class Space4 extends BrowserActivity{} public static class Space5 extends BrowserActivity{}
     public static class Space6 extends BrowserActivity{} public static class Space7 extends BrowserActivity{}
 }
-
