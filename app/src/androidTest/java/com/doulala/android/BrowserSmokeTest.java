@@ -76,6 +76,8 @@ public class BrowserSmokeTest {
         launchHome();
         waitFor(By.text("账号空间"));
         waitFor(By.text("可恢复测试空间"));
+        UiScrollable catalog=new UiScrollable(new UiSelector().scrollable(true));
+        assertTrue("Archive action is not reachable",catalog.scrollIntoView(new UiSelector().text("归档")));
         tap("归档");
         waitFor(By.text("归档账号空间？"));
         tap("归档空间");
@@ -83,6 +85,7 @@ public class BrowserSmokeTest {
         waitFor(By.text("可恢复测试空间"));
         assertFalse("Archived space must not remain in the active card list",
             device.findObjects(By.desc("进入空间：可恢复测试空间")).size()>0);
+        assertTrue("Restore action is not reachable",catalog.scrollIntoView(new UiSelector().text("恢复此空间")));
         tap("恢复此空间");
         waitFor(By.text("恢复账号空间？"));
         tap("恢复");
