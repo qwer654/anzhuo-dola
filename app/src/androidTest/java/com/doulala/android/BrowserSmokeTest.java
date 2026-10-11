@@ -94,7 +94,12 @@ public class BrowserSmokeTest {
         assertTrue("Restored test space is not reachable",catalog.scrollIntoView(new UiSelector().description("进入空间：可恢复测试空间")));
         waitFor(By.desc("进入空间：可恢复测试空间"));
         assertTrue(context.getSharedPreferences("catalog",Context.MODE_PRIVATE).getBoolean("enabled1",false));
-        assertFalse(context.getSharedPreferences("catalog",Context.MODE_PRIVATE).getBoolean("archived1",true));
+        // Restoring removes the archive keys; absent must mean not archived.
+        android.content.SharedPreferences restored=context.getSharedPreferences("catalog",Context.MODE_PRIVATE);
+        assertFalse("Restored space must not be archived",restored.getBoolean("archived1",false));
+        assertFalse("Archive marker must be cleared",restored.contains("archived1"));
+        assertFalse("Archived name must be cleared",restored.contains("archivedName1"));
+        assertFalse("Archived URL must be cleared",restored.contains("archivedUrl1"));
     }
 
     @Test public void privacyCleanModeRequiresConsentAndCanBeReverted() throws Exception {
