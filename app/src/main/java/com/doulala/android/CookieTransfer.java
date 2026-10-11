@@ -31,7 +31,7 @@ final class CookieTransfer {
         final String target;
         try {target=CookieRules.target(url);} catch(Exception e){tell("请先打开 HTTPS 网页");return;}
         new AlertDialog.Builder(activity).setTitle("Cookie 手动迁移（有限快照）")
-            .setMessage("当前站点："+target+"\n\n只处理你主动选择的文件，不读取电脑数据。快照只有当前 URL 的名称和值，不含原始 Domain、Path、到期时间或安全属性，也不含网页本地存储。\n\n导入支持本应用快照；也支持 CK汇总.json，但每次只能选一个账号且仅限 HTTPS dola.com 页面。CK 文件没有来源站点字段，请确认来源确为 dola.com。只导入 Cookie；UA、设备指纹、代理等字段全部忽略。导入均使用当前主机、根路径、Secure / HttpOnly / SameSite=Lax 会话 Cookie；不能保证恢复登录。")
+            .setMessage("当前站点："+target+"\n\n只处理你主动选择的文件，不读取电脑数据。快照只有当前 URL 的名称和值，不含原始 Domain、Path、到期时间或安全属性，也不含网页本地存储。\n\n导入支持本应用快照；也支持 DolaFetchCk 的单账号 CK 文件和 CK汇总.json；汇总文件每次只能选一个账号且仅限 HTTPS dola.com 页面。CK 文件没有来源站点字段，请确认来源确为 dola.com。只导入 Cookie；UA、设备指纹、代理等字段全部忽略。导入均使用当前主机、根路径、Secure / HttpOnly / SameSite=Lax 会话 Cookie；不能保证恢复登录。")
             .setNegativeButton("取消",null)
             .setNeutralButton("导出快照",(d,w)->confirmExport(url,target))
             .setPositiveButton("导入文件",(d,w)->pickImport(target)).show();
@@ -92,7 +92,7 @@ final class CookieTransfer {
                             .decode(ByteBuffer.wrap(out.toByteArray())).toString();
                     }
                     JSONObject o=new JSONObject(text);
-                    if(o.has("accounts")) {
+                    if(o.has("accounts") || o.has("cookie")) {
                         if(!CkCookieImport.isDolaTarget(target))throw new IOException();
                         List<CkCookieImport.Entry> entries=CkCookieImport.parse(text);
                         activity.runOnUiThread(()->{busy=false;if(alive())chooseCkAccount(target,entries);});
@@ -103,7 +103,7 @@ final class CookieTransfer {
                         List<String> pairs=CookieRules.parse(o.getString("cookieHeader"));
                         activity.runOnUiThread(()->{busy=false;if(alive())confirmImport(target,pairs,false);});
                     }
-                } catch(Exception ignored){activity.runOnUiThread(()->{busy=false;tell("导入被拒绝：需有效 UTF-8 快照或 Dola CK 汇总，且来源站点、大小和 Cookie 格式符合限制");});}
+                } catch(Exception ignored){activity.runOnUiThread(()->{busy=false;tell("导入被拒绝：需有效 UTF-8 快照或 Dola CK 文件/汇总，且来源站点、大小和 Cookie 格式符合限制");});}
             });
         }
         return true;
@@ -126,7 +126,7 @@ final class CookieTransfer {
         if(!CookieRules.sameSite(target,currentUrl.get())){tell("当前站点已变更，未导入任何 Cookie");return;}
         if(fromCk && !CkCookieImport.isDolaTarget(target)){tell("CK 仅能导入 Dola HTTPS 页面");return;}
         String detail=fromCk
-            ?"来源：CK汇总.json（仅所选账号的 Cookie）；UA、设备指纹和代理均不会导入。\n\n导入前请确认这是你自己的 Dola 账号 CK。Cookie 是登录凭证，可能立即访问账号；将覆盖同名根路径 Cookie，其他 Cookie 不删除。"
+            ?"来源：Dola CK 文件（仅所选账号的 Cookie）；UA、设备指纹和代理均不会导入。\n\n导入前请确认这是你自己的 Dola 账号 CK。Cookie 是登录凭证，可能立即访问账号；将覆盖同名根路径 Cookie，其他 Cookie 不删除。"
             :"仅导入自己的账号文件。将覆盖同名根路径 Cookie；其他路径和其他 Cookie 不删除。导入不是完整登录恢复。建议先导出当前快照。";
         new AlertDialog.Builder(activity).setTitle("确认修改本空间登录态？")
             .setMessage("站点："+target+"\n数量："+pairs.size()+"\n\n"+detail)
