@@ -58,6 +58,8 @@ public class BrowserSmokeTest {
             .putBoolean("enabled0",false).putBoolean("enabled6",true).putBoolean("enabled7",true)
             .putString("name6","测试空间七").putString("name7","测试空间八")
             .putString("url6","https://example.com/").putString("url7","https://example.com/").commit());
+        context.getSharedPreferences("browser_Space6",Context.MODE_PRIVATE).edit().clear().commit();
+        context.getSharedPreferences("browser_Space7",Context.MODE_PRIVATE).edit().clear().commit();
         launchHome();
         waitFor(By.text("账号空间"));screenshot("home");openSpace("测试空间七");
         waitFor(By.text("标签 1"));
@@ -118,42 +120,47 @@ public class BrowserSmokeTest {
         assertTrue(context.getSharedPreferences("browser_Space3",Context.MODE_PRIVATE).edit()
             .remove(DolaPageScripts.PREF_KEY).putBoolean("originalDola30",true).putBoolean("dola30PageScripts",true).commit());
         launchHome();openSpace("新脚本A");
-        menu("30s（本空间）：关闭");waitFor(By.text("开启本空间 30s？"));tap("取消");
-        menu("30s（本空间）：关闭");waitFor(By.text("开启本空间 30s？"));tap("开启并重载");
+        waitFor(By.desc("本空间新脚本30s开关")).click();waitFor(By.text("开启本空间 30s？"));tap("取消");
+        waitFor(By.desc("本空间新脚本30s开关")).click();waitFor(By.text("开启本空间 30s？"));tap("开启并重载");
         waitFor(By.desc("浏览器菜单"));
         menu("回到空间列表");openSpace("新脚本B");
-        menu("30s（本空间）：关闭");waitFor(By.text("开启本空间 30s？"));tap("取消");
+        waitFor(By.desc("本空间新脚本30s开关")).click();waitFor(By.text("开启本空间 30s？"));tap("取消");
         menu("回到空间列表");openSpace("新脚本A");
-        menu("30s（本空间）：开启");waitFor(By.text("关闭本空间 30s？"));tap("关闭并重载");
+        waitFor(By.desc("本空间新脚本30s开关")).click();waitFor(By.text("关闭本空间 30s？"));tap("关闭并重载");
         waitFor(By.desc("浏览器菜单"));
-        menu("30s（本空间）：关闭");waitFor(By.text("开启本空间 30s？"));tap("取消");
-        // Legacy opt-in entry is explicitly inert even though old preferences are true.
-        menu("旧 Dola30 JS：仅备份，不执行");waitFor(By.desc("浏览器菜单"));
+        waitFor(By.desc("本空间新脚本30s开关")).click();waitFor(By.text("开启本空间 30s？"));tap("取消");
         menu("回到空间列表");waitFor(By.text("账号空间"));
     }
-    @Test public void privacyCleanModeRequiresConsentAndCanBeReverted() throws Exception {
+    @Test public void oldControlsAreAbsentAndDirectActionsAreVisible() throws Exception {
         assertTrue(context.getSharedPreferences("catalog",Context.MODE_PRIVATE).edit().clear()
             .putBoolean("enabled0",false).putBoolean("enabled7",true)
-            .putString("name7","隐私洁净验收").putString("url7","https://example.com/").commit());
+            .putString("name7","控件验收").putString("url7","https://example.com/").commit());
         launchHome();
-        waitFor(By.text("账号空间"));openSpace("隐私洁净验收");
+        waitFor(By.text("账号空间"));openSpace("控件验收");
         waitFor(By.text("标签 1"));
-        menu("隐私洁净模式：关闭");
-        waitFor(By.text("开启隐私洁净模式？"));
-        tap("取消");
-        menu("隐私洁净模式：关闭");
-        waitFor(By.text("开启隐私洁净模式？"));
-        tap("开启并重载");
-        waitFor(By.desc("浏览器菜单"));
-        menu("隐私洁净模式：已启用");
-        waitFor(By.text("关闭隐私洁净模式？"));
-        tap("关闭并重载");
-        waitFor(By.desc("浏览器菜单"));
-        menu("隐私洁净模式：关闭");
-        waitFor(By.text("开启隐私洁净模式？"));
-        tap("取消");
+        assertTrue(device.hasObject(By.desc("回到空间列表")));
+        assertTrue(device.hasObject(By.desc("当前IP")));
+        assertTrue(device.hasObject(By.desc("导入CK")));
+        assertTrue(device.hasObject(By.desc("管理标签")));
+        assertTrue(device.hasObject(By.desc("浏览器菜单")));
+        assertFalse(device.hasObject(By.textContains("隐私洁净")));
+        assertFalse(device.hasObject(By.textContains("旧 Dola30")));
         menu("回到空间列表");
         waitFor(By.text("账号空间"));
+    }
+
+    @Test public void directCkImportButtonCanBeCancelledWithoutSelectingCredentials() throws Exception {
+        assertTrue(context.getSharedPreferences("catalog",Context.MODE_PRIVATE).edit().clear()
+            .putBoolean("enabled0",false).putBoolean("enabled8",true)
+            .putString("name8","CK按钮验收").putString("url8","https://example.com/").commit());
+        launchHome();openSpace("CK按钮验收");
+        waitFor(By.desc("导入CK")).click();
+        // Native document picker is intentionally opened then cancelled; no file or real credential is selected.
+        boolean picker = device.wait(Until.hasObject(By.pkg("com.google.android.documentsui")),5000)
+            || device.wait(Until.hasObject(By.pkg("com.android.documentsui")),5000);
+        assertTrue("CK import must open the native document picker",picker);
+        device.pressBack();
+        waitFor(By.desc("浏览器菜单"));
     }
 }
 

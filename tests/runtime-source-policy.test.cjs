@@ -35,7 +35,7 @@ test('production has one new-only document-start chain and no legacy JS executio
   assert.doesNotMatch(java,/window\.(?:__dolaAndroidDrain|__dolaAndroidScan|dola30Android|setDola30s|rewriteDolaTimeline)/);
   assert.doesNotMatch(helper,/dola30-user-source-v1\.6\.9|dola30-original|content-panel\.js|service-worker\.js/);
   assert.match(helper,/dola30NewPageScripts/);assert.match(helper,/dola30-source-v1\.6\.14\/skill-pack-main\.js/);
-  assert.match(java,/旧 Dola30 JS：仅备份，不执行/);
+  assert.doesNotMatch(java,/旧 Dola30 JS：仅备份，不执行/); // No retired-script control in current UI.
 });
 test('active scripts require no Chrome background API and Chrome capabilities remain unavailable', () => {
   for (const file of policy.activeDocumentStartScripts) assert.doesNotMatch(fs.readFileSync(path.join(assets,file),'utf8'),/\bchrome\s*\./);

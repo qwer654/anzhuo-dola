@@ -37,6 +37,13 @@ final class CookieTransfer {
             .setPositiveButton("导入文件",(d,w)->pickImport(target)).show();
     }
 
+    // One tap opens SAF; account choice and destructive-login confirmation remain mandatory.
+    void importFileDirect() {
+        if(busy){tell("正在处理 Cookie 文件，请稍候");return;}
+        try {pickImport(CookieRules.target(currentUrl.get()));}
+        catch(Exception e){tell("请先打开 HTTPS 网页");}
+    }
+
     private void confirmExport(String url,String target) {
         if(!CookieRules.sameSite(url,currentUrl.get())) {tell("页面已变更，请重新打开迁移菜单");return;}
         new AlertDialog.Builder(activity).setTitle("文件包含登录凭证")

@@ -11,8 +11,8 @@ android {
         applicationId 'com.doulala.android'
         minSdk 28
         targetSdk 35
-        versionCode 3
-        versionName '0.2.1'
+        versionCode 4
+        versionName '0.3.0'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     testBuildType 'deviceValidation'
@@ -44,8 +44,8 @@ android {
         // Side-by-side new-attachment validation; do not replace any account-bearing app.
         newSourceValidation {
             initWith debug
-            applicationIdSuffix '.new30s'
-            versionNameSuffix '-new30s'
+            applicationIdSuffix '.spaces64'
+            versionNameSuffix '-spaces64'
             matchingFallbacks = ['debug']
         }
         release {

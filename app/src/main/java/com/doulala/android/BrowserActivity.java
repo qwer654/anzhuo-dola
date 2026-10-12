@@ -29,6 +29,8 @@ public class BrowserActivity extends Activity {
     private FrameLayout viewport;
     private EditText address;
     private TextView status,mediaButton,tabsButton,caption;
+    private Switch pageScriptsSwitch;
+    private boolean syncingScriptSwitch;
     private String home,title,skillPackScript,mediaUploadScript;
     private ValueCallback<Uri[]> fileCallback;
     private DownloadCenter downloads;
@@ -66,8 +68,19 @@ public class BrowserActivity extends Activity {
 
     private void build() {
         LinearLayout root=Ui.column(this);root.setBackgroundColor(Ui.BG);
+        LinearLayout header=Ui.row(this);Ui.pad(header,8);
+        caption=Ui.title(this,title,16);caption.setSingleLine(true);caption.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        header.addView(caption,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1));
+        caption.setGravity(Gravity.CENTER_VERTICAL);
+        pageScriptsSwitch=new Switch(this);pageScriptsSwitch.setText("30s · 新脚本");pageScriptsSwitch.setTextSize(13);
+        pageScriptsSwitch.setTextColor(Ui.INK);pageScriptsSwitch.setMinHeight(Ui.dp(this,48));
+        pageScriptsSwitch.setContentDescription("本空间新脚本30s开关");header.addView(pageScriptsSwitch);root.addView(header);
+        syncScriptSwitch();
+        pageScriptsSwitch.setOnCheckedChangeListener((button,checked)->{
+            if(syncingScriptSwitch)return;syncScriptSwitch();confirmPageScriptsMode(checked);
+        });
         LinearLayout bar=Ui.row(this);Ui.pad(bar,4);
-        addAction(bar,"‹","后退",36,()->goBack());
+        addAction(bar,"‹","后退",48,()->goBack());
         address=Ui.edit(this,"输入 HTTPS 地址",home);address.setSingleLine(true);address.setTextSize(14);address.setSelectAllOnFocus(true);
         address.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);
         address.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_GO);
@@ -81,19 +94,39 @@ public class BrowserActivity extends Activity {
             }return false;
         });
         bar.addView(address,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1));
-        addAction(bar,"↻","刷新",40,()->{if(active.view==null)select(active);else active.view.reload();});root.addView(bar);
-        LinearLayout actions=Ui.row(this);Ui.pad(actions,4);
-        caption=Ui.text(this,title,12,Ui.MUTED);caption.setSingleLine(true);caption.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        actions.addView(caption,new LinearLayout.LayoutParams(0,-2,1));
-        tabsButton=addAction(actions,"标签 1","管理标签",66,this::showTabs);
-        mediaButton=addAction(actions,"资源 0","观察到的资源",66,this::showMedia);
-        addAction(actions,"工作台","创作工作台",60,()->{
-            promptTab=active;promptNavigation=active.navigation;
-            startActivityForResult(new Intent(this,StudioActivity.class).putExtra("pickPrompt",true),PICK_PROMPT);
+        addAction(bar,"↻","刷新",48,()->{if(active.view==null)select(active);else active.view.reload();});root.addView(bar);
+        status=Ui.text(this,"正在准备网页…",11,Ui.MUTED);status.setSingleLine(true);status.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        status.setPadding(Ui.dp(this,12),0,Ui.dp(this,12),Ui.dp(this,4));root.addView(status);
+        viewport=new FrameLayout(this);root.addView(viewport,new LinearLayout.LayoutParams(-1,0,1));
+        LinearLayout dock=Ui.row(this);Ui.pad(dock,4);dock.setBackgroundColor(Ui.CARD);
+        dockAction(dock,"空间","回到空间列表",this::returnToCatalog);
+        dockAction(dock,"当前 IP","当前IP",this::showExitIp);
+        dockAction(dock,"导入 CK","导入CK",()->cookies.importFileDirect());
+        tabsButton=dockAction(dock,"标签 1","管理标签",this::showTabs);
+        dockAction(dock,"更多","浏览器菜单",this::showMenu);root.addView(dock);
+        setContentView(root);
+    }
+    private TextView dockAction(LinearLayout row,String text,String description,Runnable action) {
+        Button button=Ui.button(this,text,action);button.setContentDescription(description);button.setTextSize(12);
+        row.addView(button,new LinearLayout.LayoutParams(0,Ui.dp(this,52),1));return button;
+    }
+    private void syncScriptSwitch() {
+        if(pageScriptsSwitch==null)return;syncingScriptSwitch=true;
+        pageScriptsSwitch.setChecked(prefs.getBoolean(DolaPageScripts.PREF_KEY,false));syncingScriptSwitch=false;
+    }
+    private void openStudio() {
+        if(active==null)return;promptTab=active;promptNavigation=active.navigation;
+        startActivityForResult(new Intent(this,StudioActivity.class).putExtra("pickPrompt",true),PICK_PROMPT);
+    }
+    private void showExitIp() {
+        TextView value=Ui.text(this,"查询中…",18,Ui.INK);value.setTextIsSelectable(true);Ui.pad(value,20);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("当前 IP · "+title).setView(value)
+            .setMessage("查询当前应用经网络/VPN访问 IP 服务的出口；不发送 Cookie 或账号。不同空间不等于不同 IP，目标网站的分流出口可能不同。")
+            .setNegativeButton("关闭",null).create();dialog.show();
+        previewExecutor.execute(()->{
+            String result;try{result=ExitIpClient.lookup();}catch(Exception e){result="查询失败，请检查网络后重试";}
+            final String text=result;runOnUiThread(()->{if(!destroyed&&dialog.isShowing())value.setText(text);});
         });
-        addAction(actions,"菜单","浏览器菜单",50,this::showMenu);root.addView(actions);
-        status=Ui.text(this,"正在准备网页…",11,Ui.MUTED);status.setSingleLine(true);root.addView(status);
-        viewport=new FrameLayout(this);root.addView(viewport,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
     }
     private TextView addAction(LinearLayout row,String text,String description,int width,Runnable action) {
         TextView v=Ui.text(this,text,14,Ui.ACCENT);v.setGravity(Gravity.CENTER);v.setContentDescription(description);
@@ -169,7 +202,7 @@ public class BrowserActivity extends Activity {
                 .setPositiveButton("关闭",(x,w)->{d.dismiss();closeTab(t);}).show()));list.addView(row);
         }d.show();
     }
-    private void updateUi(){if(active==null)return;address.setText(active.url);status.setText(active.message);tabsButton.setText("标签 "+tabs.size());mediaButton.setText("资源 "+active.media.size());}
+    private void updateUi(){if(active==null)return;address.setText(active.url);status.setText(active.message);tabsButton.setText("标签 "+tabs.size());if(mediaButton!=null)mediaButton.setText("资源 "+active.media.size());}
     private void message(Tab t,String text){t.message=text;if(t==active&&!destroyed)status.setText(text);}
 
     private void configure(Tab t) {
@@ -281,7 +314,7 @@ public class BrowserActivity extends Activity {
                 String label=o.optString("title","资源");
                 if(mergeObservedMedia(t.media,t.mediaKeys,u,type,label,posterUrl,channels))changed=true;
             }
-            if(t==active)mediaButton.setText("资源 "+t.media.size());
+            if(t==active)if(mediaButton!=null)mediaButton.setText("资源 "+t.media.size());
             if(changed&&t==active&&t==mediaDialogOwner&&navigation==mediaDialogNavigation&&mediaDialog!=null&&mediaDialog.isShowing())
                 renderMediaDialog(mediaDialog,t,navigation,mediaDialogList);
         }catch(Exception ignored){}
@@ -548,15 +581,17 @@ public class BrowserActivity extends Activity {
             }).show();
     }
     private void showMenu() {
-        boolean cleanPrivacy=prefs.getBoolean("privacyCleanMode",false);
-        boolean pageScriptsEnabled=prefs.getBoolean(DolaPageScripts.PREF_KEY,false);
-        new AlertDialog.Builder(this).setTitle(title).setItems(new String[]{"前进","回到首页","新建标签","添加当前页书签","打开书签","下载中心","30s（本空间）："+(pageScriptsEnabled?"开启":"关闭"),"30S 工具","Cookie / CK 导入导出","旧 Dola30 JS：仅备份，不执行","隐私洁净模式："+(cleanPrivacy?"已启用":"关闭"),"旧脚本选项（停用）","回到空间列表"},(d,n)->{
-            switch(n){case 0:if(active.view!=null&&active.view.canGoForward())active.view.goForward();break;
-                case 1:load(home);break;case 2:newTab(home);break;case 3:addBookmark();break;case 4:showBookmarks();break;
-                case 5:downloads.show();break;case 6:confirmPageScriptsMode(!pageScriptsEnabled);break;case 7:showDurationTool();break;
-                case 8:cookies.show();break;case 9:showOriginalScriptOptions();break;case 10:confirmPrivacyCleanMode(!cleanPrivacy);break;
-                case 11:showOriginalScriptOptions();break;case 12:returnToCatalog();break;}
+        new AlertDialog.Builder(this).setTitle(title).setItems(new String[]{"30S 工具","创作工作台","新建标签","前进","回到首页","添加当前页书签","打开书签","下载中心","Cookie / CK 导入导出","登录与空间说明","回到空间列表"},(d,n)->{
+            switch(n){case 0:showDurationTool();break;case 1:openStudio();break;case 2:newTab(home);break;
+                case 3:if(active.view!=null&&active.view.canGoForward())active.view.goForward();break;
+                case 4:load(home);break;case 5:addBookmark();break;case 6:showBookmarks();break;
+                case 7:downloads.show();break;case 8:cookies.show();break;case 9:showLoginHelp();break;case 10:returnToCatalog();break;}
         }).show();
+    }
+    private void showLoginHelp() {
+        new AlertDialog.Builder(this).setTitle("独立空间与登录")
+            .setMessage("本空间使用独立进程、WebView 数据及缓存目录，Cookie/网站存储只在同一空间标签之间共享，不复制到其他空间。64 是独立档案数量，不是同时常驻 64 个进程；Android 会回收后台。\n\nGoogle OAuth 不允许嵌入式 WebView 授权，可能返回 disallowed_useragent。本应用不伪装浏览器、不复制外部浏览器 Google Cookie，也不能保证在 WebView 完成 Google 登录。请使用站点允许的其他登录方式。外部浏览器登录不会自动导入本空间。")
+            .setPositiveButton("知道了",null).show();
     }
     private void confirmPageScriptsMode(boolean enabled) {
         if(enabled&&!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)){
@@ -569,7 +604,7 @@ public class BrowserActivity extends Activity {
             .setMessage(detail+"\n为移除/安装脚本钩子，本空间所有打开标签将重新加载；未提交输入会丢失。")
             .setNegativeButton("取消",null).setPositiveButton(enabled?"开启并重载":"关闭并重载",(d,w)->{
                 if(!prefs.edit().putBoolean(DolaPageScripts.PREF_KEY,enabled).commit()){Ui.toast(this,"设置未保存");return;}
-                reloadTabsForScriptMode();
+                syncScriptSwitch();reloadTabsForScriptMode();
             }).show();
     }
     private void confirmPrivacyCleanMode(boolean enabled) {
@@ -579,7 +614,7 @@ public class BrowserActivity extends Activity {
         new AlertDialog.Builder(this).setTitle(enabled?"开启隐私洁净模式？":"关闭隐私洁净模式？")
             .setMessage(detail).setNegativeButton("取消",null).setPositiveButton(enabled?"开启并重载":"关闭并重载",(d,w)->{
                 if(!prefs.edit().putBoolean("privacyCleanMode",enabled).commit()){Ui.toast(this,"设置未保存");return;}
-                reloadTabsForScriptMode();
+                syncScriptSwitch();reloadTabsForScriptMode();
             }).show();
     }
     private void confirmOriginalDolaMode(boolean ignored) { showOriginalScriptOptions(); }
@@ -661,8 +696,68 @@ public class BrowserActivity extends Activity {
         for(Tab t:tabs){t.closed=true;if(t.view!=null){t.view.stopLoading();t.view.destroy();t.view=null;}}super.onDestroy();
     }
     static final class MediaItem{String url;final String type,title;String posterUrl;final ArrayList<String> channels=new ArrayList<>();MediaItem(String u,String t,String n){this(u,t,n,null,Collections.emptyList());}MediaItem(String u,String t,String n,String p){this(u,t,n,p,Collections.emptyList());}MediaItem(String u,String t,String n,String p,List<String> c){url=u;type=t;title=n;posterUrl=p;mergeChannels(c);}void mergeChannels(Collection<String> values){if(values==null)return;for(String value:values)addMediaChannel(channels,value);}}
-    public static class Space0 extends BrowserActivity{} public static class Space1 extends BrowserActivity{}
-    public static class Space2 extends BrowserActivity{} public static class Space3 extends BrowserActivity{}
-    public static class Space4 extends BrowserActivity{} public static class Space5 extends BrowserActivity{}
-    public static class Space6 extends BrowserActivity{} public static class Space7 extends BrowserActivity{}
+    public static class Space0 extends BrowserActivity{}
+    public static class Space1 extends BrowserActivity{}
+    public static class Space2 extends BrowserActivity{}
+    public static class Space3 extends BrowserActivity{}
+    public static class Space4 extends BrowserActivity{}
+    public static class Space5 extends BrowserActivity{}
+    public static class Space6 extends BrowserActivity{}
+    public static class Space7 extends BrowserActivity{}
+    public static class Space8 extends BrowserActivity{}
+    public static class Space9 extends BrowserActivity{}
+    public static class Space10 extends BrowserActivity{}
+    public static class Space11 extends BrowserActivity{}
+    public static class Space12 extends BrowserActivity{}
+    public static class Space13 extends BrowserActivity{}
+    public static class Space14 extends BrowserActivity{}
+    public static class Space15 extends BrowserActivity{}
+    public static class Space16 extends BrowserActivity{}
+    public static class Space17 extends BrowserActivity{}
+    public static class Space18 extends BrowserActivity{}
+    public static class Space19 extends BrowserActivity{}
+    public static class Space20 extends BrowserActivity{}
+    public static class Space21 extends BrowserActivity{}
+    public static class Space22 extends BrowserActivity{}
+    public static class Space23 extends BrowserActivity{}
+    public static class Space24 extends BrowserActivity{}
+    public static class Space25 extends BrowserActivity{}
+    public static class Space26 extends BrowserActivity{}
+    public static class Space27 extends BrowserActivity{}
+    public static class Space28 extends BrowserActivity{}
+    public static class Space29 extends BrowserActivity{}
+    public static class Space30 extends BrowserActivity{}
+    public static class Space31 extends BrowserActivity{}
+    public static class Space32 extends BrowserActivity{}
+    public static class Space33 extends BrowserActivity{}
+    public static class Space34 extends BrowserActivity{}
+    public static class Space35 extends BrowserActivity{}
+    public static class Space36 extends BrowserActivity{}
+    public static class Space37 extends BrowserActivity{}
+    public static class Space38 extends BrowserActivity{}
+    public static class Space39 extends BrowserActivity{}
+    public static class Space40 extends BrowserActivity{}
+    public static class Space41 extends BrowserActivity{}
+    public static class Space42 extends BrowserActivity{}
+    public static class Space43 extends BrowserActivity{}
+    public static class Space44 extends BrowserActivity{}
+    public static class Space45 extends BrowserActivity{}
+    public static class Space46 extends BrowserActivity{}
+    public static class Space47 extends BrowserActivity{}
+    public static class Space48 extends BrowserActivity{}
+    public static class Space49 extends BrowserActivity{}
+    public static class Space50 extends BrowserActivity{}
+    public static class Space51 extends BrowserActivity{}
+    public static class Space52 extends BrowserActivity{}
+    public static class Space53 extends BrowserActivity{}
+    public static class Space54 extends BrowserActivity{}
+    public static class Space55 extends BrowserActivity{}
+    public static class Space56 extends BrowserActivity{}
+    public static class Space57 extends BrowserActivity{}
+    public static class Space58 extends BrowserActivity{}
+    public static class Space59 extends BrowserActivity{}
+    public static class Space60 extends BrowserActivity{}
+    public static class Space61 extends BrowserActivity{}
+    public static class Space62 extends BrowserActivity{}
+    public static class Space63 extends BrowserActivity{}
 }

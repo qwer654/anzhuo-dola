@@ -11,7 +11,7 @@ public final class DolaApplication extends Application {
         int separator = process.lastIndexOf(':');
         if (separator >= 0) {
             String suffix = process.substring(separator + 1);
-            if (!suffix.matches("space[0-7]")) throw new IllegalStateException("Unknown browser process");
+            if (!SpaceSlots.isSuffix(suffix)) throw new IllegalStateException("Unknown browser process");
             // Must precede CookieManager, WebSettings or any WebView initialization.
             WebView.setDataDirectorySuffix(suffix);
         }
