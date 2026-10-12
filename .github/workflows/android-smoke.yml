@@ -65,6 +65,14 @@ jobs:
           "$SDKMANAGER" --sdk_root="$SDK_ROOT" 'ndk;27.2.12479018'
           export ANDROID_NDK_HOME="$SDK_ROOT/ndk/27.2.12479018"
           ABIS='arm64-v8a x86_64' ANDROID_API=28 bash tools/build_android_ffmpeg.sh
+      - name: Save successfully built FFmpeg before Java checks
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            app/src/main/jniLibs
+            app/src/main/assets/ffmpeg
+          key: ffmpeg-7.1.1-ndk27-api28-${{ runner.os }}-${{ hashFiles('tools/build_android_ffmpeg.sh') }}
       - name: Enable KVM for the temporary runner
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

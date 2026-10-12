@@ -84,6 +84,14 @@ jobs:
           "$SDKMANAGER" --sdk_root="$SDK_ROOT" 'ndk;27.2.12479018'
           export ANDROID_NDK_HOME="$SDK_ROOT/ndk/27.2.12479018"
           ABIS='arm64-v8a x86_64' ANDROID_API=28 bash tools/build_android_ffmpeg.sh
+      - name: Save successfully built FFmpeg before Java checks
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            app/src/main/jniLibs
+            app/src/main/assets/ffmpeg
+          key: ffmpeg-7.1.1-ndk27-api28-${{ runner.os }}-${{ hashFiles('tools/build_android_ffmpeg.sh') }}
       - name: Assemble debug and side-by-side validation APKs
         run: gradle --no-daemon --stacktrace testDebugUnitTest lintDebug lintSessionValidation lintNewSourceValidation assembleDebug assembleDeviceValidation assembleSessionValidation assembleNewSourceValidation assembleDeviceValidationAndroidTest
       - name: Verify APK signature and record SHA-256

@@ -32,7 +32,7 @@ public final class SpaceReset {
     static boolean valid(int slot){return slot>=0&&slot<SpaceSlots.COUNT;}
     static boolean isOperation(String op){return OP_CLEAR.equals(op)||OP_DELETE.equals(op);}
     public static boolean isPending(Context c,int slot){return valid(slot)&&(Files.exists(marker(c,slot),LinkOption.NOFOLLOW_LINKS)||c.getSharedPreferences(CATALOG,Context.MODE_PRIVATE).getBoolean(PENDING+slot,false));}
-    static String pendingOperation(Context c,int slot){return c.getSharedPreferences(CATALOG,Context.MODE_PRIVATE).getString(OP+slot,OP_CLEAR);}
+    static String pendingOperation(Context c,int slot){try{Path p=marker(c,slot);if(Files.exists(p,LinkOption.NOFOLLOW_LINKS)){if(Files.size(p)>16)return "invalid";String op=new String(Files.readAllBytes(p),StandardCharsets.UTF_8);return isOperation(op)?op:"invalid";}}catch(IOException e){return "invalid";}return c.getSharedPreferences(CATALOG,Context.MODE_PRIVATE).getString(OP+slot,OP_CLEAR);}
 
     /** Runs off the UI thread. False may mean a partial cleanup; admission remains blocked until retry. */
     static boolean performBlocking(Context c,int slot,String op) {
