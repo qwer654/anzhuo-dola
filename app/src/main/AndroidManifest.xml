@@ -14,6 +14,7 @@
         android:usesCleartextTraffic="false"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+        <activity android:name=".SequentialVideoActivity" android:exported="false" />
         <activity android:name=".StudioActivity" android:exported="false" android:screenOrientation="portrait" />
         <activity android:name=".BrowserActivity$Space0" android:exported="false" android:process=":space0" android:launchMode="singleTask" android:taskAffinity="${applicationId}.space0" android:screenOrientation="portrait" />
         <activity android:name=".BrowserActivity$Space1" android:exported="false" android:process=":space1" android:launchMode="singleTask" android:taskAffinity="${applicationId}.space1" android:screenOrientation="portrait" />

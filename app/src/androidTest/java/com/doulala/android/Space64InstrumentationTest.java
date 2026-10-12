@@ -39,7 +39,7 @@ public class Space64InstrumentationTest {
         context.startActivity(new Intent(context,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
         waitFor(By.text("账号空间"));
         UiScrollable list=new UiScrollable(new UiSelector().scrollable(true));
-        assertTrue(list.scrollIntoView(new UiSelector().description("进入空间：第1空间")));
+        if(!device.hasObject(By.desc("进入空间：第1空间")))assertTrue(list.scrollIntoView(new UiSelector().description("进入空间：第1空间")));
         device.findObject(By.desc("进入空间：第1空间")).click();
         waitFor(By.text("第1空间"));
         waitFor(By.desc("浏览器菜单"));
@@ -51,7 +51,7 @@ public class Space64InstrumentationTest {
         context.startActivity(new Intent(context,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
         waitFor(By.text("账号空间"));
         list=new UiScrollable(new UiSelector().scrollable(true));
-        assertTrue(list.scrollIntoView(new UiSelector().description("进入空间：第64空间")));
+        if(!device.hasObject(By.desc("进入空间：第64空间")))assertTrue(list.scrollIntoView(new UiSelector().description("进入空间：第64空间")));
         device.findObject(By.desc("进入空间：第64空间")).click();
         waitFor(By.text("第64空间"));
         waitFor(By.desc("浏览器菜单"));

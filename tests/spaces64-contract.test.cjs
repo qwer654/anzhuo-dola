@@ -23,7 +23,7 @@ test('nested activities and ergonomic browser actions are present', () => {
   const nested = [...browser.matchAll(/class\s+Space(\d+)\s+extends\s+BrowserActivity/g)].map(m => Number(m[1]));
   assert.equal(nested.length, 64);
   assert.deepEqual(nested, [...Array(64).keys()]);
-  for (const label of ['回到空间列表', '当前IP', '导入CK', '管理标签', '浏览器菜单']) assert.match(browser, new RegExp(label));
+  for (const label of ['回到空间列表', '当前IP', '导入CK', '清理空间', '浏览器菜单']) assert.match(browser, new RegExp(label));
   assert.match(browser, /本空间新脚本30s开关/);
   for (const oldLabel of ['隐私洁净模式：关闭', '旧 Dola30 JS：仅备份，不执行']) assert.doesNotMatch(browser, new RegExp(oldLabel));
   for (const menuLabel of ['30S 工具', '创作工作台', '新建标签', '回到首页', '添加当前页书签', '打开书签', '下载中心', 'Cookie \/ CK 导入导出', '登录与空间说明', '回到空间列表']) assert.match(browser, new RegExp(menuLabel));

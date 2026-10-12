@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
+      - 'tools/build_android_ffmpeg.sh'
       - 'app/**'
       - '*.gradle'
       - 'settings.gradle'
@@ -14,6 +15,7 @@ on:
       - '.github/workflows/android.yml'
   pull_request:
     paths:
+      - 'tools/build_android_ffmpeg.sh'
       - 'app/**'
       - '*.gradle'
       - 'settings.gradle'
@@ -33,7 +35,7 @@ concurrency:
 jobs:
   debug-apk:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -66,6 +68,22 @@ jobs:
           fi
           test -f "$SDK_ROOT/platforms/android-35/android.jar"
           test -f "$SDK_ROOT/build-tools/35.0.0/apksigner"
+      - name: Cache pinned Android FFmpeg binaries
+        id: ffmpeg-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            app/src/main/jniLibs
+            app/src/main/assets/ffmpeg
+          key: ffmpeg-7.1.1-ndk27-api28-${{ runner.os }}-${{ hashFiles('tools/build_android_ffmpeg.sh') }}
+      - name: Build pinned Android FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER=$(find "$SDK_ROOT/cmdline-tools" -name sdkmanager -type f | head -n 1)
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" 'ndk;27.2.12479018'
+          export ANDROID_NDK_HOME="$SDK_ROOT/ndk/27.2.12479018"
+          ABIS='arm64-v8a x86_64' ANDROID_API=28 bash tools/build_android_ffmpeg.sh
       - name: Assemble debug and side-by-side validation APKs
         run: gradle --no-daemon --stacktrace testDebugUnitTest lintDebug lintSessionValidation lintNewSourceValidation assembleDebug assembleDeviceValidation assembleSessionValidation assembleNewSourceValidation assembleDeviceValidationAndroidTest
       - name: Verify APK signature and record SHA-256

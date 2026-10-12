@@ -46,7 +46,7 @@ public class BrowserSmokeTest {
         UiScrollable list=new UiScrollable(new UiSelector().scrollable(true));
         String entryDescription="进入空间："+title;
         UiSelector entrySelector=new UiSelector().description(entryDescription);
-        assertTrue("Space entry button is not reachable: "+title,list.scrollIntoView(entrySelector));
+        if(!device.hasObject(By.desc(entryDescription)))assertTrue("Space entry button is not reachable: "+title,list.scrollIntoView(entrySelector));
         UiObject entry=device.findObject(entrySelector);
         assertTrue("Space entry button is not reachable: "+title,entry.exists());entry.click();
         waitFor(By.text(title));waitFor(By.desc("浏览器菜单"));
@@ -141,7 +141,7 @@ public class BrowserSmokeTest {
         assertTrue(device.hasObject(By.desc("回到空间列表")));
         assertTrue(device.hasObject(By.desc("当前IP")));
         assertTrue(device.hasObject(By.desc("导入CK")));
-        assertTrue(device.hasObject(By.desc("管理标签")));
+        assertTrue(device.hasObject(By.desc("清理空间")));
         assertTrue(device.hasObject(By.desc("浏览器菜单")));
         assertFalse(device.hasObject(By.textContains("隐私洁净")));
         assertFalse(device.hasObject(By.textContains("旧 Dola30")));

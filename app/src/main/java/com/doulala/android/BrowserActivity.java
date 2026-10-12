@@ -28,7 +28,8 @@ public class BrowserActivity extends Activity {
     private int fileNavigation, promptNavigation;
     private FrameLayout viewport;
     private EditText address;
-    private TextView status,mediaButton,tabsButton,caption;
+    private TextView status,mediaButton,tabsButton,caption,exitIp;
+    private boolean ipLookupRunning;
     private Switch pageScriptsSwitch;
     private boolean syncingScriptSwitch;
     private String home,title,skillPackScript,mediaUploadScript;
@@ -53,7 +54,9 @@ public class BrowserActivity extends Activity {
     }
 
     @Override public void onCreate(Bundle state) {
-        super.onCreate(state);Ui.setup(this);readLaunch(getIntent());
+        super.onCreate(state);
+        if(DolaApplication.isSpaceResetPending(this,spaceSlot())){finish();return;}
+        Ui.setup(this);readLaunch(getIntent());
         prefs=getSharedPreferences(DolaPageScripts.preferenceName(getClass().getSimpleName()),MODE_PRIVATE);
         downloads=new DownloadCenter(this,prefs,getClass().getSimpleName());
         cookies=new CookieTransfer(this,()->active==null?null:active.url);
@@ -66,50 +69,47 @@ public class BrowserActivity extends Activity {
     @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);readLaunch(i);if(caption!=null)caption.setText(title);}
     private static String webUrl(String raw){String u=UrlRules.normalize(raw);return u!=null&&u.startsWith("https://")?u:null;}
 
+    private int spaceSlot(){return Integer.parseInt(getClass().getSimpleName().substring(5));}
     private void build() {
         LinearLayout root=Ui.column(this);root.setBackgroundColor(Ui.BG);
-        LinearLayout header=Ui.row(this);Ui.pad(header,8);
-        caption=Ui.title(this,title,16);caption.setSingleLine(true);caption.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        header.addView(caption,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1));
-        caption.setGravity(Gravity.CENTER_VERTICAL);
-        pageScriptsSwitch=new Switch(this);pageScriptsSwitch.setText("30s · 新脚本");pageScriptsSwitch.setTextSize(13);
-        pageScriptsSwitch.setTextColor(Ui.INK);pageScriptsSwitch.setMinHeight(Ui.dp(this,48));
-        pageScriptsSwitch.setContentDescription("本空间新脚本30s开关");header.addView(pageScriptsSwitch);root.addView(header);
-        syncScriptSwitch();
-        pageScriptsSwitch.setOnCheckedChangeListener((button,checked)->{
-            if(syncingScriptSwitch)return;syncScriptSwitch();confirmPageScriptsMode(checked);
-        });
-        LinearLayout bar=Ui.row(this);Ui.pad(bar,4);
-        addAction(bar,"‹","后退",48,()->goBack());
+        caption=Ui.title(this,title,14);caption.setSingleLine(true);caption.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        caption.setPadding(Ui.dp(this,8),Ui.dp(this,3),Ui.dp(this,8),Ui.dp(this,3));root.addView(caption);
+        LinearLayout navigation=toolbarRow(root);
+        gridAction(navigation,"‹","后退",this::goBack);
+        gridAction(navigation,"›","前进",()->{if(active!=null&&active.view!=null&&active.view.canGoForward())active.view.goForward();});
+        gridAction(navigation,"↻","刷新",()->{if(active!=null){if(active.view==null)select(active);else active.view.reload();}});
+        gridAction(navigation,"空间","回到空间列表",this::returnToCatalog);
+        tabsButton=gridAction(navigation,"标签 1","浏览器菜单",this::showMenu);
+        LinearLayout tools=toolbarRow(root);
+        gridAction(tools,"Google 登录","Google登录",this::showGoogleLogin);
+        gridAction(tools,"代理","代理说明",this::showProxyHelp);
+        pageScriptsSwitch=new Switch(this);pageScriptsSwitch.setText("30s");pageScriptsSwitch.setTextSize(12);pageScriptsSwitch.setTextColor(Ui.INK);
+        pageScriptsSwitch.setContentDescription("本空间新脚本30s开关");pageScriptsSwitch.setMinHeight(Ui.dp(this,48));
+        pageScriptsSwitch.setGravity(Gravity.CENTER);tools.addView(pageScriptsSwitch,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1));
+        syncScriptSwitch();pageScriptsSwitch.setOnCheckedChangeListener((button,checked)->{if(syncingScriptSwitch)return;syncScriptSwitch();confirmPageScriptsMode(checked);});
+        gridAction(tools,"清理","清理空间",this::showSpaceCleanup);
+        LinearLayout addressRow=toolbarRow(root);
         address=Ui.edit(this,"输入 HTTPS 地址",home);address.setSingleLine(true);address.setTextSize(14);address.setSelectAllOnFocus(true);
         address.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);
         address.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_GO);
-        address.setOnEditorActionListener((v,action,event)->{
-            if(action==android.view.inputmethod.EditorInfo.IME_ACTION_GO || (event!=null&&event.getKeyCode()==KeyEvent.KEYCODE_ENTER&&event.getAction()==KeyEvent.ACTION_UP)) {
-                String u=webUrl(address.getText().toString());
-                if(u==null)address.setError("请输入有效的 HTTPS 地址");else{
-                    load(u);address.clearFocus();
-                    ((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(address.getWindowToken(),0);
-                }return true;
-            }return false;
-        });
-        bar.addView(address,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1));
-        addAction(bar,"↻","刷新",48,()->{if(active.view==null)select(active);else active.view.reload();});root.addView(bar);
+        address.setOnEditorActionListener((v,action,event)->{if(action==android.view.inputmethod.EditorInfo.IME_ACTION_GO||(event!=null&&event.getKeyCode()==KeyEvent.KEYCODE_ENTER&&event.getAction()==KeyEvent.ACTION_UP)){openTypedAddress();return true;}return false;});
+        addressRow.addView(address,new LinearLayout.LayoutParams(0,Ui.dp(this,48),3));gridAction(addressRow,"打开","打开地址",this::openTypedAddress);
+        LinearLayout quick=toolbarRow(root);
+        gridAction(quick,"当前 IP","当前IP",this::showExitIp);gridAction(quick,"导入 CK","导入CK",()->cookies.importFileDirect());
+        gridAction(quick,"下载媒体","下载媒体",()->downloads.show());
+        exitIp=Ui.text(this,"出口 IP：\n点击查询",11,Ui.MUTED);exitIp.setMaxLines(3);exitIp.setTextIsSelectable(true);exitIp.setContentDescription("出口IP显示");
+        quick.addView(exitIp,new LinearLayout.LayoutParams(0,Ui.dp(this,56),1));
         status=Ui.text(this,"正在准备网页…",11,Ui.MUTED);status.setSingleLine(true);status.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        status.setPadding(Ui.dp(this,12),0,Ui.dp(this,12),Ui.dp(this,4));root.addView(status);
-        viewport=new FrameLayout(this);root.addView(viewport,new LinearLayout.LayoutParams(-1,0,1));
-        LinearLayout dock=Ui.row(this);Ui.pad(dock,4);dock.setBackgroundColor(Ui.CARD);
-        dockAction(dock,"空间","回到空间列表",this::returnToCatalog);
-        dockAction(dock,"当前 IP","当前IP",this::showExitIp);
-        dockAction(dock,"导入 CK","导入CK",()->cookies.importFileDirect());
-        tabsButton=dockAction(dock,"标签 1","管理标签",this::showTabs);
-        dockAction(dock,"更多","浏览器菜单",this::showMenu);root.addView(dock);
-        setContentView(root);
+        status.setPadding(Ui.dp(this,8),0,Ui.dp(this,8),Ui.dp(this,3));root.addView(status);
+        viewport=new FrameLayout(this);root.addView(viewport,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
     }
-    private TextView dockAction(LinearLayout row,String text,String description,Runnable action) {
-        Button button=Ui.button(this,text,action);button.setContentDescription(description);button.setTextSize(12);
-        row.addView(button,new LinearLayout.LayoutParams(0,Ui.dp(this,52),1));return button;
-    }
+    private LinearLayout toolbarRow(LinearLayout root){LinearLayout row=Ui.row(this);row.setPadding(Ui.dp(this,4),Ui.dp(this,2),Ui.dp(this,4),Ui.dp(this,2));root.addView(row);return row;}
+    private Button gridAction(LinearLayout row,String label,String description,Runnable action){Button button=Ui.button(this,label,action);button.setTextSize(12);button.setPadding(Ui.dp(this,3),0,Ui.dp(this,3),0);button.setContentDescription(description);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,Ui.dp(this,48),1);lp.setMargins(Ui.dp(this,2),0,Ui.dp(this,2),0);row.addView(button,lp);return button;}
+    private void openTypedAddress(){String u=webUrl(address.getText().toString());if(u==null){address.setError("请输入有效的 HTTPS 地址");return;}load(u);address.clearFocus();((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(address.getWindowToken(),0);}
+    private void showGoogleLogin(){new AlertDialog.Builder(this).setTitle("Google 登录说明").setMessage("该页面只在本空间打开，Cookie 不复制到其它空间。但 Google OAuth 可能拒绝 WebView，本应用不绕过限制，也不保证授权成功。").setNegativeButton("取消",null).setPositiveButton("打开 Google 页面",(d,w)->load("https://accounts.google.com/")).show();}
+    private void showProxyHelp(){new AlertDialog.Builder(this).setTitle("代理与出口").setMessage("当前使用手机系统网络或 VPN。本应用尚未提供每空间独立代理配置；此按钮不是代理开关。不同空间不会自动获得不同 IP，按目标分流时 IP 查询结果也可能与 Dola 不同。").setPositiveButton("知道了",null).show();}
+    private void showSpaceCleanup(){new AlertDialog.Builder(this).setTitle("管理本空间").setItems(new String[]{"清除数据（保留空间）","删除空间（释放名额）"},(d,n)->{startActivity(new Intent(this,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP).putExtra(SpaceReset.EXTRA_RESET_SLOT,spaceSlot()).putExtra(SpaceReset.EXTRA_RESET_OPERATION,n==0?SpaceReset.OP_CLEAR:SpaceReset.OP_DELETE));}).setNegativeButton("取消",null).show();}
+    private void openSequentialVideo(){startActivity(new Intent(this,SequentialVideoActivity.class).putExtra("spaceId",getClass().getSimpleName()));}
     private void syncScriptSwitch() {
         if(pageScriptsSwitch==null)return;syncingScriptSwitch=true;
         pageScriptsSwitch.setChecked(prefs.getBoolean(DolaPageScripts.PREF_KEY,false));syncingScriptSwitch=false;
@@ -119,14 +119,9 @@ public class BrowserActivity extends Activity {
         startActivityForResult(new Intent(this,StudioActivity.class).putExtra("pickPrompt",true),PICK_PROMPT);
     }
     private void showExitIp() {
-        TextView value=Ui.text(this,"查询中…",18,Ui.INK);value.setTextIsSelectable(true);Ui.pad(value,20);
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("当前 IP · "+title).setView(value)
-            .setMessage("查询当前应用经网络/VPN访问 IP 服务的出口；不发送 Cookie 或账号。不同空间不等于不同 IP，目标网站的分流出口可能不同。")
-            .setNegativeButton("关闭",null).create();dialog.show();
-        previewExecutor.execute(()->{
-            String result;try{result=ExitIpClient.lookup();}catch(Exception e){result="查询失败，请检查网络后重试";}
-            final String text=result;runOnUiThread(()->{if(!destroyed&&dialog.isShowing())value.setText(text);});
-        });
+        if(ipLookupRunning)return;ipLookupRunning=true;exitIp.setText("出口 IP：\n查询中…");
+        previewExecutor.execute(()->{String result;try{result=ExitIpClient.lookup();}catch(Exception e){result="查询失败";}final String text=result;
+            runOnUiThread(()->{ipLookupRunning=false;if(!destroyed&&exitIp!=null)exitIp.setText("出口 IP：\n"+text);});});
     }
     private TextView addAction(LinearLayout row,String text,String description,int width,Runnable action) {
         TextView v=Ui.text(this,text,14,Ui.ACCENT);v.setGravity(Gravity.CENTER);v.setContentDescription(description);
@@ -202,7 +197,7 @@ public class BrowserActivity extends Activity {
                 .setPositiveButton("关闭",(x,w)->{d.dismiss();closeTab(t);}).show()));list.addView(row);
         }d.show();
     }
-    private void updateUi(){if(active==null)return;address.setText(active.url);status.setText(active.message);tabsButton.setText("标签 "+tabs.size());if(mediaButton!=null)mediaButton.setText("资源 "+active.media.size());}
+    private void updateUi(){if(active==null)return;address.setText(active.url);status.setText(active.message);if(tabsButton!=null)tabsButton.setText("标签 "+tabs.size());if(mediaButton!=null)mediaButton.setText("资源 "+active.media.size());}
     private void message(Tab t,String text){t.message=text;if(t==active&&!destroyed)status.setText(text);}
 
     private void configure(Tab t) {
@@ -581,11 +576,11 @@ public class BrowserActivity extends Activity {
             }).show();
     }
     private void showMenu() {
-        new AlertDialog.Builder(this).setTitle(title).setItems(new String[]{"30S 工具","创作工作台","新建标签","前进","回到首页","添加当前页书签","打开书签","下载中心","Cookie / CK 导入导出","登录与空间说明","回到空间列表"},(d,n)->{
+        new AlertDialog.Builder(this).setTitle(title).setItems(new String[]{"30S 工具","创作工作台","新建标签","前进","回到首页","添加当前页书签","打开书签","下载中心","Cookie / CK 导入导出","登录与空间说明","回到空间列表","标签管理（"+tabs.size()+"）","顺序视频"},(d,n)->{
             switch(n){case 0:showDurationTool();break;case 1:openStudio();break;case 2:newTab(home);break;
                 case 3:if(active.view!=null&&active.view.canGoForward())active.view.goForward();break;
                 case 4:load(home);break;case 5:addBookmark();break;case 6:showBookmarks();break;
-                case 7:downloads.show();break;case 8:cookies.show();break;case 9:showLoginHelp();break;case 10:returnToCatalog();break;}
+                case 7:downloads.show();break;case 8:cookies.show();break;case 9:showLoginHelp();break;case 10:returnToCatalog();break;case 11:showTabs();break;case 12:openSequentialVideo();break;}
         }).show();
     }
     private void showLoginHelp() {
@@ -687,12 +682,12 @@ public class BrowserActivity extends Activity {
                 v->{if(!destroyed&&!t.closed&&t.navigation==navigation)message(t,"true".equals(v)?"内容已填入，请检查后手动发送":"未找到可用输入框，请从工作台复制并手动粘贴");});
         }
     }
-    @Override protected void onResume(){super.onResume();resumed=true;if(active!=null&&active.view!=null)active.view.onResume();downloads.resume();handler.removeCallbacks(scanLoop);handler.postDelayed(scanLoop,1200);}
-    @Override protected void onPause(){resumed=false;handler.removeCallbacks(scanLoop);downloads.pause();if(active!=null&&active.view!=null)active.view.onPause();saveTabs();CookieManager.getInstance().flush();super.onPause();}
+    @Override protected void onResume(){super.onResume();resumed=true;if(active!=null&&active.view!=null)active.view.onResume();if(downloads!=null)downloads.resume();handler.removeCallbacks(scanLoop);handler.postDelayed(scanLoop,1200);}
+    @Override protected void onPause(){resumed=false;handler.removeCallbacks(scanLoop);if(downloads!=null)downloads.pause();if(active!=null&&active.view!=null)active.view.onPause();saveTabs();if(prefs!=null)CookieManager.getInstance().flush();super.onPause();}
     @Override public void onBackPressed(){goBack();}
     @Override protected void onSaveInstanceState(Bundle out){saveTabs();super.onSaveInstanceState(out);}
     @Override protected void onDestroy(){
-        destroyed=true;dismissMediaDialog();handler.removeCallbacksAndMessages(null);previewExecutor.shutdownNow();cancelFile();cookies.close();downloads.close();viewport.removeAllViews();
+        destroyed=true;dismissMediaDialog();handler.removeCallbacksAndMessages(null);previewExecutor.shutdownNow();cancelFile();if(cookies!=null)cookies.close();if(downloads!=null)downloads.close();if(viewport!=null)viewport.removeAllViews();
         for(Tab t:tabs){t.closed=true;if(t.view!=null){t.view.stopLoading();t.view.destroy();t.view=null;}}super.onDestroy();
     }
     static final class MediaItem{String url;final String type,title;String posterUrl;final ArrayList<String> channels=new ArrayList<>();MediaItem(String u,String t,String n){this(u,t,n,null,Collections.emptyList());}MediaItem(String u,String t,String n,String p){this(u,t,n,p,Collections.emptyList());}MediaItem(String u,String t,String n,String p,List<String> c){url=u;type=t;title=n;posterUrl=p;mergeChannels(c);}void mergeChannels(Collection<String> values){if(values==null)return;for(String value:values)addMediaChannel(channels,value);}}
