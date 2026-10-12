@@ -35,22 +35,18 @@ public class UrlRulesTest {
         assertTrue(BrowserActivity.acceptThirdPartyCookiesInPrivacyMode(false));
         assertTrue(BrowserActivity.geolocationEnabledInPrivacyMode(false));
     }
-    @Test public void privacyFingerprintBootstrapIsOptInAndSeedsApiReductionsWithoutIdentitySpoofing() {
-        assertNull(BrowserActivity.privacyFingerprintBootstrap("script", false));
-        String bootstrap=BrowserActivity.privacyFingerprintBootstrap("script", true);
-        assertTrue(bootstrap.startsWith("window.__dolaFingerprintInitialSettings={blockCanvasReadback:true,hideWebglDebugInfo:true,blockAudioFingerprint:true,blockWebRTC:true,blockDeviceEnumeration:true};\n"));
-        assertTrue(bootstrap.endsWith("script"));
-        assertFalse(bootstrap.contains("cleanMode:true"));
+    @Test public void retiredPrivacyJsCannotBeReenabledViaLegacyBootstrap() {
+        assertNull(BrowserActivity.privacyFingerprintBootstrap("old script",false));
+        assertNull(BrowserActivity.privacyFingerprintBootstrap("old script",true));
     }
-    @Test public void durationToolExplainsAvailableAndUnavailableParityWithoutOverclaiming() {
-        String available=BrowserActivity.durationToolCapabilitySummary(true);
-        assertTrue(available.contains("页面资源观察：已注入，仅观察页面已暴露的 URL"));
-        assertTrue(available.contains("Debugger 深度/自动嗅探：不可用"));
-        assertTrue(available.contains("Android WebView 不提供 Chrome MV3 Debugger"));
-        assertTrue(available.contains("fallback API 解析：未实现"));
-        String unavailable=BrowserActivity.durationToolCapabilitySummary(false);
-        assertTrue(unavailable.contains("页面资源观察：未启用"));
-        assertTrue(unavailable.contains("fallback API 解析：未实现"));
+    @Test public void durationToolReportsRetiredFeaturesEvenWhenOldProbeFlagIsTrue() {
+        for(boolean oldFlag:new boolean[]{false,true}){
+            String text=BrowserActivity.durationToolCapabilitySummary(oldFlag);
+            assertTrue(text.contains("页面资源观察：未启用"));assertTrue(text.contains("旧 JS 仅备份"));
+            assertTrue(text.contains("Debugger 深度/自动嗅探：不可用"));
+            assertTrue(text.contains("Chrome 扩展面板/后台接口：不可注入，未生效"));
+            assertTrue(text.contains("fallback API 解析：未实现"));
+        }
     }
     @Test public void platformSelectionLabelsRemainReadOnlyAndNonPromissory(){
         assertTrue(BrowserActivity.platformSelectionSummary("selection_matches_30s").contains("只读"));

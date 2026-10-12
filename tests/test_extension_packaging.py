@@ -27,23 +27,34 @@ class Packaging(unittest.TestCase):
             sources = {
                 "dola30-original": ROOT / "app/src/main/assets/dola30-original",
                 "dola30-user-source-v1.6.9": ROOT / "app/src/main/assets/dola30-user-source-v1.6.9",
+                "dola30-source-v1.6.14": ROOT / "app/src/main/assets/dola30-source-v1.6.14",
             }
             manifests = {name: json.loads((source / "SOURCE-MANIFEST.json").read_text(encoding="utf-8")) for name, source in sources.items()}
             for tamper in (False, True):
                 with zipfile.ZipFile(apk, "w") as archive:
+                    written = set()
                     for name, source in sources.items():
                         for entry in manifests[name]["files"]:
                             data = (source / entry["path"]).read_bytes()
                             if tamper and name == "dola30-original" and entry["path"] == "manifest.json":
                                 data += b" "
-                            archive.writestr("assets/" + name + "/" + entry["path"], data)
+                            filename = "assets/" + name + "/" + entry["path"]
+                            archive.writestr(filename, data)
+                            written.add(filename)
+                    policy_path = ROOT / "app/src/main/assets/RUNTIME-SOURCE-POLICY.json"
+                    policy = json.loads(policy_path.read_text(encoding="utf-8"))
+                    archive.writestr("assets/RUNTIME-SOURCE-POLICY.json", policy_path.read_bytes())
+                    for entry in policy["retiredAndNonInjectedJavaScript"]:
+                        filename = "assets/" + entry["path"]
+                        if filename not in written:
+                            archive.writestr(filename, (ROOT / "app/src/main/assets" / entry["path"]).read_bytes())
                 if tamper:
                     with self.assertRaises(ValueError):
                         apk_verify.verify(apk)
                 else:
                     result = apk_verify.verify(apk)
                     self.assertEqual(result["originalFilesVerified"], len(manifests["dola30-original"]["files"]))
-                    self.assertEqual(result["additionalSourceFilesVerified"], {"dola30-user-source-v1.6.9": len(manifests["dola30-user-source-v1.6.9"]["files"])})
+                    self.assertEqual(result["additionalSourceFilesVerified"], {name: len(manifest["files"]) for name, manifest in manifests.items() if name != "dola30-original"})
 
     def test_packages_are_complete_deterministic_and_preserve_sources(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -41,6 +41,13 @@ android {
             versionNameSuffix '-ckcheck'
             matchingFallbacks = ['debug']
         }
+        // Side-by-side new-attachment validation; do not replace any account-bearing app.
+        newSourceValidation {
+            initWith debug
+            applicationIdSuffix '.new30s'
+            versionNameSuffix '-new30s'
+            matchingFallbacks = ['debug']
+        }
         release {
             minifyEnabled false
         }

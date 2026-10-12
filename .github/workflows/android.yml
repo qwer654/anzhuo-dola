@@ -46,8 +46,8 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '20'
-      - name: Test media, Dola30 and fingerprint modules
-        run: node --test tests/media-probe.test.cjs tests/dola30-source.test.cjs tests/dola30-page-main.test.cjs tests/dola30-android-adapter.test.cjs tests/fingerprint-privacy.test.cjs
+      - name: Test active page scripts and backup-only runtime policy
+        run: node --test tests/dola30-source.test.cjs tests/dola30-page-main.test.cjs tests/runtime-source-policy.test.cjs
       - name: Test deterministic extension packaging and APK asset verifier
         run: python3 -m unittest tests.test_extension_packaging -v
       - name: Set up Gradle 8.9
@@ -66,24 +66,28 @@ jobs:
           fi
           test -f "$SDK_ROOT/platforms/android-35/android.jar"
           test -f "$SDK_ROOT/build-tools/35.0.0/apksigner"
-      - name: Assemble debug, device-validation and side-by-side CK validation APKs
-        run: gradle --no-daemon --stacktrace testDebugUnitTest lintDebug lintSessionValidation assembleDebug assembleDeviceValidation assembleSessionValidation
+      - name: Assemble debug and side-by-side validation APKs
+        run: gradle --no-daemon --stacktrace testDebugUnitTest lintDebug lintSessionValidation lintNewSourceValidation assembleDebug assembleDeviceValidation assembleSessionValidation assembleNewSourceValidation assembleDeviceValidationAndroidTest
       - name: Verify APK signature and record SHA-256
         run: |
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/deviceValidation/app-deviceValidation.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/sessionValidation/app-sessionValidation.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/newSourceValidation/app-newSourceValidation.apk
           cd app/build/outputs/apk/debug
           sha256sum app-debug.apk > app-debug.apk.sha256
           cd ../deviceValidation
           sha256sum app-deviceValidation.apk > app-deviceValidation.apk.sha256
           cd ../sessionValidation
           sha256sum app-sessionValidation.apk > app-sessionValidation.apk.sha256
+          cd ../newSourceValidation
+          sha256sum app-newSourceValidation.apk > app-newSourceValidation.apk.sha256
       - name: Verify original extension bytes inside APK
         run: |
           python3 tools/verify_apk_assets.py app/build/outputs/apk/debug/app-debug.apk
           python3 tools/verify_apk_assets.py app/build/outputs/apk/deviceValidation/app-deviceValidation.apk
           python3 tools/verify_apk_assets.py app/build/outputs/apk/sessionValidation/app-sessionValidation.apk
+          python3 tools/verify_apk_assets.py app/build/outputs/apk/newSourceValidation/app-newSourceValidation.apk
       - name: Upload APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -95,6 +99,8 @@ jobs:
             app/build/outputs/apk/deviceValidation/app-deviceValidation.apk.sha256
             app/build/outputs/apk/sessionValidation/app-sessionValidation.apk
             app/build/outputs/apk/sessionValidation/app-sessionValidation.apk.sha256
+            app/build/outputs/apk/newSourceValidation/app-newSourceValidation.apk
+            app/build/outputs/apk/newSourceValidation/app-newSourceValidation.apk.sha256
             app/build/outputs/apk/androidTest/deviceValidation/app-deviceValidation-androidTest.apk
           if-no-files-found: error
           retention-days: 14

@@ -13,6 +13,7 @@ def verify(apk):
     original_manifests = [
         ("dola30-original", ROOT / "app/src/main/assets/dola30-original/SOURCE-MANIFEST.json"),
         ("dola30-user-source-v1.6.9", ROOT / "app/src/main/assets/dola30-user-source-v1.6.9/SOURCE-MANIFEST.json"),
+        ("dola30-source-v1.6.14", ROOT / "app/src/main/assets/dola30-source-v1.6.14/SOURCE-MANIFEST.json"),
     ]
     digest = hashlib.sha256(apk.read_bytes()).hexdigest()
     sidecar = apk.with_suffix(apk.suffix + ".sha256")
@@ -29,12 +30,23 @@ def verify(apk):
                 if len(data) != entry["bytes"] or hashlib.sha256(data).hexdigest() != entry["sha256"]:
                     raise ValueError("Original file changed inside APK: " + name)
                 verified[asset_dir] = verified.get(asset_dir, 0) + 1
+        policy_path = ROOT / "app/src/main/assets/RUNTIME-SOURCE-POLICY.json"
+        policy_bytes = policy_path.read_bytes()
+        if archive.read("assets/RUNTIME-SOURCE-POLICY.json") != policy_bytes:
+            raise ValueError("Runtime source policy changed inside APK")
+        policy = json.loads(policy_bytes.decode("utf-8"))
+        for entry in policy["retiredAndNonInjectedJavaScript"]:
+            data = archive.read("assets/" + entry["path"])
+            if len(data) != entry["bytes"] or hashlib.sha256(data).hexdigest() != entry["sha256"]:
+                raise ValueError("Retired backup changed inside APK: " + entry["path"])
         if any(".bak." in name or name.endswith(".pem") for name in archive.namelist()):
             raise ValueError("APK contains backups or private key files")
     return {
         "apkSha256": digest,
         "originalFilesVerified": verified.get("dola30-original", 0),
         "additionalSourceFilesVerified": {key: count for key, count in verified.items() if key != "dola30-original"},
+        "legacyBackupFilesVerified": len(policy["retiredAndNonInjectedJavaScript"]),
+        "activePageScripts": policy["activeDocumentStartScripts"],
         "runtimeVerified": False,
     }
 

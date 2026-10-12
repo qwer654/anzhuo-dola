@@ -35,6 +35,9 @@ public class DolaPageScriptsInstrumentationTest {
         assertTrue(early.getJSONObject("state").getBoolean("storageSeeded"));
         assertFalse(early.getBoolean("chromeDebugger"));assertFalse(early.getBoolean("chromeRuntime"));
         assertFalse(early.getBoolean("uploadResult"));
+        for(String marker:Arrays.asList("legacyV150","legacyUploadV1","legacyUploadV2","legacyUploadResult","legacyAndroidAdapter","legacyFingerprintPrivacy","legacyAndroidDrain","legacyPromptTools","legacyWatermark")) assertFalse(marker,early.getBoolean(marker));
+        assertTrue(early.getBoolean("hostWebViewState"));
+        assertTrue(early.getBoolean("sharedNormalizer"));
         assertFalse(early.getJSONObject("state").getBoolean("backendVerified"));
     }
     @Test public void disablingCreatesAHookFreeNewDocumentAndResetsManagedDuration() throws Exception {
@@ -58,9 +61,11 @@ public class DolaPageScriptsInstrumentationTest {
         boolean hadA=a.contains(DolaPageScripts.PREF_KEY),hadB=b.contains(DolaPageScripts.PREF_KEY);
         boolean oldA=a.getBoolean(DolaPageScripts.PREF_KEY,false),oldB=b.getBoolean(DolaPageScripts.PREF_KEY,false);
         boolean hadLegacy=a.contains("originalDola30"),oldLegacy=a.getBoolean("originalDola30",false);
+        boolean hadOldKey=a.contains("dola30PageScripts"),oldKey=a.getBoolean("dola30PageScripts",false);
         try {
-            assertTrue(a.edit().remove(DolaPageScripts.PREF_KEY).putBoolean("originalDola30",true).commit());
+            assertTrue(a.edit().remove(DolaPageScripts.PREF_KEY).putBoolean("originalDola30",true).putBoolean("dola30PageScripts",true).commit());
             assertFalse("Legacy request opt-in must not enable new page scripts",a.getBoolean(DolaPageScripts.PREF_KEY,false));
+            assertTrue(a.getBoolean("dola30PageScripts",false));
             assertTrue(a.edit().putBoolean(DolaPageScripts.PREF_KEY,true).commit());
             assertTrue(b.edit().putBoolean(DolaPageScripts.PREF_KEY,false).commit());
             assertTrue(context.getSharedPreferences("browser_Space0",Context.MODE_PRIVATE).getBoolean(DolaPageScripts.PREF_KEY,false));
@@ -72,6 +77,7 @@ public class DolaPageScriptsInstrumentationTest {
             if(hadA)x.putBoolean(DolaPageScripts.PREF_KEY,oldA);else x.remove(DolaPageScripts.PREF_KEY);
             if(hadB)y.putBoolean(DolaPageScripts.PREF_KEY,oldB);else y.remove(DolaPageScripts.PREF_KEY);
             if(hadLegacy)x.putBoolean("originalDola30",oldLegacy);else x.remove("originalDola30");
+            if(hadOldKey)x.putBoolean("dola30PageScripts",oldKey);else x.remove("dola30PageScripts");
             assertTrue(x.commit());assertTrue(y.commit());
         }
     }
@@ -93,11 +99,13 @@ public class DolaPageScriptsInstrumentationTest {
                     v.evaluateJavascript("JSON.stringify(window.__early)",s->{result.set(s);done.countDown();});
                 }});
                 String html="<!doctype html><html><head><script>window.__early={"
-                    +"skill:!!window.__dolaNative30SkillPackInstalledV150,upload:!!window.__DOLA_TOOLKIT_MEDIA_UPLOAD_BRIDGE_V1__,"
+                    +"skill:!!window.__dolaNative30SkillPackInstalledV162,upload:!!window.__DOLA_TOOLKIT_MEDIA_UPLOAD_BRIDGE_V3__,"
                     +"fetchHook:!!window.__beforeFetch&&window.fetch!==window.__beforeFetch,xhrHook:!!window.__beforeOpen&&XMLHttpRequest.prototype.open!==window.__beforeOpen,"
                     +"duration:localStorage.getItem('intl_doubao_target_duration_v1'),state:window.__dolaWebViewPageScripts||null,"
                     +"chromeDebugger:!!(window.chrome&&window.chrome.debugger),chromeRuntime:!!(window.chrome&&window.chrome.runtime),"
-                    +"uploadResult:!!window.__DOLA_TOOLKIT_MEDIA_UPLOAD__};</script></head><body>local fixture</body></html>";
+                    +"uploadResult:!!window.__DOLA_TOOLKIT_MEDIA_UPLOAD__,"
+                    +"legacyV150:!!window.__dolaNative30SkillPackInstalledV150,legacyUploadV1:!!window.__DOLA_TOOLKIT_MEDIA_UPLOAD_BRIDGE_V1__,"
+                    +"legacyUploadV2:!!window.__DOLA_TOOLKIT_MEDIA_UPLOAD_BRIDGE_V2__,legacyUploadResult:!!window.__DOLA_TOOLKIT_MEDIA_UPLOAD__,hostWebViewState:!!window.__dolaWebViewPageScripts,sharedNormalizer:!!window.__DOLA_TOOLKIT_UPLOAD_URL_NORMALIZER__,legacyAndroidAdapter:!!window.__dola30AndroidAdapterInstalled,legacyFingerprintPrivacy:!!window.__dolaFingerprintPrivacy,legacyAndroidDrain:typeof window.__dolaAndroidDrain===\'function\',legacyPromptTools:!!window.DolaPromptTools,legacyWatermark:!!window.__watermarkFreeDuration30Installed};</script></head><body>local fixture</body></html>";
                 view.loadDataWithBaseURL(origin,html,"text/html","UTF-8",null);
             });
             assertTrue("Document-start fixture timed out",done.await(20,TimeUnit.SECONDS));

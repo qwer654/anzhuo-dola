@@ -19,7 +19,14 @@ public class BrowserSmokeTest {
         UiObject2 obj=device.wait(Until.findObject(selector),20000);assertNotNull("Missing UI: "+selector,obj);return obj;
     }
     private void tap(String text){waitFor(By.text(text)).click();}
-    private void menu(String item){waitFor(By.desc("浏览器菜单")).click();tap(item);}
+    private void menu(String item){
+        waitFor(By.desc("浏览器菜单")).click();
+        for(int i=0;i<3&&!device.hasObject(By.text(item));i++){
+            UiObject2 list=device.wait(Until.findObject(By.clazz("android.widget.ListView")),2000);
+            if(list==null||!list.scroll(Direction.DOWN,0.65f))break;
+        }
+        tap(item);
+    }
     private void launchHome() {
         // Each smoke method starts from a clean foreground task. Prior isolated
         // BrowserActivity tasks can otherwise be restored instead of the catalog.
@@ -102,6 +109,28 @@ public class BrowserSmokeTest {
         assertFalse("Archived URL must be cleared",restored.contains("archivedUrl1"));
     }
 
+    @Test public void newAttachment30sNativeSwitchRequiresConsentAndIsIndependentPerSpace() throws Exception {
+        // Uses fresh disposable emulator slots, not a real user's account or Dola endpoint.
+        assertTrue(context.getSharedPreferences("catalog",Context.MODE_PRIVATE).edit().clear()
+            .putBoolean("enabled0",false).putBoolean("enabled3",true).putBoolean("enabled4",true)
+            .putString("name3","新脚本A").putString("name4","新脚本B")
+            .putString("url3","https://example.com/").putString("url4","https://example.com/").commit());
+        assertTrue(context.getSharedPreferences("browser_Space3",Context.MODE_PRIVATE).edit()
+            .remove(DolaPageScripts.PREF_KEY).putBoolean("originalDola30",true).putBoolean("dola30PageScripts",true).commit());
+        launchHome();openSpace("新脚本A");
+        menu("30s（本空间）：关闭");waitFor(By.text("开启本空间 30s？"));tap("取消");
+        menu("30s（本空间）：关闭");waitFor(By.text("开启本空间 30s？"));tap("开启并重载");
+        waitFor(By.desc("浏览器菜单"));
+        menu("回到空间列表");openSpace("新脚本B");
+        menu("30s（本空间）：关闭");waitFor(By.text("开启本空间 30s？"));tap("取消");
+        menu("回到空间列表");openSpace("新脚本A");
+        menu("30s（本空间）：开启");waitFor(By.text("关闭本空间 30s？"));tap("关闭并重载");
+        waitFor(By.desc("浏览器菜单"));
+        menu("30s（本空间）：关闭");waitFor(By.text("开启本空间 30s？"));tap("取消");
+        // Legacy opt-in entry is explicitly inert even though old preferences are true.
+        menu("旧 Dola30 JS：仅备份，不执行");waitFor(By.desc("浏览器菜单"));
+        menu("回到空间列表");waitFor(By.text("账号空间"));
+    }
     @Test public void privacyCleanModeRequiresConsentAndCanBeReverted() throws Exception {
         assertTrue(context.getSharedPreferences("catalog",Context.MODE_PRIVATE).edit().clear()
             .putBoolean("enabled0",false).putBoolean("enabled7",true)

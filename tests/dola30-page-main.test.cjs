@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const assetRoot = path.resolve(__dirname, '../app/src/main/assets/dola30-user-source-v1.6.9');
+const assetRoot = path.resolve(__dirname, '../app/src/main/assets/dola30-source-v1.6.14');
 const skillSource = fs.readFileSync(path.join(assetRoot, 'skill-pack-main.js'), 'utf8');
 const mediaSource = fs.readFileSync(path.join(assetRoot, 'media-upload-main.js'), 'utf8');
 
@@ -75,10 +75,12 @@ async function jsonResponse(response) { return JSON.parse(await response.text())
 test('raw page-main scripts install in manifest order without chrome and do not eagerly upload/send', async () => {
   const ctx = makeContext();
   runScripts(ctx);
-  assert.equal(ctx.__dolaNative30SkillPackInstalledV150, true);
-  assert.equal(ctx.__DOLA_TOOLKIT_MEDIA_UPLOAD_BRIDGE_V1__, true);
+  assert.equal(ctx.__dolaNative30SkillPackInstalledV162, true);
+  assert.equal(ctx.__DOLA_TOOLKIT_MEDIA_UPLOAD_BRIDGE_V3__, true);
   assert.equal(ctx.document.documentElement.getAttribute('data-dola-native-30-ready'), null);
-  assert.equal(ctx.document.documentElement.getAttribute('data-dola-toolkit-media-upload-ready'), '1');
+  for (const legacy of ['__dolaNative30SkillPackInstalledV150', '__DOLA_TOOLKIT_MEDIA_UPLOAD_BRIDGE_V1__', '__DOLA_TOOLKIT_MEDIA_UPLOAD__', '__DOLA_TOOLKIT_MEDIA_UPLOAD_BRIDGE_V2__', '__dolaWebViewPageScripts']) assert.equal(ctx[legacy], undefined, legacy);
+  assert.equal(ctx.document.documentElement.getAttribute('data-dola-toolkit-media-upload-ready'), '3');
+  assert.equal(ctx.document.documentElement.getAttribute('data-dola-native-30-ready'), null);
   assert.deepEqual(ctx.calls, []);
   assert.equal(ctx.chrome, undefined);
 });
@@ -139,6 +141,7 @@ test('media upload URL normalizer rewrites only upload host and event guard perf
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(result.getAttribute('data-ready'), '1');
   assert.match(result.textContent, /没有读到待上传素材/);
+  assert.equal(ctx[ '__DOLA_TOOLKIT_MEDIA_UPLOAD__'], undefined);
   const xhr = new ctx.XMLHttpRequest();
   xhr.open('POST', 'https://www.dola.com/chat/vod-demo.bytevcloudapi.com/?token=3');
   assert.equal(xhr.openCalls[0][1], 'https://vod-demo.bytevcloudapi.com/?token=3');

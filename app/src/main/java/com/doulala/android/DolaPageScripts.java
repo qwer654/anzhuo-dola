@@ -2,9 +2,9 @@ package com.doulala.android;
 
 /** Assembles the supplied page-world sources; never loads an extension background or panel. */
 final class DolaPageScripts {
-    static final String PREF_KEY = "dola30PageScripts";
-    static final String SKILL_ASSET = "dola30-user-source-v1.6.9/skill-pack-main.js";
-    static final String UPLOAD_ASSET = "dola30-user-source-v1.6.9/media-upload-main.js";
+    static final String PREF_KEY = "dola30NewPageScripts";
+    static final String SKILL_ASSET = "dola30-source-v1.6.14/skill-pack-main.js";
+    static final String UPLOAD_ASSET = "dola30-source-v1.6.14/media-upload-main.js";
     private DolaPageScripts() {}
 
     static String preferenceName(String space) { return "browser_" + space; }
@@ -26,9 +26,9 @@ final class DolaPageScripts {
             + "');state.storageSeeded=true;}catch(e){state.storageSeeded=false;}";
         if (!enabled) return prefix + "})();";
         return prefix + "try{\n" + skill
-            + "\nstate.skillPack=!!window.__dolaNative30SkillPackInstalledV150;}catch(e){state.skillPack=false;}"
+            + "\nstate.skillPack=!!window.__dolaNative30SkillPackInstalledV162;}catch(e){state.skillPack=false;}"
             + "try{\n" + upload
-            + "\nstate.mediaUpload=!!window.__DOLA_TOOLKIT_MEDIA_UPLOAD_BRIDGE_V1__;}catch(e){state.mediaUpload=false;}"
+            + "\nstate.mediaUpload=!!window.__DOLA_TOOLKIT_MEDIA_UPLOAD_BRIDGE_V3__;}catch(e){state.mediaUpload=false;}"
             + "})();";
     }
 

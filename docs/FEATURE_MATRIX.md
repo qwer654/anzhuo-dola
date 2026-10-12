@@ -1,3 +1,5 @@
+> 当前规则以文末“新附件 v1.6.14 替换运行时”为准；之前移植状态仅为历史记录。
+
 # 功能矩阵与验收边界（Android 0.2.1）
 
 来源：当前 `android-port/app/src/main/java/com/doulala/android` 实现与 Android 工作流。下表的“已实现”表示源码已提供对应路径，不代表真实设备、第三方网站或云端工作流已经验收通过。
@@ -65,3 +67,17 @@ APK 为 debug 构建，runner 的临时签名可能导致无法覆盖旧 APK。�
 - 旧版 `duration-main.js` 的请求适配保留其独立开关。没有自动打开旧版请求改写，也没有注入 `content-panel.js` 或 service worker；Chrome Debugger、runtime/扩展面板后台交互明确不可用。不创建假的 chrome API。
 - `skill-pack` 会更改页面收到的本地能力配置显示，不能据此判定服务器支持；`media-upload` 安装页面事件桥和地址规范化，但依赖站点私有 Webpack/上传管线。本次未复刻 Chrome 上传面板，未自动上传、提交或验证真实生成。
 - “30S 工具”区分设置已保存、注入注册不可用、两个脚本实际执行标记以及服务器未验证状态。脚本加载不等于上传成功或实际 30 秒生成。
+
+## 新附件 v1.6.14 替换运行时（2026-10-12，当前有效规则）
+
+来源：用户本轮指定的 `D:/新建文件夹 (2)/dola30-新/`，不是此前 v1.6.9。当前文档开始注入仅使用新附件原字节 `skill-pack-main.js` → `media-upload-main.js`，限定 HTTPS Dola 页面。
+
+每个空间独立保存 **30s（本空间）**，默认关闭。新开关键独立于历史 `originalDola30`/`dola30PageScripts`，旧设置不会自动启用新代码。切换需确认并重建该空间标签；Cookie/账号数据不删除。
+
+**所有原使用的外部 JS 均仅备份、不再运行**：旧 duration、skill-pack、media-upload、Android 适配器、资源观察、提示词工具、隐私页面脚本。旧启用入口不再能重新启用它们；历史脚本 instrumentation 留在 `tests/legacy-backup/`，不当作新运行时验收。
+
+因此旧页面资源观察/时间轴工具/Canvas、WebGL、音频、WebRTC 等页面 JS 保护已停用，界面明确说明。Cookie/CK、标准文件选择、原生第三方 Cookie/定位隐私开关、账号空间和原生编辑功能仍保留。
+
+Chrome 专属 debugger、后台 worker 与扩展 content-panel 不注入、不模拟 chrome API。新附件 duration（document_idle，非本轮指定的两个脚本）也仅保留源基线，不执行。完整新附件另外留有本机私有备份，background worker 不随公开包上传。
+
+`RUNTIME-SOURCE-POLICY.json` 记录唯一激活的两文件及全部不执行 JS 的哈希；APK verifier 校验旧备份基线与新 5 文件源基线。脚本执行标记不是实际上传成功、后端支持 30 秒或生成成功的证明。
