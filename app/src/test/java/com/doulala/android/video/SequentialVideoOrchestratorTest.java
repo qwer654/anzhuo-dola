@@ -10,9 +10,9 @@ public class SequentialVideoOrchestratorTest {
     final List<String> events=new ArrayList<>(); final Map<String,Deque<PollResult>> answers=new HashMap<>(); final List<Segment> submitted=new ArrayList<>(); int n;
     public String submit(Segment s,String key){ events.add("submit:"+s.index()); submitted.add(s); return "job-"+n++; }
     public PollResult poll(String id){events.add("poll:"+id); return answers.get(id).remove();}
-    public void download(String u,Path p)throws Exception{events.add("download:"+u);Files.writeString(p,"video");}
+    public void download(String u,Path p)throws Exception{events.add("download:"+u);Files.write(p,"video".getBytes(java.nio.charset.StandardCharsets.UTF_8));}
     public String uploadReference(Path p){events.add("upload:"+p.getFileName());return "tail-"+submitted.size();}
-    public void extractLastFrame(Path v,Path j)throws Exception{events.add("extract:"+v.getFileName());Files.writeString(j,"jpg");}
+    public void extractLastFrame(Path v,Path j)throws Exception{events.add("extract:"+v.getFileName());Files.write(j,"jpg".getBytes(java.nio.charset.StandardCharsets.UTF_8));}
   }
   static class MemoryStore implements SequenceCheckpointStore { Snapshot value; int saves; public Optional<Snapshot> load(String id){return Optional.ofNullable(value);} public void saveAtomically(Snapshot s){value=s;saves++;} }
   static List<VideoProvider.Segment> inputs(){return List.of(new VideoProvider.Segment(0,"model-a","first",List.of("orig-a"),Map.of("ratio","16:9")),new VideoProvider.Segment(1,"model-b","next",List.of("orig-b","orig-c"),Map.of("seed","9")));}
