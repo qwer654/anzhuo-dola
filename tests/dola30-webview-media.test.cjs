@@ -119,3 +119,7 @@ test('fallback candidates are passive, bounded, drainable and nested JSON is rec
  for(const value of ['http://api.example.test/','https://u:p@api.example.test/','https://api.example.test/#token','/relative'])assert.equal(state.addFallback(value),false);
  assert.equal(state.addFallback('https://api.example.test/0'),false);
 });
+test('native fallback is explicit and unavailable Chrome capabilities remain honestly reported',()=>{
+ const source=fs.readFileSync(require.resolve('../app/src/main/java/com/doulala/android/BrowserActivity.java'),'utf8');
+ for(const text of ['确认查询 ','setPositiveButton("查询"','fallbackResolver.close()','原生手动查询','Chrome 扩展面板/后台接口：不可注入，未生效','owner.navigation!=navigation'])assert.ok(source.includes(text),text);
+});

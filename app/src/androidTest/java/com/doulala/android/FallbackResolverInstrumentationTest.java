@@ -17,5 +17,10 @@ public class FallbackResolverInstrumentationTest {
         String[] parsed=FallbackMediaResolver.parsePayload(json);
         assertNotNull(parsed); assertEquals(high,parsed[0]); assertEquals("seed-value",parsed[1]);
     }
+    @Test public void deepPayloadFailsBeforeRecursiveJsonParser(){
+        StringBuilder s=new StringBuilder();for(int i=0;i<100;i++)s.append("[");for(int i=0;i<100;i++)s.append("]");
+        assertFalse(FallbackMediaResolver.boundedJson(s.toString()));
+        assertNull(FallbackMediaResolver.parsePayload(s.toString()));
+    }
     @Test public void missingMediaIsRejectedWithoutNetwork() { assertNull(FallbackMediaResolver.parsePayload("{\"data\":{}}")); }
 }
