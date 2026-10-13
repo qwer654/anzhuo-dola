@@ -30,13 +30,13 @@ class Packaging(unittest.TestCase):
                 "dola30-source-v1.6.14": ROOT / "app/src/main/assets/dola30-source-v1.6.14",
             }
             manifests = {name: json.loads((source / "SOURCE-MANIFEST.json").read_text(encoding="utf-8")) for name, source in sources.items()}
-            for tamper in (False, True):
+            for tamper in (False, "original", "adapter"):
                 with zipfile.ZipFile(apk, "w") as archive:
                     written = set()
                     for name, source in sources.items():
                         for entry in manifests[name]["files"]:
                             data = (source / entry["path"]).read_bytes()
-                            if tamper and name == "dola30-original" and entry["path"] == "manifest.json":
+                            if tamper == "original" and name == "dola30-original" and entry["path"] == "manifest.json":
                                 data += b" "
                             filename = "assets/" + name + "/" + entry["path"]
                             archive.writestr(filename, data)
@@ -44,10 +44,13 @@ class Packaging(unittest.TestCase):
                     policy_path = ROOT / "app/src/main/assets/RUNTIME-SOURCE-POLICY.json"
                     policy = json.loads(policy_path.read_text(encoding="utf-8"))
                     archive.writestr("assets/RUNTIME-SOURCE-POLICY.json", policy_path.read_bytes())
-                    for entry in policy["retiredAndNonInjectedJavaScript"]:
+                    for entry in policy["retiredAndNonInjectedJavaScript"] + policy.get("nativePageAdapterFiles", []):
                         filename = "assets/" + entry["path"]
                         if filename not in written:
-                            archive.writestr(filename, (ROOT / "app/src/main/assets" / entry["path"]).read_bytes())
+                            data = (ROOT / "app/src/main/assets" / entry["path"]).read_bytes()
+                            if tamper == "adapter" and entry["path"] == "dola30-webview-media-v1.6.14.js":
+                                data += b" "
+                            archive.writestr(filename, data)
                 if tamper:
                     with self.assertRaises(ValueError):
                         apk_verify.verify(apk)
