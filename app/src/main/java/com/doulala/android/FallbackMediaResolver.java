@@ -29,6 +29,7 @@ public final class FallbackMediaResolver {
         @Override protected boolean removeEldestEntry(Map.Entry<String,CacheEntry> e) { return size()>MAX_CACHE; }
     };
     private final ExecutorService dnsWorkers = new java.util.concurrent.ThreadPoolExecutor(2,2,0L,TimeUnit.MILLISECONDS,new java.util.concurrent.ArrayBlockingQueue<>(2),new java.util.concurrent.ThreadPoolExecutor.AbortPolicy());
+    private final java.util.concurrent.ScheduledExecutorService deadlineWorker=Executors.newSingleThreadScheduledExecutor();
     private volatile boolean closed;
     private volatile HttpsURLConnection currentConnection;
     public static final class Result { public final boolean success,cached; public final String url,errorCode;
@@ -40,13 +41,14 @@ public final class FallbackMediaResolver {
         long deadline=System.nanoTime()+TOTAL_MS*1_000_000L;
         if (closed || cancelled != null && cancelled.getAsBoolean()) return Result.fail("cancelled");
         String request=buildRequest(fallbackUrl); if (request==null) return Result.fail("invalid_url");
-        HttpsURLConnection c=null;
+        HttpsURLConnection c=null;java.util.concurrent.ScheduledFuture<?> timeout=null;
         try {
             URI uri=new URI(request); resolvePublicHost(uri.getHost(),deadline,cancelled);
             CacheEntry prior; synchronized(cache){prior=cache.get(request);} long now=System.currentTimeMillis();
             if(prior!=null && now-prior.at<=600_000L) return Result.ok(prior.url,true);
             checkDeadline(deadline,cancelled);
             c=(HttpsURLConnection)new URL(request).openConnection(); currentConnection=c;
+            final HttpsURLConnection owned=c; timeout=deadlineWorker.schedule(owned::disconnect,remainingMs(deadline),TimeUnit.MILLISECONDS);
             c.setConnectTimeout(remainingMs(deadline)); c.setReadTimeout(remainingMs(deadline)); c.setInstanceFollowRedirects(false);
             c.setRequestMethod("GET"); c.setUseCaches(false); c.setRequestProperty("Accept","application/json,text/plain,*/*");
             c.setRequestProperty("Cookie",""); c.setRequestProperty("Authorization",""); c.setRequestProperty("Referer","");
@@ -63,10 +65,10 @@ public final class FallbackMediaResolver {
         } catch (SecurityException e) { return Result.fail("blocked_host"); }
           catch (java.util.concurrent.CancellationException e) { return Result.fail("cancelled"); }
           catch (Exception e) { return Result.fail("request_failed"); }
-          finally { if(c!=null)c.disconnect(); currentConnection=null; }
+          finally { if(timeout!=null)timeout.cancel(false);if(c!=null)c.disconnect(); currentConnection=null; }
     }
     /** Owner must call this from onDestroy; it clears per-space results and bounds outstanding DNS tasks. */
-    public void close(){closed=true;dnsWorkers.shutdownNow();HttpsURLConnection c=currentConnection;if(c!=null)c.disconnect();synchronized(cache){cache.clear();}}
+    public void close(){closed=true;dnsWorkers.shutdownNow();deadlineWorker.shutdownNow();HttpsURLConnection c=currentConnection;if(c!=null)c.disconnect();synchronized(cache){cache.clear();}}
     static String buildRequest(String raw) {
         if(!MediaTokenDecoder.isHttpsPublicShape(raw)) return null;
         try { URI u=new URI(raw); String q=u.getRawQuery(); StringBuilder kept=new StringBuilder();
