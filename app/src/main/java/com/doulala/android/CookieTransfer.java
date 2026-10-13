@@ -23,8 +23,8 @@ final class CookieTransfer {
     private byte[] pendingExport;
     private String importTarget;
     private boolean busy, closed, writing;
-    CookieTransfer(Activity a, Supplier<String> url) { this(a,url,-1); }
     CookieTransfer(Activity a, Supplier<String> url,int slot) {
+        if(slot<0||slot>=64)throw new IllegalArgumentException("invalid space");
         activity=a;currentUrl=url;spaceSlot=slot;
         bindings=new CkImportBindings(a.getNoBackupFilesDir().toPath().resolve("ck-import-bindings"));
     }

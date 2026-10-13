@@ -19,7 +19,7 @@ import javax.crypto.spec.SecretKeySpec;
  */
 final class CkImportBindings {
     static final int MAX_PER_SPACE=16;
-    private static final int MAX_FILE_BYTES=80*1024;
+    private static final int MAX_FILE_BYTES=2*1024;
     private final Path root;
     CkImportBindings(Path root){this.root=root;}
 
@@ -41,7 +41,7 @@ final class CkImportBindings {
             SortedSet<String> own=records.computeIfAbsent(slot,k->new TreeSet<>());
             if(own.contains(fingerprint))return new Decision(true,-1);
             if(own.size()>=MAX_PER_SPACE)throw new IOException("import history capacity reached");
-            own.add(fingerprint);write(records);
+            own.add(fingerprint);writeSlot(slot,own);
             return new Decision(true,-1);
         });
     }
@@ -50,8 +50,9 @@ final class CkImportBindings {
     void release(int slot)throws IOException {
         checkSlot(slot);
         if(!Files.exists(root,LinkOption.NOFOLLOW_LINKS))return;
-        locked(()->{SortedMap<Integer,SortedSet<String>> records=read();
-            if(records.remove(slot)!=null)write(records);return null;});
+        // Do not parse a global index here: a damaged auxiliary record must not
+        // permanently lock a cleared profile. Only this slot's file is deleted.
+        locked(()->{Files.deleteIfExists(slotFile(slot));return null;});
     }
 
     private interface Work<T>{T run()throws IOException;}
@@ -96,26 +97,29 @@ final class CkImportBindings {
         }catch(java.security.GeneralSecurityException e){throw new IOException("digest unavailable");}
         finally{Arrays.fill(key,(byte)0);}
     }
+    private Path slotFile(int slot){return root.resolve("space"+slot+".v1");}
     private SortedMap<Integer,SortedSet<String>> read()throws IOException {
-        Path path=root.resolve("bindings.v1");SortedMap<Integer,SortedSet<String>> records=new TreeMap<>();
-        if(!Files.exists(path,LinkOption.NOFOLLOW_LINKS))return records;
-        if(Files.isSymbolicLink(path)||Files.size(path)>MAX_FILE_BYTES)throw new IOException("invalid registry");
-        List<String> lines=Files.readAllLines(path,StandardCharsets.US_ASCII);
-        if(lines.isEmpty()||!"CK_IMPORT_ATTEMPTS_V1".equals(lines.get(0)))throw new IOException("invalid registry");
-        Set<String> unique=new HashSet<>();
-        for(int i=1;i<lines.size();i++){
-            String[] parts=lines.get(i).split(":",-1);
-            if(parts.length!=2||!parts[0].matches("0|[1-9][0-9]?")||!parts[1].matches("[0-9a-f]{64}"))throw new IOException("invalid registry row");
-            int slot=Integer.parseInt(parts[0]);checkSlot(slot);
-            SortedSet<String> own=records.computeIfAbsent(slot,k->new TreeSet<>());
-            if(!unique.add(parts[1])||!own.add(parts[1])||own.size()>MAX_PER_SPACE)throw new IOException("invalid registry row");
+        SortedMap<Integer,SortedSet<String>> records=new TreeMap<>();Set<String> unique=new HashSet<>();
+        for(int slot=0;slot<64;slot++){
+            Path path=slotFile(slot);
+            if(!Files.exists(path,LinkOption.NOFOLLOW_LINKS))continue;
+            if(Files.isSymbolicLink(path)||Files.size(path)>MAX_FILE_BYTES)throw new IOException("invalid space record");
+            List<String> lines=Files.readAllLines(path,StandardCharsets.US_ASCII);
+            if(lines.size()<2||!"CK_IMPORT_ATTEMPTS_V1".equals(lines.get(0)))throw new IOException("invalid space record");
+            SortedSet<String> own=new TreeSet<>();
+            for(int i=1;i<lines.size();i++){
+                String fingerprint=lines.get(i);
+                if(!fingerprint.matches("[0-9a-f]{64}")||!unique.add(fingerprint)||!own.add(fingerprint)||own.size()>MAX_PER_SPACE)
+                    throw new IOException("invalid space record");
+            }
+            records.put(slot,own);
         }
         return records;
     }
-    private void write(SortedMap<Integer,SortedSet<String>> records)throws IOException {
+    private void writeSlot(int slot,SortedSet<String> fingerprints)throws IOException {
         StringBuilder text=new StringBuilder("CK_IMPORT_ATTEMPTS_V1\n");
-        for(Map.Entry<Integer,SortedSet<String>> row:records.entrySet())for(String digest:row.getValue())text.append(row.getKey()).append(':').append(digest).append('\n');
-        atomic(root.resolve("bindings.v1"),text.toString().getBytes(StandardCharsets.US_ASCII));
+        for(String fingerprint:fingerprints)text.append(fingerprint).append('\n');
+        atomic(slotFile(slot),text.toString().getBytes(StandardCharsets.US_ASCII));
     }
     private static void atomic(Path target,byte[] bytes)throws IOException {
         Path temp=target.resolveSibling(target.getFileName()+".tmp");

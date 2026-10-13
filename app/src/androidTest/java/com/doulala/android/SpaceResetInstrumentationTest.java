@@ -53,4 +53,18 @@ public final class SpaceResetInstrumentationTest {
    }
   }finally{guard.release(SLOT);guard.release(NEIGHBOR);guard.release(60);}
  }
+ @Test public void corruptOwnImportRecordDoesNotTrapClearOrDelete()throws Exception{
+  Context c=context();java.nio.file.Path root=c.getNoBackupFilesDir().toPath().resolve("ck-import-bindings");
+  CkImportBindings guard=new CkImportBindings(root);guard.release(SLOT);guard.release(NEIGHBOR);
+  java.util.List<String> own=CookieRules.parse("sessionid=fixture-corrupt-own"),other=CookieRules.parse("sessionid=fixture-corrupt-neighbor");
+  File neighbor=new File(c.getDataDir(),"app_webview_space"+NEIGHBOR+"/fixture-neighbor");write(neighbor);
+  try{
+   for(String op:new String[]{SpaceReset.OP_CLEAR,SpaceReset.OP_DELETE}){
+    assertTrue(guard.reserve(SLOT,own).allowed);assertTrue(guard.reserve(NEIGHBOR,other).allowed);
+    java.nio.file.Files.write(root.resolve("space"+SLOT+".v1"),new byte[]{1,2,3});
+    assertTrue(SpaceReset.performBlocking(c,SLOT,op));assertFalse(SpaceReset.isPending(c,SLOT));
+    assertTrue(neighbor.exists());assertTrue(java.nio.file.Files.exists(root.resolve("space"+NEIGHBOR+".v1")));
+   }
+  }finally{guard.release(SLOT);guard.release(NEIGHBOR);}
+ }
 }
