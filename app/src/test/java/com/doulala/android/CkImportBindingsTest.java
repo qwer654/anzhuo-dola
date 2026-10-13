@@ -28,10 +28,10 @@ public class CkImportBindingsTest {
         assertTrue(guard.reserve(1,ck("one")).allowed);assertFalse(guard.reserve(1,ck("two")).allowed);
     }
     @Test public void registryNeverContainsPlaintextAndKeyIsInstallationLocal()throws Exception{
-        guard.reserve(0,ck("unique-fixture-secret"));String text=Files.readString(root.resolve("bindings.v1"));
+        guard.reserve(0,ck("unique-fixture-secret"));String text=new String(Files.readAllBytes(root.resolve("bindings.v1")),java.nio.charset.StandardCharsets.US_ASCII);
         assertFalse(text.contains("sessionid"));assertFalse(text.contains("unique-fixture-secret"));assertFalse(text.contains("csrf"));
         Path second=temp.getRoot().toPath().resolve("other");new CkImportBindings(second).reserve(0,ck("unique-fixture-secret"));
-        assertNotEquals(text,Files.readString(second.resolve("bindings.v1")));assertEquals(32,Files.size(root.resolve("key.bin")));
+        assertNotEquals(text,new String(Files.readAllBytes(second.resolve("bindings.v1")),java.nio.charset.StandardCharsets.US_ASCII));assertEquals(32,Files.size(root.resolve("key.bin")));
     }
     @Test public void concurrentSpacesCannotBothReserveSameSnapshot()throws Exception{
         ExecutorService pool=Executors.newFixedThreadPool(2);CountDownLatch start=new CountDownLatch(1);
@@ -44,7 +44,7 @@ public class CkImportBindingsTest {
     @Test public void corruptRegistryAndMissingKeyFailClosed()throws Exception{
         guard.reserve(0,ck("one"));Files.delete(root.resolve("key.bin"));
         try{guard.reserve(1,ck("one"));fail();}catch(IOException expected){}
-        Files.writeString(root.resolve("bindings.v1"),"garbage\n");
+        Files.write(root.resolve("bindings.v1"),"garbage\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
         try{guard.reserve(1,ck("one"));fail();}catch(IOException expected){}
     }
     @Test public void boundedHistoryNeverEvictsOldReservations()throws Exception{

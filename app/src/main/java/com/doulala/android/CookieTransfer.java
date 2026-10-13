@@ -189,7 +189,7 @@ final class CookieTransfer {
         if(!CkCookieImport.isDolaTarget(target)){apply(target,pairs,0,0,compatibility);return;}
         io.execute(()->{
             CkImportBindings.Decision decision=null;
-            try{decision=bindings.reserve(spaceSlot,pairs);}catch(IOException ignored){}
+            try{decision=bindings.reserve(spaceSlot,pairs);}catch(IOException|RuntimeException ignored){}
             final CkImportBindings.Decision result=decision;
             activity.runOnUiThread(()->{
                 if(!alive()||!CookieRules.sameSite(target,currentUrl.get())){
