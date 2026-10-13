@@ -48,12 +48,6 @@
       "runtime": "backup-only"
     },
     {
-      "path": "dola30-source-v1.6.14/duration-main.js",
-      "bytes": 33374,
-      "sha256": "7c4c20ca5faf6b941918950f438f550aee300d50e14e3d50c876fb99b9ba76c0",
-      "runtime": "backup-only"
-    },
-    {
       "path": "dola30-user-source-v1.6.9/content-panel.js",
       "bytes": 23649,
       "sha256": "a26056a670fd69dee32698edcad0cc97a74ea7dd3bd6f8a7498cc649eb587842",
@@ -117,5 +111,18 @@
   "chromeDebugger": "not-supported",
   "extensionPanel": "not-injected",
   "legacyPreferences": "ignored-no-auto-opt-in",
-  "completeAttachmentBackup": "local private tooling backup; service-worker is not uploaded to public bundle"
+  "completeAttachmentBackup": "local private tooling backup; service-worker is not uploaded to public bundle",
+  "activeDocumentIdleScripts": [
+    "dola30-source-v1.6.14/duration-main.js"
+  ],
+  "nativePageAdapters": [
+    "dola30-webview-media-v1.6.14.js"
+  ],
+  "nativePageAdapterFiles": [
+    {
+      "path": "dola30-webview-media-v1.6.14.js",
+      "bytes": 10948,
+      "sha256": "915191907e6ae965fd5a7f603f4ef2caaf510e77026770142aa51fa29b6fbcde"
+    }
+  ]
 }

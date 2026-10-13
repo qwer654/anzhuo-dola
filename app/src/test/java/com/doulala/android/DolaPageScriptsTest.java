@@ -31,4 +31,15 @@ public class DolaPageScriptsTest {
     @Test(expected=IllegalArgumentException.class) public void enabledNeedsBothPageSources() {
         DolaPageScripts.bootstrap(true,true,"skill",null);
     }
+    @Test public void additionalSourcesAreExactDeferredAndOffIsInert(){
+        String duration="/* BYTE EXACT DURATION */",media="/* BYTE EXACT MEDIA */";
+        String full=DolaPageScripts.bootstrap(true,true,true,"skill","upload",duration,media);
+        assertTrue(full.contains(duration));assertTrue(full.contains(media));assertTrue(full.contains("DOMContentLoaded"));
+        String noConsent=DolaPageScripts.bootstrap(true,true,false,"skill","upload",duration,media);
+        assertFalse(noConsent.contains(duration));assertFalse(noConsent.contains(media));
+        String off=DolaPageScripts.bootstrap(false,true,true,"skill","upload",duration,media);
+        assertFalse(off.contains(duration));assertFalse(off.contains(media));
+        assertTrue(DolaPageScripts.additionalSummary(false,false,false).contains("尚未确认"));
+    }
+    @Test(expected=IllegalArgumentException.class) public void additionalSourcesMustBePresent(){DolaPageScripts.bootstrap(true,true,true,"skill","upload",null,"media");}
 }

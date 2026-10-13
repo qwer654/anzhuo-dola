@@ -4,7 +4,7 @@ set -euo pipefail
 collect_diagnostics() {
   local out=app/build/smoke-diagnostics
   mkdir -p "$out"
-  adb pull /sdcard/Android/data/com.doulala.android.validation/files/smoke "$out/checkpoints" || true
+  adb pull /sdcard/Download/doulala-ci-checkpoints "$out/checkpoints" || true
   adb logcat -d -t 2000 > "$out/logcat.txt" 2>&1 || true
   adb shell uiautomator dump /sdcard/doulala-smoke.xml >/dev/null 2>&1 && adb pull /sdcard/doulala-smoke.xml "$out/ui.xml" || true
   adb shell screencap -p /sdcard/doulala-smoke.png && adb pull /sdcard/doulala-smoke.png "$out/screen.png" || true

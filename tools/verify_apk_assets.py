@@ -39,6 +39,10 @@ def verify(apk):
             data = archive.read("assets/" + entry["path"])
             if len(data) != entry["bytes"] or hashlib.sha256(data).hexdigest() != entry["sha256"]:
                 raise ValueError("Retired backup changed inside APK: " + entry["path"])
+        for entry in policy.get("nativePageAdapterFiles", []):
+            data = archive.read("assets/" + entry["path"])
+            if len(data) != entry["bytes"] or hashlib.sha256(data).hexdigest() != entry["sha256"]:
+                raise ValueError("Native page adapter changed inside APK")
         if any(".bak." in name or name.endswith(".pem") for name in archive.namelist()):
             raise ValueError("APK contains backups or private key files")
     return {
@@ -47,6 +51,8 @@ def verify(apk):
         "additionalSourceFilesVerified": {key: count for key, count in verified.items() if key != "dola30-original"},
         "legacyBackupFilesVerified": len(policy["retiredAndNonInjectedJavaScript"]),
         "activePageScripts": policy["activeDocumentStartScripts"],
+        "activeIdleScripts": policy.get("activeDocumentIdleScripts", []),
+        "nativePageAdapters": policy.get("nativePageAdapters", []),
         "runtimeVerified": False,
     }
 

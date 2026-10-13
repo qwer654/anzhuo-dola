@@ -39,6 +39,11 @@ public class BrowserSmokeTest {
         assertTrue(dir.isDirectory() || dir.mkdirs());
         assertTrue(device.takeScreenshot(new File(dir,name+".png")));
         device.dumpWindowHierarchy(new File(dir,name+".xml"));
+        // CI emulator only: preserve synthetic UI checkpoints before Gradle uninstalls its fixture APK.
+        if(!name.matches("[A-Za-z0-9_-]+"))throw new IllegalArgumentException("checkpoint name");
+        device.executeShellCommand("mkdir -p /sdcard/Download/doulala-ci-checkpoints");
+        device.executeShellCommand("cp "+new File(dir,name+".png").getAbsolutePath()+" /sdcard/Download/doulala-ci-checkpoints/"+name+".png");
+        device.executeShellCommand("cp "+new File(dir,name+".xml").getAbsolutePath()+" /sdcard/Download/doulala-ci-checkpoints/"+name+".xml");
     }
     @After public void captureFinalState() throws Exception {screenshot("final");}
     private void openSpace(String title) throws Exception {

@@ -1,3 +1,7 @@
+# 新附件其它页面 JS 适配（0.3.2）
+
+原始 `duration-main.js` 已接入 document-idle 阶段；扩展资源面板由 Android 原生资源面板和独立只读观察器适配，未伪造 Chrome 后台/Debugger。原开启状态不会自动授权新增逻辑；需在本空间“30S 工具”确认新增页面功能。详见 [其它 JS 适配范围](docs/OTHER_JS_ADAPTATION.md)。
+
 # 64 空间 UI 迭代（0.3.0）
 
 当前实现、Google 登录限制和视频自动串联的未接入项见 [64 空间迭代说明](docs/SPACES64.md)。本轮真机包为 `com.doulala.android.spaces64`，与旧验证包并存，不删除其账号数据。

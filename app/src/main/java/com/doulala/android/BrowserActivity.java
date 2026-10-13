@@ -32,7 +32,7 @@ public class BrowserActivity extends Activity {
     private boolean ipLookupRunning;
     private Switch pageScriptsSwitch;
     private boolean syncingScriptSwitch;
-    private String home,title,skillPackScript,mediaUploadScript;
+    private String home,title,skillPackScript,mediaUploadScript,durationScript,newMediaScript;
     private ValueCallback<Uri[]> fileCallback;
     private DownloadCenter downloads;
     private CookieTransfer cookies;
@@ -96,7 +96,7 @@ public class BrowserActivity extends Activity {
         addressRow.addView(address,new LinearLayout.LayoutParams(0,Ui.dp(this,48),3));gridAction(addressRow,"打开","打开地址",this::openTypedAddress);
         LinearLayout quick=toolbarRow(root);
         gridAction(quick,"当前 IP","当前IP",this::showExitIp);gridAction(quick,"导入 CK","导入CK",()->cookies.importFileDirect());
-        gridAction(quick,"下载媒体","下载媒体",()->downloads.show());
+        gridAction(quick,"下载媒体","下载媒体",this::rescanMedia);
         exitIp=Ui.text(this,"出口 IP：\n点击查询",11,Ui.MUTED);exitIp.setMaxLines(3);exitIp.setTextIsSelectable(true);exitIp.setContentDescription("出口IP显示");
         quick.addView(exitIp,new LinearLayout.LayoutParams(0,Ui.dp(this,56),1));
         status=Ui.text(this,"正在准备网页…",11,Ui.MUTED);status.setSingleLine(true);status.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -276,13 +276,15 @@ public class BrowserActivity extends Activity {
         if(!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))return;
         try {
             boolean enabled=prefs.getBoolean(DolaPageScripts.PREF_KEY,false);
+            boolean additional=prefs.getBoolean(DolaPageScripts.EXTRA_KEY,false);
             if(enabled){
                 if(skillPackScript==null)skillPackScript=readAsset(DolaPageScripts.SKILL_ASSET);
                 if(mediaUploadScript==null)mediaUploadScript=readAsset(DolaPageScripts.UPLOAD_ASSET);
+                if(additional){if(durationScript==null)durationScript=readAsset(DolaPageScripts.DURATION_ASSET);if(newMediaScript==null)newMediaScript=readAsset(DolaPageScripts.MEDIA_ASSET);}
             }
             WebViewCompat.addDocumentStartJavaScript(t.view,
-                DolaPageScripts.bootstrap(enabled,prefs.contains(DolaPageScripts.PREF_KEY),skillPackScript,mediaUploadScript),
-                new HashSet<>(Arrays.asList("https://dola.com","https://*.dola.com")));
+                DolaPageScripts.bootstrap(enabled,prefs.contains(DolaPageScripts.PREF_KEY),additional,skillPackScript,mediaUploadScript,durationScript,newMediaScript),
+                new HashSet<>(Arrays.asList("https://dola.com","https://*.dola.com","https://doubao.com","https://*.doubao.com")));
             t.pageScriptsRegistered=true;
         }catch(Exception ignored){t.pageScriptsRegistered=false;}
     }
@@ -294,7 +296,16 @@ public class BrowserActivity extends Activity {
     }
     // Historical compatibility helper kept inert; old privacy JS is backup-only.
     static String privacyFingerprintBootstrap(String script,boolean enabled) { return null; }
-    private void scan(Tab t) { /* Previous resource-observer JS is no longer executed. */ }
+    private void scan(Tab t){scan(t,null);}
+    private void scan(Tab t,Runnable after){
+        if(t==null||t.closed||t.view==null||destroyed||!prefs.getBoolean(DolaPageScripts.PREF_KEY,false)||!prefs.getBoolean(DolaPageScripts.EXTRA_KEY,false)||!UrlRules.trusted(t.view.getUrl())){if(after!=null)after.run();return;}
+        final int navigation=t.navigation;
+        t.view.evaluateJavascript("JSON.stringify((function(){var s=window.__dolaNewMediaState;if(!s||!s.installed)return [];if(typeof s.scan==='function')s.scan();return typeof s.drain==='function'?s.drain():[];})())",value->{
+            if(destroyed||t.closed||t!=active||t.navigation!=navigation)return;
+            try{Object raw=new JSONTokener(value).nextValue();if(raw instanceof String)collectMediaResult(t,navigation,(String)raw);}catch(Exception ignored){}
+            if(after!=null)after.run();
+        });
+    }
     private void collectMediaResult(Tab t,int navigation,String value) {
         if(destroyed||t.closed||t.view==null||navigation!=t.navigation||!UrlRules.trusted(t.view.getUrl())||value==null||value.length()>4*1024*1024)return;
         try {
@@ -303,7 +314,7 @@ public class BrowserActivity extends Activity {
             for(int i=0;i<a.length()&&i<1200;i++){
                 JSONObject o=a.optJSONObject(i);if(o==null)continue;
                 String u=webUrl(o.optString("url",null)),type=o.optString("type","");
-                if(u==null||!(type.equals("image")||type.equals("video")))continue;
+                if(u==null||!(type.equals("image")||type.equals("video")||type.equals("audio")))continue;
                 String posterUrl=type.equals("video")?webUrl(o.optString("posterUrl",null)):null;
                 List<String> channels=type.equals("video")?normalizeMediaChannels(o.optJSONArray("channels"),u):Collections.emptyList();
                 String label=o.optString("title","资源");
@@ -314,10 +325,10 @@ public class BrowserActivity extends Activity {
                 renderMediaDialog(mediaDialog,t,navigation,mediaDialogList);
         }catch(Exception ignored){}
     }
-    private void rescanMedia() { Ui.toast(this,"旧资源观察 JS 仅备份，不执行；Chrome 面板/后台解析不可用"); }
+    private void rescanMedia(){scan(active,this::showMedia);}
     private void showMedia() {
         if(active.media.isEmpty()){
-            new AlertDialog.Builder(this).setTitle("当前标签资源").setMessage("旧资源观察 JS 已停用并保留备份。新上传主脚本是页面事件桥，不是 Chrome 扩展资源面板；此面板不伪装已经生效。")
+            new AlertDialog.Builder(this).setTitle("当前标签资源").setMessage("暂无可读取媒体。需确认并开启新增页面适配；仅收集页面实际显示或同源响应中的资源。Chrome 深度嗅探与后台 fallback 仍不可用，不保证无水印。")
                 .setNegativeButton("关闭",null).show();return;
         }
         Tab owner=active;int navigation=owner.navigation;
@@ -532,12 +543,12 @@ public class BrowserActivity extends Activity {
             if(destroyed||t.closed||t.view==null||t.navigation!=navigation||t!=active)return;
             JSONObject state=parseJsObject(value);
             String text=DolaPageScripts.summary(enabled,t.pageScriptsRegistered,
-                state!=null&&state.optBoolean("skillPack",false),state!=null&&state.optBoolean("mediaUpload",false));
+                state!=null&&state.optBoolean("skillPack",false),state!=null&&state.optBoolean("mediaUpload",false))+"\n"+DolaPageScripts.additionalSummary(prefs.getBoolean(DolaPageScripts.EXTRA_KEY,false),state!=null&&state.optBoolean("duration",false),state!=null&&state.optBoolean("mediaObserver",false));
             new AlertDialog.Builder(this).setTitle("30s（新附件 v1.6.14 / 本空间）")
                 .setMessage(text+"\n"+durationToolCapabilitySummary(false)+
-                    "\n仅执行新附件两个页面主脚本；所有旧 JS 仅备份。配置显示、上传桥安装不代表实际上传或服务端接受 30 秒。")
+                    "\n原始页面主脚本按各自阶段执行；页面媒体由独立适配器只读收集。所有旧 JS 仅备份。加载/显示不代表上传或生成成功。")
                 .setNegativeButton("关闭",null)
-                .setPositiveButton(enabled?"关闭本空间 30s":"开启本空间 30s",(d,w)->confirmPageScriptsMode(!enabled)).show();
+                .setPositiveButton(enabled&&!prefs.getBoolean(DolaPageScripts.EXTRA_KEY,false)?"确认新增页面功能":enabled?"关闭本空间 30s":"开启本空间 30s",(d,w)->confirmPageScriptsMode(!enabled||!prefs.getBoolean(DolaPageScripts.EXTRA_KEY,false))).show();
         });
     }
     static String platformSelectionSummary(String status) {
@@ -547,7 +558,7 @@ public class BrowserActivity extends Activity {
         return "页面控件检测：未检测到可见的视频模型/时长控件；不推断平台能力";
     }
     static String durationToolCapabilitySummary(boolean ignoredLegacyProbe) {
-        return "页面资源观察：未启用（旧 JS 仅备份，不执行）\n"+
+        return "页面资源观察：需新增页面适配确认；实际状态见上方（不保证无水印）\n"+
             "Debugger 深度/自动嗅探：不可用（Android WebView 不提供 Chrome MV3 Debugger）\n"+
             "Chrome 扩展面板/后台接口：不可注入，未生效\n"+
             "fallback API 解析：未实现；旧时间轴工具与隐私页面 JS 不执行";
@@ -593,12 +604,12 @@ public class BrowserActivity extends Activity {
             Ui.toast(this,"当前 WebView 不支持文档开始注入，未开启 30s");return;
         }
         String detail=enabled
-            ?"仅为本空间开启。Dola HTTPS 文档开始时，按附件顺序原样执行 skill-pack-main.js、media-upload-main.js，默认页面时长设为 30s。新附件版本 v1.6.14；全部旧 JS 不执行。前者会调整本地能力配置显示，后者安装上传桥/地址规范化；仍依赖站点运行时，不保证实际上传、30 秒生成或平台接受请求。Chrome 调试器、后台及扩展面板接口不可注入，不会伪装可用。旧版 duration、适配器、资源观察、提示词和隐私页面 JS 均只备份，不使用。"
-            :"仅关闭本空间两个页面主脚本，并将下次 Dola 页面本地时长设为 15s。不会删除 Cookie/账号数据，也不会改变其他空间；旧 JS 始终保持仅备份。";
+            ?"仅为本空间开启新附件 v1.6.14。Dola 文档开始执行原始 skill-pack / media-upload；Dola 和豆包文档空闲时原样执行 duration-main。后者会调整时长控件、在你点击发送时改写时间线提示词，并过滤部分页面回复文本。原始代码未改写，也不自动发送消息。新增只读媒体适配器收集当前页面 DOM 和指定同源响应的媒体地址；不后台请求 fallback、不自动下载、不保证无水印。原 Chrome 面板/后台/Debugger 不注入，无伪装 API；旧版 JS 全部仍只备份。确认后才授权新增页面功能，旧开启状态不会静默扩展。"
+            :"关闭本空间全部新页面脚本，并将下次受管页面时长设为 15s。不会删除 Cookie/账号，也不影响其它空间；旧 JS 始终仅备份。";
         new AlertDialog.Builder(this).setTitle(enabled?"开启本空间 30s？":"关闭本空间 30s？")
             .setMessage(detail+"\n为移除/安装脚本钩子，本空间所有打开标签将重新加载；未提交输入会丢失。")
             .setNegativeButton("取消",null).setPositiveButton(enabled?"开启并重载":"关闭并重载",(d,w)->{
-                if(!prefs.edit().putBoolean(DolaPageScripts.PREF_KEY,enabled).commit()){Ui.toast(this,"设置未保存");return;}
+                if(!prefs.edit().putBoolean(DolaPageScripts.PREF_KEY,enabled).putBoolean(DolaPageScripts.EXTRA_KEY,enabled||prefs.getBoolean(DolaPageScripts.EXTRA_KEY,false)).commit()){Ui.toast(this,"设置未保存");return;}
                 syncScriptSwitch();reloadTabsForScriptMode();
             }).show();
     }

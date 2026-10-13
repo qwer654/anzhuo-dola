@@ -12,7 +12,10 @@ test('new attachment is a complete byte-exact source baseline with exactly two a
   assert.equal(manifest.version, '1.6.14');assert.equal(manifest.preservedUnmodified, true);
   assert.deepEqual(policy.activeDocumentStartScripts, [baseline+'/skill-pack-main.js', baseline+'/media-upload-main.js']);
   assert.deepEqual(manifest.activeDocumentStartScripts, ['skill-pack-main.js','media-upload-main.js']);
-  assert.deepEqual(manifest.notInjected, ['duration-main.js','content-panel.js','service-worker.js']);
+  assert.deepEqual(manifest.notInjected, ['content-panel.js','service-worker.js']);
+  assert.deepEqual(policy.activeDocumentIdleScripts,[baseline+'/duration-main.js']);
+  assert.deepEqual(manifest.activeDocumentIdleScripts,['duration-main.js']);
+  for(const entry of policy.nativePageAdapterFiles){const bytes=fs.readFileSync(path.join(assets,entry.path));assert.equal(bytes.length,entry.bytes);assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),entry.sha256);}
   for (const entry of manifest.files) {
     const bytes=fs.readFileSync(path.join(assets,baseline,entry.path));
     assert.equal(bytes.length,entry.bytes);assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),entry.sha256);

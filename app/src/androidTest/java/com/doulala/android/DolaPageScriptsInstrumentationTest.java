@@ -55,6 +55,20 @@ public class DolaPageScriptsInstrumentationTest {
             assertTrue(url,result.isNull("state"));
         }
     }
+    @Test public void additionalSourcesRequireConsentAndRespectIdleStage() throws Exception {
+        JSONObject previous=loadFixture("https://www.dola.com/",true,true,false);
+        assertFalse(previous.getBoolean("durationIdle"));assertFalse(previous.getBoolean("mediaObserver"));
+        JSONObject full=loadFixture("https://www.dola.com/",true,true,true);
+        assertTrue(full.getBoolean("skill"));assertTrue(full.getBoolean("upload"));
+        assertFalse("duration must not execute before the first inline page script",full.getBoolean("legacyWatermark"));
+        assertTrue(full.getBoolean("durationIdle"));assertTrue(full.getBoolean("mediaObserver"));
+        assertFalse(full.getBoolean("chromeRuntime"));assertTrue(full.getJSONArray("mediaItems").length()>0);
+        JSONObject doubao=loadFixture("https://www.doubao.com/",true,true,true);
+        assertFalse(doubao.getBoolean("skill"));assertFalse(doubao.getBoolean("upload"));
+        assertTrue(doubao.getBoolean("durationIdle"));assertTrue(doubao.getBoolean("mediaObserver"));
+        JSONObject off=loadFixture("https://www.doubao.com/",false,true,true);
+        assertFalse(off.getBoolean("durationIdle"));assertFalse(off.getBoolean("mediaObserver"));assertEquals("15",off.getString("duration"));
+    }
     @Test public void spaceSettingsPersistIndependentlyAndDoNotMigrateLegacyOptIn() {
         SharedPreferences a=context.getSharedPreferences(DolaPageScripts.preferenceName("Space0"),Context.MODE_PRIVATE);
         SharedPreferences b=context.getSharedPreferences(DolaPageScripts.preferenceName("Space1"),Context.MODE_PRIVATE);
@@ -81,9 +95,10 @@ public class DolaPageScriptsInstrumentationTest {
             assertTrue(x.commit());assertTrue(y.commit());
         }
     }
-    private JSONObject loadFixture(String origin,boolean enabled,boolean managed)throws Exception {
+    private JSONObject loadFixture(String origin,boolean enabled,boolean managed)throws Exception {return loadFixture(origin,enabled,managed,false);}
+    private JSONObject loadFixture(String origin,boolean enabled,boolean managed,boolean additional)throws Exception {
         assertTrue(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT));
-        String bundle=DolaPageScripts.bootstrap(enabled,managed,read(DolaPageScripts.SKILL_ASSET),read(DolaPageScripts.UPLOAD_ASSET));
+        String bundle=DolaPageScripts.bootstrap(enabled,managed,additional,read(DolaPageScripts.SKILL_ASSET),read(DolaPageScripts.UPLOAD_ASSET),additional?read(DolaPageScripts.DURATION_ASSET):null,additional?read(DolaPageScripts.MEDIA_ASSET):null);
         AtomicReference<WebView> ref=new AtomicReference<>();AtomicReference<String> result=new AtomicReference<>();
         CountDownLatch done=new CountDownLatch(1);
         try {
@@ -94,9 +109,9 @@ public class DolaPageScriptsInstrumentationTest {
                 // Same single registration boundary as production. No Chrome API shims.
                 WebViewCompat.addDocumentStartJavaScript(view,
                     "window.__beforeFetch=window.fetch;window.__beforeOpen=XMLHttpRequest.prototype.open;"+bundle,
-                    new HashSet<>(Arrays.asList("https://dola.com","https://*.dola.com")));
+                    new HashSet<>(Arrays.asList("https://dola.com","https://*.dola.com","https://doubao.com","https://*.doubao.com")));
                 view.setWebViewClient(new WebViewClient(){@Override public void onPageFinished(WebView v,String url){
-                    v.evaluateJavascript("JSON.stringify(window.__early)",s->{result.set(s);done.countDown();});
+                    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(()->v.evaluateJavascript("JSON.stringify(Object.assign({},window.__early,{durationIdle:!!window.__watermarkFreeDuration30Installed,mediaObserver:!!window.__dolaNewMediaState,mediaItems:window.__dolaNewMediaState?window.__dolaNewMediaState.items:[]}))",s->{result.set(s);done.countDown();}),250);
                 }});
                 String html="<!doctype html><html><head><script>window.__early={"
                     +"skill:!!window.__dolaNative30SkillPackInstalledV162,upload:!!window.__DOLA_TOOLKIT_MEDIA_UPLOAD_BRIDGE_V3__,"
@@ -105,7 +120,7 @@ public class DolaPageScriptsInstrumentationTest {
                     +"chromeDebugger:!!(window.chrome&&window.chrome.debugger),chromeRuntime:!!(window.chrome&&window.chrome.runtime),"
                     +"uploadResult:!!window.__DOLA_TOOLKIT_MEDIA_UPLOAD__,"
                     +"legacyV150:!!window.__dolaNative30SkillPackInstalledV150,legacyUploadV1:!!window.__DOLA_TOOLKIT_MEDIA_UPLOAD_BRIDGE_V1__,"
-                    +"legacyUploadV2:!!window.__DOLA_TOOLKIT_MEDIA_UPLOAD_BRIDGE_V2__,legacyUploadResult:!!window.__DOLA_TOOLKIT_MEDIA_UPLOAD__,hostWebViewState:!!window.__dolaWebViewPageScripts,sharedNormalizer:!!window.__DOLA_TOOLKIT_UPLOAD_URL_NORMALIZER__,legacyAndroidAdapter:!!window.__dola30AndroidAdapterInstalled,legacyFingerprintPrivacy:!!window.__dolaFingerprintPrivacy,legacyAndroidDrain:typeof window.__dolaAndroidDrain===\'function\',legacyPromptTools:!!window.DolaPromptTools,legacyWatermark:!!window.__watermarkFreeDuration30Installed};</script></head><body>local fixture</body></html>";
+                    +"legacyUploadV2:!!window.__DOLA_TOOLKIT_MEDIA_UPLOAD_BRIDGE_V2__,legacyUploadResult:!!window.__DOLA_TOOLKIT_MEDIA_UPLOAD__,hostWebViewState:!!window.__dolaWebViewPageScripts,sharedNormalizer:!!window.__DOLA_TOOLKIT_UPLOAD_URL_NORMALIZER__,legacyAndroidAdapter:!!window.__dola30AndroidAdapterInstalled,legacyFingerprintPrivacy:!!window.__dolaFingerprintPrivacy,legacyAndroidDrain:typeof window.__dolaAndroidDrain===\'function\',legacyPromptTools:!!window.DolaPromptTools,legacyWatermark:!!window.__watermarkFreeDuration30Installed};</script></head><body>local fixture<video src=\"https://media.example.test/generated.mp4\" poster=\"https://media.example.test/poster.jpg\"></video></body></html>";
                 view.loadDataWithBaseURL(origin,html,"text/html","UTF-8",null);
             });
             assertTrue("Document-start fixture timed out",done.await(20,TimeUnit.SECONDS));

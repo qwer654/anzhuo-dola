@@ -49,7 +49,7 @@ jobs:
         with:
           node-version: '20'
       - name: Test active page scripts and backup-only runtime policy
-        run: node --test tests/dola30-source.test.cjs tests/dola30-page-main.test.cjs tests/runtime-source-policy.test.cjs tests/spaces64-contract.test.cjs
+        run: node --test tests/dola30-source.test.cjs tests/dola30-page-main.test.cjs tests/runtime-source-policy.test.cjs tests/spaces64-contract.test.cjs tests/dola30-webview-media.test.cjs
       - name: Test deterministic extension packaging and APK asset verifier
         run: python3 -m unittest tests.test_extension_packaging -v
       - name: Set up Gradle 8.9

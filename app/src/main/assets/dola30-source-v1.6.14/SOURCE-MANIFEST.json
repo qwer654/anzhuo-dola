@@ -14,7 +14,6 @@
     "media-upload-main.js"
   ],
   "notInjected": [
-    "duration-main.js",
     "content-panel.js",
     "service-worker.js"
   ],
@@ -47,5 +46,8 @@
       "bytes": 23649,
       "sha256": "a26056a670fd69dee32698edcad0cc97a74ea7dd3bd6f8a7498cc649eb587842"
     }
+  ],
+  "activeDocumentIdleScripts": [
+    "duration-main.js"
   ]
 }
