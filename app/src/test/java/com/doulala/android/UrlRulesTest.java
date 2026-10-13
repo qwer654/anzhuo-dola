@@ -42,7 +42,8 @@ public class UrlRulesTest {
     @Test public void durationToolReportsRetiredFeaturesEvenWhenOldProbeFlagIsTrue() {
         for(boolean oldFlag:new boolean[]{false,true}){
             String text=BrowserActivity.durationToolCapabilitySummary(oldFlag);
-            assertTrue(text.contains("页面资源观察：未启用"));assertTrue(text.contains("旧 JS 仅备份"));
+            assertTrue(text.contains("页面资源观察：需新增页面适配确认"));
+            assertEquals(BrowserActivity.durationToolCapabilitySummary(false),BrowserActivity.durationToolCapabilitySummary(true));assertTrue(text.contains("旧 JS 仅备份"));
             assertTrue(text.contains("Debugger 深度/自动嗅探：不可用"));
             assertTrue(text.contains("Chrome 扩展面板/后台接口：不可注入，未生效"));
             assertTrue(text.contains("fallback API 解析：未实现"));

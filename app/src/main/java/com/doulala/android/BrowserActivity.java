@@ -558,7 +558,7 @@ public class BrowserActivity extends Activity {
         return "页面控件检测：未检测到可见的视频模型/时长控件；不推断平台能力";
     }
     static String durationToolCapabilitySummary(boolean ignoredLegacyProbe) {
-        return "页面资源观察：需新增页面适配确认；实际状态见上方（不保证无水印）\n"+
+        return "旧 JS 仅备份，不执行。\n页面资源观察：需新增页面适配确认；实际状态见上方（不保证无水印）\n"+
             "Debugger 深度/自动嗅探：不可用（Android WebView 不提供 Chrome MV3 Debugger）\n"+
             "Chrome 扩展面板/后台接口：不可注入，未生效\n"+
             "fallback API 解析：未实现；旧时间轴工具与隐私页面 JS 不执行";
