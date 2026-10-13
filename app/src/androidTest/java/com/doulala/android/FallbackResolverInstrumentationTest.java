@@ -2,6 +2,8 @@ package com.doulala.android;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import org.junit.Test;
+import org.json.JSONObject;
+import org.json.JSONArray;
 import org.junit.runner.RunWith;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -21,6 +23,12 @@ public class FallbackResolverInstrumentationTest {
         StringBuilder s=new StringBuilder();for(int i=0;i<100;i++)s.append("[");for(int i=0;i<100;i++)s.append("]");
         assertFalse(FallbackMediaResolver.boundedJson(s.toString()));
         assertNull(FallbackMediaResolver.parsePayload(s.toString()));
+    }
+    @Test public void arraysAndEmptyMainUrlMatchOriginalWorker(){
+        JSONObject root=new JSONObject();JSONObject video=new JSONObject();JSONArray list=new JSONArray();
+        try{JSONObject item=new JSONObject();item.put("main_url","");item.put("play_url","https://media.example.test/result.mp4");list.put(item);video.put("video_list",list);root.put("video_info",video);root.put("metadata",new JSONObject().put("key_seed","provided-seed").toString());}catch(Exception e){throw new AssertionError(e);}
+        String[] parsed=FallbackMediaResolver.parsePayload(root.toString());assertNotNull(parsed);
+        assertEquals("https://media.example.test/result.mp4",parsed[0]);assertEquals("provided-seed",parsed[1]);
     }
     @Test public void missingMediaIsRejectedWithoutNetwork() { assertNull(FallbackMediaResolver.parsePayload("{\"data\":{}}")); }
 }
