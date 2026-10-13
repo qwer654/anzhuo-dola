@@ -40,14 +40,19 @@ public class BrowserActivity extends Activity {
     private LinearLayout mediaDialogList;
     private Tab mediaDialogOwner;
     private int mediaDialogNavigation=-1;
-    private boolean destroyed,resumed;
+    private volatile boolean destroyed;
+    private boolean resumed, fallbackRunning;
+    private final FallbackMediaResolver fallbackResolver=new FallbackMediaResolver();
     private final Runnable scanLoop=new Runnable(){public void run(){scan(active);if(resumed&&!destroyed)handler.postDelayed(this,3000);}};
 
     private static final class Tab {
         WebView view;
         String url,title="新标签",message="等待加载",savedState;
-        int navigation;
-        boolean probe,androidTools,pageScriptsRegistered,closed,failed;
+        volatile int navigation;
+        boolean probe,androidTools,pageScriptsRegistered,failed;
+        volatile boolean closed;
+        final ArrayList<String> fallbackApis=new ArrayList<>();
+        final Set<String> fallbackKeys=new HashSet<>();
         final ArrayList<MediaItem> media=new ArrayList<>();
         final Set<String> mediaKeys=new HashSet<>();
         Tab(String u){url=u;}
@@ -218,7 +223,7 @@ public class BrowserActivity extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView v,String u){return external(t,Uri.parse(u));}
             @Override public void onPageStarted(WebView v,String u,Bitmap icon){
                 if(t==mediaDialogOwner)dismissMediaDialog();
-                t.navigation++;t.failed=false;t.media.clear();t.mediaKeys.clear();String valid=webUrl(u);if(valid!=null)t.url=valid;
+                t.navigation++;t.failed=false;t.media.clear();t.mediaKeys.clear();t.fallbackApis.clear();t.fallbackKeys.clear();String valid=webUrl(u);if(valid!=null)t.url=valid;
                 t.message="正在加载…";if(t==active)updateUi();saveTabs();
             }
             @Override public void doUpdateVisitedHistory(WebView v,String u,boolean reload){String valid=webUrl(u);if(valid!=null){t.url=valid;if(t==active&&!address.hasFocus())address.setText(valid);saveTabs();}}
@@ -300,9 +305,17 @@ public class BrowserActivity extends Activity {
     private void scan(Tab t,Runnable after){
         if(t==null||t.closed||t.view==null||destroyed||!prefs.getBoolean(DolaPageScripts.PREF_KEY,false)||!prefs.getBoolean(DolaPageScripts.EXTRA_KEY,false)||!UrlRules.trusted(t.view.getUrl())){if(after!=null)after.run();return;}
         final int navigation=t.navigation;
-        t.view.evaluateJavascript("JSON.stringify((function(){var s=window.__dolaNewMediaState;if(!s||!s.installed)return [];if(typeof s.scan==='function')s.scan();return typeof s.drain==='function'?s.drain():[];})())",value->{
+        t.view.evaluateJavascript("JSON.stringify((function(){var s=window.__dolaNewMediaState;if(!s||!s.installed)return [];if(typeof s.scan==='function')s.scan();return {items:typeof s.drain==='function'?s.drain():[],fallbackApis:typeof s.drainFallbacks==='function'?s.drainFallbacks():[]};})())",value->{
             if(destroyed||t.closed||t!=active||t.navigation!=navigation)return;
-            try{Object raw=new JSONTokener(value).nextValue();if(raw instanceof String)collectMediaResult(t,navigation,(String)raw);}catch(Exception ignored){}
+            try{Object raw=new JSONTokener(value).nextValue();if(raw instanceof String){
+                JSONObject observed=new JSONObject((String)raw);
+                collectMediaResult(t,navigation,observed.optJSONArray("items")==null?"[]":observed.optJSONArray("items").toString());
+                JSONArray candidates=observed.optJSONArray("fallbackApis");
+                if(candidates!=null)for(int i=0;i<candidates.length()&&t.fallbackApis.size()<8;i++){
+                    String candidate=candidates.optString(i,"");
+                    if(MediaTokenDecoder.isHttpsPublicShape(candidate)&&t.fallbackKeys.add(candidate))t.fallbackApis.add(candidate);
+                }
+            }}catch(Exception ignored){}
             if(after!=null)after.run();
         });
     }
@@ -327,8 +340,9 @@ public class BrowserActivity extends Activity {
     }
     private void rescanMedia(){scan(active,this::showMedia);}
     private void showMedia() {
-        if(active.media.isEmpty()){
-            new AlertDialog.Builder(this).setTitle("当前标签资源").setMessage("暂无可读取媒体。需确认并开启新增页面适配；仅收集页面实际显示或同源响应中的资源。Chrome 深度嗅探与后台 fallback 仍不可用，不保证无水印。")
+        if(active==null)return;
+        if(active.media.isEmpty()&&active.fallbackApis.isEmpty()){
+            new AlertDialog.Builder(this).setTitle("当前标签资源").setMessage("暂无可读取媒体。需确认并开启新增页面适配；仅收集页面实际显示或同源响应中的资源。Chrome 深度嗅探不可用；候选接口仅在确认目标主机后手动查询，不保证无水印。")
                 .setNegativeButton("关闭",null).show();return;
         }
         Tab owner=active;int navigation=owner.navigation;
@@ -341,6 +355,7 @@ public class BrowserActivity extends Activity {
     private void renderMediaDialog(AlertDialog dialog,Tab owner,int navigation,LinearLayout list) {
         if(dialog==null||list==null||!mediaDialogMayRefresh(dialog.isShowing(),owner==active,owner.navigation==navigation,owner==mediaDialogOwner))return;
         list.removeAllViews();dialog.setTitle("当前标签资源（"+owner.media.size()+"）");
+        if(!owner.fallbackApis.isEmpty())list.addView(Ui.button(this,"解析候选接口（"+owner.fallbackApis.size()+"）",()->chooseFallback(owner,navigation)));
         LinkedHashMap<TextView,String> downloadRequests=new LinkedHashMap<>();
         for(MediaItem item:new ArrayList<>(owner.media)){
             LinearLayout row=Ui.column(this);TextView label=Ui.text(this,item.type+" · "+item.title,13,Ui.INK);
@@ -374,6 +389,46 @@ public class BrowserActivity extends Activity {
             TextView stateView=request.getKey();stateView.setTag(dialog);
             downloads.statusForUrl(request.getValue(),value->{Object stateOwner=stateView.getTag();if(stateOwner instanceof AlertDialog&&((AlertDialog)stateOwner).isShowing())stateView.setText(value);});
         }
+    }
+    private boolean fallbackOwnerValid(Tab owner,int navigation){
+        return !destroyed&&!owner.closed&&owner==active&&owner.navigation==navigation&&owner.view!=null&&UrlRules.trusted(owner.view.getUrl())
+            &&prefs.getBoolean(DolaPageScripts.PREF_KEY,false)&&prefs.getBoolean(DolaPageScripts.EXTRA_KEY,false);
+    }
+    private void chooseFallback(Tab owner,int navigation){
+        if(!fallbackOwnerValid(owner,navigation)||fallbackRunning)return;
+        ArrayList<String> candidates=new ArrayList<>(owner.fallbackApis);
+        String[] hosts=new String[candidates.size()];
+        for(int i=0;i<hosts.length;i++)try{hosts[i]=(i+1)+". "+new URI(candidates.get(i)).getHost();}catch(Exception e){hosts[i]="无效候选";}
+        new AlertDialog.Builder(this).setTitle("选择候选接口主机").setItems(hosts,(d,i)->{
+            if(!fallbackOwnerValid(owner,navigation))return;
+            String candidate=candidates.get(i),host;
+            try{host=new URI(candidate).getHost();}catch(Exception e){return;}
+            new AlertDialog.Builder(this).setTitle("确认查询 "+host)
+                .setMessage("将对该公网 HTTPS 主机发起一次 GET，请求保留候选签名参数，并替换 channel、codec_type、logo_type 三个原脚本控制参数。不携带 WebView CK、授权头或 Referer；禁止跳转及内网。不自动下载，也不保证无水印或平台接受。")
+                .setPositiveButton("查询",(q,w)->resolveFallback(owner,navigation,candidate)).setNegativeButton("取消",null).show();
+        }).setNegativeButton("取消",null).show();
+    }
+    private void resolveFallback(Tab owner,int navigation,String candidate){
+        if(fallbackRunning||!fallbackOwnerValid(owner,navigation))return;
+        fallbackRunning=true;
+        java.util.concurrent.atomic.AtomicBoolean cancelled=new java.util.concurrent.atomic.AtomicBoolean();
+        AlertDialog progress=new AlertDialog.Builder(this).setTitle("正在解析候选接口")
+            .setMessage("仅请求已确认主机；不携带账号凭证。").setNegativeButton("取消",(d,w)->cancelled.set(true)).create();
+        progress.setOnCancelListener(d->cancelled.set(true));progress.show();
+        previewExecutor.execute(()->{
+            FallbackMediaResolver.Result result=fallbackResolver.resolve(candidate,()->cancelled.get()||destroyed||owner.closed||owner.navigation!=navigation);
+            runOnUiThread(()->{
+                fallbackRunning=false;if(progress.isShowing())progress.dismiss();
+                if(cancelled.get()||!fallbackOwnerValid(owner,navigation))return;
+                if(result.success){
+                    JSONArray items=new JSONArray();JSONObject item=new JSONObject();
+                    try{item.put("url",result.url);item.put("type","video");item.put("title","接口解析结果"+(result.cached?"（缓存）":""));items.put(item);}catch(JSONException ignored){}
+                    collectMediaResult(owner,navigation,items.toString());dismissMediaDialog();showMedia();
+                }else new AlertDialog.Builder(this).setTitle("未取得媒体")
+                    .setMessage("接口未返回可用媒体，或已超时、取消、被公网安全规则阻止。失败不缓存，可稍后重试；不会改变登录状态。")
+                    .setPositiveButton("知道了",null).show();
+            });
+        });
     }
     static boolean mediaDialogMayRefresh(boolean showing,boolean ownerActive,boolean navigationMatches,boolean sameOwner){
         return showing&&ownerActive&&navigationMatches&&sameOwner;
@@ -561,7 +616,7 @@ public class BrowserActivity extends Activity {
         return "旧 JS 仅备份，不执行。\n页面资源观察：需新增页面适配确认；实际状态见上方（不保证无水印）\n"+
             "Debugger 深度/自动嗅探：不可用（Android WebView 不提供 Chrome MV3 Debugger）\n"+
             "Chrome 扩展面板/后台接口：不可注入，未生效\n"+
-            "fallback API 解析：未实现；旧时间轴工具与隐私页面 JS 不执行";
+            "fallback API 解析：原生手动查询，逐次确认主机；不携带账号 CK；旧时间轴工具与隐私页面 JS 不执行";
     }
     private JSONObject parseJsObject(String value) {
         if(value==null||"null".equals(value))return null;
@@ -630,7 +685,7 @@ public class BrowserActivity extends Activity {
         promptTab=null;
         for(Tab tab:tabs){
             if(tab.view!=null){try{tab.view.stopLoading();tab.view.destroy();}catch(Exception ignored){}tab.view=null;}
-            tab.navigation++;tab.probe=false;tab.androidTools=false;tab.pageScriptsRegistered=false;tab.failed=false;tab.media.clear();tab.mediaKeys.clear();
+            tab.navigation++;tab.probe=false;tab.androidTools=false;tab.pageScriptsRegistered=false;tab.failed=false;tab.media.clear();tab.mediaKeys.clear();tab.fallbackApis.clear();tab.fallbackKeys.clear();
         }
         if(active!=null&&!active.closed)select(active);
         Ui.toast(this,"本空间设置已保存，标签 WebView 已重建；实际脚本状态见 30S 工具");
@@ -698,7 +753,7 @@ public class BrowserActivity extends Activity {
     @Override public void onBackPressed(){goBack();}
     @Override protected void onSaveInstanceState(Bundle out){saveTabs();super.onSaveInstanceState(out);}
     @Override protected void onDestroy(){
-        destroyed=true;dismissMediaDialog();handler.removeCallbacksAndMessages(null);previewExecutor.shutdownNow();cancelFile();if(cookies!=null)cookies.close();if(downloads!=null)downloads.close();if(viewport!=null)viewport.removeAllViews();
+        destroyed=true;fallbackResolver.close();dismissMediaDialog();handler.removeCallbacksAndMessages(null);previewExecutor.shutdownNow();cancelFile();if(cookies!=null)cookies.close();if(downloads!=null)downloads.close();if(viewport!=null)viewport.removeAllViews();
         for(Tab t:tabs){t.closed=true;if(t.view!=null){t.view.stopLoading();t.view.destroy();t.view=null;}}super.onDestroy();
     }
     static final class MediaItem{String url;final String type,title;String posterUrl;final ArrayList<String> channels=new ArrayList<>();MediaItem(String u,String t,String n){this(u,t,n,null,Collections.emptyList());}MediaItem(String u,String t,String n,String p){this(u,t,n,p,Collections.emptyList());}MediaItem(String u,String t,String n,String p,List<String> c){url=u;type=t;title=n;posterUrl=p;mergeChannels(c);}void mergeChannels(Collection<String> values){if(values==null)return;for(String value:values)addMediaChannel(channels,value);}}

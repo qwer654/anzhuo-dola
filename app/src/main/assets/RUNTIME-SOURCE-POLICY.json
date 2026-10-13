@@ -121,8 +121,13 @@
   "nativePageAdapterFiles": [
     {
       "path": "dola30-webview-media-v1.6.14.js",
-      "bytes": 10948,
-      "sha256": "915191907e6ae965fd5a7f603f4ef2caaf510e77026770142aa51fa29b6fbcde"
+      "bytes": 11809,
+      "sha256": "70f4274e62a151a18c8d1b0be38db67e4070bfc6c7d6477da07f446af200602b"
     }
+  ],
+  "nativeBackgroundCapabilities": [
+    "manual-confirmed-public-https-fallback",
+    "positive-memory-cache",
+    "provided-seed-media-decoding"
   ]
 }

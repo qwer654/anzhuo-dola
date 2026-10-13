@@ -108,3 +108,14 @@ test('known media path on an untrusted origin cannot be observed', () => {
   root.fetch('https://evil-dola.com/im/chain/single');
   assert.equal(called, 1, 'the page call passes through and no observer performs another request');
 });
+
+test('fallback candidates are passive, bounded, drainable and nested JSON is recognized', () => {
+ const state=adapter.createState();
+ adapter.collectPayload({payload:JSON.stringify({fallback_api:'https://api.example.test/query?sig=a%2Bb'})},state);
+ assert.deepEqual(state.drainFallbacks(),['https://api.example.test/query?sig=a%2Bb']);
+ for(let i=0;i<20;i++)state.addFallback('https://api.example.test/'+i);
+ assert.equal(state.fallbackApis.length,8);
+ assert.equal(state.drainFallbacks().length,8);
+ for(const value of ['http://api.example.test/','https://u:p@api.example.test/','https://api.example.test/#token','/relative'])assert.equal(state.addFallback(value),false);
+ assert.equal(state.addFallback('https://api.example.test/0'),false);
+});

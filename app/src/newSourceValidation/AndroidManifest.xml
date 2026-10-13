@@ -1,3 +1,3 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
-    <application android:label="豆啦啦 页面适配验证" tools:replace="android:label" />
+    <application android:label="豆啦啦 后台适配验证" tools:replace="android:label" />
 </manifest>

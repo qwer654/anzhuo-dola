@@ -9,7 +9,7 @@
   "use strict";
   var LIMITS = Object.freeze({ bodyBytes: 2 * 1024 * 1024, items: 200, depth: 6, nodes: 600 });
   var UNSUPPORTED = Object.freeze([
-    "Chrome debugger", "extension panel", "background service worker", "CDP response body", "fallback API fetching"
+    "Chrome debugger", "extension panel", "background service worker", "CDP response body", "automatic fallback API fetching"
   ]);
   var MEDIA_FIELDS = /(?:^|_)(?:video|videos|video_url|play_url|main_url|download_url|audio|audio_url|image|images|image_url|image_ori_raw|origin_image|original_image|cover_url|poster|thumbnail_url)(?:$|_)/i;
   var VIDEO_FIELDS = /(?:video|play_url|main_url|download_url)/i;
@@ -53,13 +53,21 @@
     return typeof value === "string" ? value.slice(0, 200) : "";
   }
   function createState() {
-    var items = [], seen = new Set();
+    var items = [], seen = new Set(), fallbackApis = [], fallbackSeen = new Set();
     var state = {
       installed: true,
-      items: items,
+      items: items, fallbackApis: fallbackApis,
+      drainFallbacks: function () { return fallbackApis.splice(0, fallbackApis.length); },
       unsupported: UNSUPPORTED.slice(),
       limits: { bodyBytes: LIMITS.bodyBytes, items: LIMITS.items },
       drain: function () { var out = items.splice(0, items.length); return out; }
+    };
+    state.addFallback = function (value) {
+      if (typeof value !== "string" || !/^https:\/\//i.test(value) || fallbackApis.length >= 8) return false;
+      var url = safeMediaUrl(value);
+      if (!url || new URL(url).hash || fallbackSeen.has(url)) return false;
+      fallbackSeen.add(url); if (fallbackSeen.size > 64) fallbackSeen.delete(fallbackSeen.values().next().value);
+      fallbackApis.push(url); return true;
     };
     state.add = function (candidate) {
       if (!candidate || items.length >= LIMITS.items) return false;
@@ -104,7 +112,10 @@
     function walk(value, depth, key, mediaContext) {
       if (++nodes > LIMITS.nodes || depth > LIMITS.depth) return;
       if (typeof value === "string") {
-        if (value.length > LIMITS.bodyBytes || (!MEDIA_FIELDS.test(key || "") && !(mediaContext && /^(?:url|uri|src)$/i.test(key)))) return;
+        if (value.length > LIMITS.bodyBytes) return;
+        if (/^fallback_api$/i.test(key || "")) { state.addFallback(value); return; }
+        if (/^\s*[\[{]/.test(value)) { try { walk(JSON.parse(value), depth + 1, key, mediaContext); } catch (_) {} return; }
+        if ((!MEDIA_FIELDS.test(key || "") && !(mediaContext && /^(?:url|uri|src)$/i.test(key)))) return;
         state.add({ url: value, type: typeFor(value, mediaContext || key), hint: mediaContext || key });
         return;
       }
@@ -147,7 +158,7 @@
         // This event normally contains fallback API endpoints.  It is only useful here
         // when a page script has already emitted an actual direct media URL.
         var kind = typeFor(url, "");
-        if (kind) state.add({ url: url, type: kind });
+        if (kind) state.add({ url: url, type: kind }); else state.addFallback(url);
       }
     } catch (_) {}
   }
