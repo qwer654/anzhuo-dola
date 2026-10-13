@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "苏生阁AI · 30秒无水印助手",
+  "short_name": "苏生阁助手",
+  "version": "1.6.14",
+  "description": "苏生阁AI视频综合软件配套：固化 Seedance 2.5 + 30 秒请求，将提示词中的时间码和秒数改写为全片比例，直接请求生成结果。",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "tabs",
+    "scripting",
+    "downloads"
+  ],
+  "host_permissions": [
+    "*://*/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.dola.com/*"
+      ],
+      "js": [
+        "skill-pack-main.js",
+        "media-upload-main.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "*://*.doubao.com/*",
+        "*://*.dola.com/*"
+      ],
+      "js": [
+        "duration-main.js"
+      ],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "*://*.doubao.com/*",
+        "*://*.dola.com/*",
+        "*://*.qianwen.com/*",
+        "*://*.jianying.com/*"
+      ],
+      "js": [
+        "content-panel.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "苏生阁AI · 30秒无水印助手",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  }
+}

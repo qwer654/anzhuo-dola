@@ -1,0 +1,42 @@
+{
+  "source": "D:/AIDM/dola30-v1.6.9",
+  "manifestDeclaredJavaScript": [
+    "skill-pack-main.js",
+    "media-upload-main.js",
+    "duration-main.js",
+    "content-panel.js",
+    "service-worker.js"
+  ],
+  "preservedUnmodified": true,
+  "version": "1.6.9",
+  "files": [
+    {
+      "path": "manifest.json",
+      "bytes": 1488,
+      "sha256": "606f769327a2bc38e633957219fed8704f4680fc712cc1cf5750ef05758a295c"
+    },
+    {
+      "path": "skill-pack-main.js",
+      "bytes": 12183,
+      "sha256": "244688288333b786dd73d2fbff73d8fd9c8bdb40277f5d3d1634a3e656520800"
+    },
+    {
+      "path": "media-upload-main.js",
+      "bytes": 31387,
+      "sha256": "7c1f77c87c3ab3a87f5e5e296881e42dcb9ec0670473425c517c01be3341a1ca"
+    },
+    {
+      "path": "duration-main.js",
+      "bytes": 31170,
+      "sha256": "4c55707ab86b9cc81339b211ba143680f7db541e8f9966c8b510de5de9bda28e"
+    },
+    {
+      "path": "content-panel.js",
+      "bytes": 23649,
+      "sha256": "a26056a670fd69dee32698edcad0cc97a74ea7dd3bd6f8a7498cc649eb587842"
+    }
+  ],
+  "withheldFromPublicBundle": [
+    "service-worker.js"
+  ]
+}

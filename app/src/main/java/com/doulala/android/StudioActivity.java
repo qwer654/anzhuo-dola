@@ -22,7 +22,7 @@ public final class StudioActivity extends Activity {
     private final java.util.concurrent.ExecutorService io=java.util.concurrent.Executors.newSingleThreadExecutor();
     @Override public void onCreate(Bundle b){super.onCreate(b);Ui.setup(this);prefs=getSharedPreferences("studio",MODE_PRIVATE);load();render();}
     private void load(){try{String value=prefs.getString("state",lastSaved);decode(value);lastSaved=encode();}catch(Exception e){invalidStored=true;Ui.toast(this,"保存数据无法读取；原文件未被覆盖，请导入有效备份恢复。");}}
-    private void render(){ScrollView s=new ScrollView(this);s.setBackgroundColor(Ui.BG);body=Ui.column(this);body.setPadding(Ui.dp(this,18),Ui.dp(this,12),Ui.dp(this,18),Ui.dp(this,32));s.addView(body);setContentView(s);
+    private void render(){ScrollView s=new ScrollView(this);s.setBackgroundColor(Ui.BG);body=Ui.column(this);body.setPadding(Ui.dp(this,14),Ui.dp(this,8),Ui.dp(this,14),Ui.dp(this,24));s.addView(body);setContentView(s);
         LinearLayout h=Ui.row(this);h.addView(Ui.button(this,"‹ 返回",v->finish()));TextView t=Ui.title(this,"创作工作台",23);h.addView(t,new LinearLayout.LayoutParams(0,-2,1));body.addView(h);
         body.addView(Ui.text(this,getIntent().getBooleanExtra("pickPrompt",false)?"选择一条填入浏览器；不会自动发送。":"本地草稿、分镜与快捷文本。",13,Ui.MUTED));
         LinearLayout tabs=Ui.row(this);String[] ls={"快捷文本","分镜","备份 / 工具"};for(int i=0;i<3;i++){final int x=i;Button b=Ui.button(this,ls[i],v->{tab=x;render();});b.setTextColor(tab==i?Ui.BG:Ui.INK);b.setBackground(Ui.shape(this,tab==i?Ui.ACCENT:Ui.CARD,10));tabs.addView(b,new LinearLayout.LayoutParams(0,-2,1));}body.addView(tabs);

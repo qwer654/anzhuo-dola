@@ -1,0 +1,53 @@
+{
+  "source": "D:/新建文件夹 (2)/dola30-新",
+  "version": "1.6.14",
+  "preservedUnmodified": true,
+  "manifestDeclaredJavaScript": [
+    "skill-pack-main.js",
+    "media-upload-main.js",
+    "duration-main.js",
+    "content-panel.js",
+    "service-worker.js"
+  ],
+  "activeDocumentStartScripts": [
+    "skill-pack-main.js",
+    "media-upload-main.js"
+  ],
+  "notInjected": [
+    "content-panel.js",
+    "service-worker.js"
+  ],
+  "withheldFromPublicBundle": [
+    "service-worker.js"
+  ],
+  "files": [
+    {
+      "path": "manifest.json",
+      "bytes": 1489,
+      "sha256": "61957fd87a69af2b26017db8250ca2ce14b941ba78ba35c7616beb46209045c8"
+    },
+    {
+      "path": "skill-pack-main.js",
+      "bytes": 13764,
+      "sha256": "2b2b713fb6a492cb6e419b2b7ae0616dc79d7c11f6457d7f08d414b9dcd16261"
+    },
+    {
+      "path": "media-upload-main.js",
+      "bytes": 35605,
+      "sha256": "5ad5c30c2ef93076db45ca814e313034af86ac34666603f1741158e7633c43d2"
+    },
+    {
+      "path": "duration-main.js",
+      "bytes": 33374,
+      "sha256": "7c4c20ca5faf6b941918950f438f550aee300d50e14e3d50c876fb99b9ba76c0"
+    },
+    {
+      "path": "content-panel.js",
+      "bytes": 23649,
+      "sha256": "a26056a670fd69dee32698edcad0cc97a74ea7dd3bd6f8a7498cc649eb587842"
+    }
+  ],
+  "activeDocumentIdleScripts": [
+    "duration-main.js"
+  ]
+}

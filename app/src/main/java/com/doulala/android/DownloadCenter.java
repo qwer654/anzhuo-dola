@@ -8,12 +8,15 @@ import android.os.*;
 import android.webkit.URLUtil;
 import android.widget.*;
 import java.io.*;
+import java.net.*;
 import java.util.*;
 import java.util.concurrent.*;
 
 /** Tracks only explicit downloads from this profile. Does not attach cookies or auth headers. */
 final class DownloadCenter {
-    private static final int SAVE=8220, MAX_DOWNLOADS=100;
+    private static final int SAVE=8220, SAVE_DIRECT=8221, MAX_DOWNLOADS=100;
+    static final long DIRECT_MAX_BYTES=512L*1024*1024;
+    interface StatusCallback { void accept(String status); }
     private final Activity activity;
     private final SharedPreferences prefs;
     private final DownloadManager manager;
@@ -24,6 +27,8 @@ final class DownloadCenter {
     private LinearLayout list;
     private boolean closed, querying, resumed;
     private long pendingSave=-1;
+    private String pendingDirectUrl, pendingDirectMime, pendingDirectName;
+    private volatile HttpURLConnection directConnection;
     private final Runnable refresh=()->refresh();
 
     DownloadCenter(Activity a,SharedPreferences p,String name) {
@@ -46,15 +51,37 @@ final class DownloadCenter {
                     profile+"/"+UUID.randomUUID()+"-"+name);
             if(mime!=null && !mime.contains("*") && mime.matches("[A-Za-z0-9.+-]+/[A-Za-z0-9.+-]+"))request.setMimeType(mime);
             long id=manager.enqueue(request);ids.add(Long.toString(id));
-            if(!prefs.edit().putStringSet("downloads",ids).commit()){manager.remove(id);throw new IOException();}
+            if(!prefs.edit().putStringSet("downloads",ids).putString(urlKey(id),url).commit()){manager.remove(id);throw new IOException();}
             tell("已加入下载，可在菜单 → 下载中心查看。使用移动数据时会消耗流量。");refresh();
         }catch(Exception e){tell("下载未加入，请检查系统下载服务、存储空间和网络");}
     }
     void confirm(String url,String disposition,String mime) {
+        confirm(url,disposition,mime,null);
+    }
+    void confirm(String url,String disposition,String mime,StatusCallback callback) {
         new AlertDialog.Builder(activity).setTitle("下载此文件？")
             .setMessage("将通过系统下载服务保存，允许使用移动数据。不传递登录 Cookie；需要登录或已过期的链接可能失败。")
-            .setNegativeButton("取消",null).setPositiveButton("下载",(d,w)->enqueue(url,disposition,mime)).show();
+            .setNegativeButton("取消",null).setPositiveButton("下载",(d,w)->{enqueue(url,disposition,mime);statusForUrl(url,callback);}).show();
     }
+    void statusForUrl(String raw,StatusCallback callback) {
+        String url=UrlRules.normalize(raw);
+        if(url==null||!url.startsWith("https://")){if(callback!=null)callback.accept("仅支持 HTTPS 下载");return;}
+        if(callback==null)return;
+        ArrayList<Long> matches=new ArrayList<>();
+        for(String value:ids())try{long id=Long.parseLong(value);if(url.equals(prefs.getString(urlKey(id),null)))matches.add(id);}catch(NumberFormatException ignored){}
+        if(matches.isEmpty()){callback.accept("尚未通过本应用下载");return;}
+        long[] filter=new long[matches.size()];for(int i=0;i<filter.length;i++)filter[i]=matches.get(i);
+        io.execute(()->{
+            String state="下载记录已不存在";
+            try(Cursor c=manager.query(new DownloadManager.Query().setFilterById(filter))){
+                if(c==null)throw new IOException();
+                Entry latest=null;while(c.moveToNext()){Entry candidate=new Entry(c);if(latest==null||candidate.id>latest.id)latest=candidate;}
+                if(latest!=null)state=latest.summary();
+            }catch(Exception e){state="暂时无法读取下载状态";}
+            final String result=state;activity.runOnUiThread(()->{if(!closed&&!activity.isFinishing())callback.accept(result);});
+        });
+    }
+    private static String urlKey(long id){return "download_url_"+id;}
     void show() {
         if(dialog!=null && dialog.isShowing())return;
         list=Ui.column(activity);Ui.pad(list,12);
@@ -123,7 +150,46 @@ final class DownloadCenter {
                 .setType(mime==null?"application/octet-stream":mime).putExtra(Intent.EXTRA_TITLE,e.title),SAVE);
         }catch(Exception ex){pendingSave=-1;tell("无法打开保存位置选择器");}
     }
+    void chooseLocation(String raw,String mime,String title) {
+        String url=UrlRules.normalize(raw);
+        if(url==null||!url.startsWith("https://")){tell("仅支持 HTTPS 资源");return;}
+        try {
+            pendingDirectUrl=url;pendingDirectMime=mime;pendingDirectName=UrlRules.safeFilename(title,"download.bin");
+            activity.startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                .setType(mime!=null&&mime.matches("[A-Za-z0-9.+-]+/[A-Za-z0-9.+-]+")?mime:"application/octet-stream")
+                .putExtra(Intent.EXTRA_TITLE,pendingDirectName),SAVE_DIRECT);
+        } catch(Exception ex){clearDirectPending();tell("无法打开保存位置选择器");}
+    }
+    private void clearDirectPending(){pendingDirectUrl=null;pendingDirectMime=null;pendingDirectName=null;}
+    static long copyDirect(InputStream in,OutputStream out,long declaredLength,long limit)throws IOException {
+        if(declaredLength>limit)throw new IOException("file too large");
+        byte[] buffer=new byte[65536];long copied=0;int n;
+        while((n=in.read(buffer))!=-1){if(copied>limit-n)throw new IOException("file too large");out.write(buffer,0,n);copied+=n;}
+        return copied;
+    }
+    private void streamDirect(String url,Uri dest) {
+        io.execute(()->{
+            boolean ok=false;
+            try {
+                URL parsed=new URL(url);if(!"https".equalsIgnoreCase(parsed.getProtocol())||parsed.getUserInfo()!=null)throw new IOException("unsafe URL");
+                HttpURLConnection conn=(HttpURLConnection)parsed.openConnection();directConnection=conn;
+                conn.setInstanceFollowRedirects(false);conn.setConnectTimeout(15000);conn.setReadTimeout(30000);conn.setRequestMethod("GET");
+                int code=conn.getResponseCode();if(code<200||code>=300)throw new IOException("HTTP "+code);
+                long length=conn.getContentLengthLong();if(length>DIRECT_MAX_BYTES)throw new IOException("too large");
+                try(InputStream in=conn.getInputStream();OutputStream out=activity.getContentResolver().openOutputStream(dest,"wt")){
+                    if(out==null)throw new IOException("destination unavailable");copyDirect(in,out,length,DIRECT_MAX_BYTES);
+                }ok=true;
+            }catch(Exception ignored){}
+            finally {HttpURLConnection c=directConnection;directConnection=null;if(c!=null)c.disconnect();}
+            if(!ok)try{activity.getContentResolver().delete(dest,null,null);}catch(Exception ignored){}
+            final boolean success=ok;activity.runOnUiThread(()->tell(success?"已保存到所选位置":"保存失败；不支持需登录资源或重定向，已尝试清理不完整文件"));
+        });
+    }
     boolean onResult(int request,int result,Intent data) {
+        if(request==SAVE_DIRECT){String url=pendingDirectUrl;clearDirectPending();Uri dest=data==null?null:data.getData();
+            if(result!=Activity.RESULT_OK)return true;
+            if(url==null||dest==null||!"content".equals(dest.getScheme())){tell("保存已中断，请重新选择");return true;}
+            streamDirect(url,dest);return true;}
         if(request!=SAVE)return false;
         long id=pendingSave;pendingSave=-1;Uri dest=data==null?null:data.getData();
         if(result!=Activity.RESULT_OK)return true;
@@ -149,7 +215,7 @@ final class DownloadCenter {
                     boolean ok=true;try{manager.remove(e.id);}catch(Exception ex){ok=false;}
                     final boolean success=ok;
                     activity.runOnUiThread(()->{
-                        if(success){Set<String> ids=ids();ids.remove(Long.toString(e.id));prefs.edit().putStringSet("downloads",ids).apply();}
+                        if(success){Set<String> ids=ids();ids.remove(Long.toString(e.id));prefs.edit().putStringSet("downloads",ids).remove(urlKey(e.id)).apply();}
                         else tell("移除失败，记录已保留");
                         refresh();
                     });
@@ -158,7 +224,7 @@ final class DownloadCenter {
     }
     void resume(){resumed=true;refresh();}
     void pause(){resumed=false;handler.removeCallbacks(refresh);}
-    void close(){closed=true;handler.removeCallbacksAndMessages(null);if(dialog!=null)dialog.dismiss();io.shutdown();}
+    void close(){closed=true;handler.removeCallbacksAndMessages(null);if(dialog!=null)dialog.dismiss();HttpURLConnection c=directConnection;if(c!=null)c.disconnect();io.shutdown();}
     private static final class Entry {
         final long id,done,total;final int status,reason;final String title;
         Entry(Cursor c){id=c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_ID));
@@ -169,14 +235,17 @@ final class DownloadCenter {
             reason=c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));}
         Entry(long n){id=n;title="记录 "+n;done=0;total=-1;status=0;reason=0;}
         String summary(){
-            String state;
-            switch(status){case DownloadManager.STATUS_SUCCESSFUL:state="已完成";break;
-                case DownloadManager.STATUS_RUNNING:state="下载中";break;
-                case DownloadManager.STATUS_PENDING:state="等待下载";break;
-                case DownloadManager.STATUS_PAUSED:state="暂停 / 等待网络（"+reason+"）";break;
-                case DownloadManager.STATUS_FAILED:state="失败（"+reason+"），请返回网页获取新链接";break;
-                default:state="系统记录已不存在";}
+            String state=statusLabel(status,reason);
             return state+" · "+String.format(Locale.ROOT,"%.1f MiB",done/1048576.0)+(total>0?" / "+String.format(Locale.ROOT,"%.1f MiB",total/1048576.0):"");
         }
     }
+    static String statusLabel(int status,int reason){
+        switch(status){case DownloadManager.STATUS_SUCCESSFUL:return "已完成";
+            case DownloadManager.STATUS_RUNNING:return "下载中";
+            case DownloadManager.STATUS_PENDING:return "等待下载";
+            case DownloadManager.STATUS_PAUSED:return "暂停 / 等待网络（"+reason+"）";
+            case DownloadManager.STATUS_FAILED:return "失败（"+reason+"），请返回网页获取新链接";
+            default:return "系统记录已不存在";}
+    }
 }
+

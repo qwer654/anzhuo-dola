@@ -1,0 +1,70 @@
+package com.doulala.android;
+
+import static org.junit.Assert.*;
+import android.content.Context;
+import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+import java.io.File;
+import java.io.FileOutputStream;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+/** Uses a disposable validation package and one unused high slot; it never touches
+ * a real account-bearing installation or public Downloads. */
+@RunWith(AndroidJUnit4.class)
+public final class SpaceResetInstrumentationTest {
+ private static final int SLOT=62, NEIGHBOR=61;
+ private Context context(){return InstrumentationRegistry.getInstrumentation().getTargetContext();}
+ private static void write(File f)throws Exception{f.getParentFile().mkdirs();try(FileOutputStream o=new FileOutputStream(f)){o.write(7);}}
+ private void wipeFixture(Context c){SpaceReset.performBlocking(c,SLOT,SpaceReset.OP_DELETE);c.getSharedPreferences("catalog",0).edit().remove("deleted"+SLOT).remove("resetPending"+SLOT).remove("resetOperation"+SLOT).commit();}
+ @Test public void clearOnlyErasesChosenProfileAndRetainsCatalog()throws Exception{
+  Context c=context();wipeFixture(c);
+  c.getSharedPreferences("catalog",0).edit().putBoolean("enabled"+SLOT,true).putString("name"+SLOT,"keep-name").putString("url"+SLOT,"https://example.test/").putBoolean("enabled"+NEIGHBOR,true).putString("name"+NEIGHBOR,"neighbor").commit();
+  File own=new File(c.getDataDir(),"app_webview_space"+SLOT+"/state"); File neighbor=new File(c.getDataDir(),"app_webview_space"+NEIGHBOR+"/state");
+  write(own);write(neighbor);write(new File(c.getCacheDir(),"webview_space"+SLOT+"/cache"));write(new File(c.getFilesDir(),"video-Space"+SLOT+"/job"));
+  c.getSharedPreferences("browser_Space"+SLOT,0).edit().putString("session","test-only").commit();
+  assertTrue(SpaceReset.performBlocking(c,SLOT,SpaceReset.OP_CLEAR));
+  assertFalse(own.exists());assertFalse(new File(c.getCacheDir(),"webview_space"+SLOT).exists());assertFalse(new File(c.getFilesDir(),"video-Space"+SLOT).exists());
+  assertTrue(neighbor.exists());assertEquals("keep-name",c.getSharedPreferences("catalog",0).getString("name"+SLOT,null));assertTrue(c.getSharedPreferences("catalog",0).getBoolean("enabled"+SLOT,false));assertFalse(SpaceReset.isPending(c,SLOT));
+ }
+ @Test public void pendingMarkerBlocksAdmissionUntilRetryCompletes()throws Exception{
+  Context c=context();wipeFixture(c);c.getSharedPreferences("catalog",0).edit().putBoolean("enabled"+SLOT,true).commit();
+  try(SpaceReset.BrowserGate held=SpaceReset.acquireBrowserGate(c,SLOT)) {assertFalse(SpaceReset.performBlocking(c,SLOT,SpaceReset.OP_CLEAR));assertTrue(SpaceReset.isPending(c,SLOT));}
+  assertTrue(SpaceReset.performBlocking(c,SLOT,SpaceReset.OP_CLEAR));assertFalse(SpaceReset.isPending(c,SLOT));
+ }
+ @Test public void deletingSlotZeroDoesNotResurrectDefaultProfile(){Context c=context();c.getSharedPreferences("catalog",0).edit().putBoolean("enabled0",true).putString("name0","zero").commit();assertTrue(SpaceReset.performBlocking(c,0,SpaceReset.OP_DELETE));assertFalse(c.getSharedPreferences("catalog",0).getBoolean("enabled0",false));assertTrue(c.getSharedPreferences("catalog",0).getBoolean("deleted0",false));}
+ @Test public void deleteFreesSlotWithoutTouchingNeighbor()throws Exception{
+  Context c=context();wipeFixture(c);c.getSharedPreferences("catalog",0).edit().putBoolean("enabled"+SLOT,true).putString("name"+SLOT,"remove-me").putBoolean("enabled"+NEIGHBOR,true).putString("name"+NEIGHBOR,"neighbor").commit();
+  File own=new File(c.getDataDir(),"app_webview_space"+SLOT+"/state");File neighbor=new File(c.getDataDir(),"app_webview_space"+NEIGHBOR+"/state");write(own);write(neighbor);
+  assertTrue(SpaceReset.performBlocking(c,SLOT,SpaceReset.OP_DELETE));
+  assertFalse(own.exists());assertTrue(neighbor.exists());assertFalse(c.getSharedPreferences("catalog",0).getBoolean("enabled"+SLOT,false));assertFalse(c.getSharedPreferences("catalog",0).contains("name"+SLOT));assertFalse(SpaceReset.isPending(c,SLOT));
+ }
+ @Test public void clearAndDeleteReleaseOnlyOwnImportAttempts()throws Exception{
+  Context c=context();CkImportBindings guard=new CkImportBindings(c.getNoBackupFilesDir().toPath().resolve("ck-import-bindings"));
+  java.util.List<String> own=CookieRules.parse("sessionid=fixture-own-reset"),other=CookieRules.parse("sessionid=fixture-neighbor-reset");
+  guard.release(SLOT);guard.release(NEIGHBOR);
+  try{
+   for(String op:new String[]{SpaceReset.OP_CLEAR,SpaceReset.OP_DELETE}){
+    assertTrue(guard.reserve(SLOT,own).allowed);assertTrue(guard.reserve(NEIGHBOR,other).allowed);
+    assertTrue(SpaceReset.performBlocking(c,SLOT,op));
+    assertTrue(guard.reserve(60,own).allowed);guard.release(60);
+    assertFalse(guard.reserve(SLOT,other).allowed); // neighbor digest survived
+    guard.release(SLOT);
+   }
+  }finally{guard.release(SLOT);guard.release(NEIGHBOR);guard.release(60);}
+ }
+ @Test public void corruptOwnImportRecordDoesNotTrapClearOrDelete()throws Exception{
+  Context c=context();java.nio.file.Path root=c.getNoBackupFilesDir().toPath().resolve("ck-import-bindings");
+  CkImportBindings guard=new CkImportBindings(root);guard.release(SLOT);guard.release(NEIGHBOR);
+  java.util.List<String> own=CookieRules.parse("sessionid=fixture-corrupt-own"),other=CookieRules.parse("sessionid=fixture-corrupt-neighbor");
+  File neighbor=new File(c.getDataDir(),"app_webview_space"+NEIGHBOR+"/fixture-neighbor");write(neighbor);
+  try{
+   for(String op:new String[]{SpaceReset.OP_CLEAR,SpaceReset.OP_DELETE}){
+    assertTrue(guard.reserve(SLOT,own).allowed);assertTrue(guard.reserve(NEIGHBOR,other).allowed);
+    java.nio.file.Files.write(root.resolve("space"+SLOT+".v1"),new byte[]{1,2,3});
+    assertTrue(SpaceReset.performBlocking(c,SLOT,op));assertFalse(SpaceReset.isPending(c,SLOT));
+    assertTrue(neighbor.exists());assertTrue(java.nio.file.Files.exists(root.resolve("space"+NEIGHBOR+".v1")));
+   }
+  }finally{guard.release(SLOT);guard.release(NEIGHBOR);}
+ }
+}

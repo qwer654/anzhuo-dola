@@ -1,0 +1,133 @@
+{
+  "version": "1.6.14",
+  "activeDocumentStartScripts": [
+    "dola30-source-v1.6.14/skill-pack-main.js",
+    "dola30-source-v1.6.14/media-upload-main.js"
+  ],
+  "retiredAndNonInjectedJavaScript": [
+    {
+      "path": "dola30-android-adapter.js",
+      "bytes": 17436,
+      "sha256": "8c40372306b1f5445df9592734fc0f52511a1f056455d189e092844b1a507cc1",
+      "runtime": "backup-only"
+    },
+    {
+      "path": "dola30-original/content-panel.js",
+      "bytes": 38951,
+      "sha256": "becc9ec420b77c0b5fa6a7271bc59ff493b9c161453c6f810b74aef519d4d389",
+      "runtime": "backup-only"
+    },
+    {
+      "path": "dola30-original/duration-main.js",
+      "bytes": 47779,
+      "sha256": "f6d9dbc8f7f9749e8050a99f34fdae4e2b063fdccdf62667e925150182df3827",
+      "runtime": "backup-only"
+    },
+    {
+      "path": "dola30-original/host-bridge.js",
+      "bytes": 1979,
+      "sha256": "e31f849f9c20814b89f901ca20b3fe4d046fdede8330d54a5895e892d6a07f26",
+      "runtime": "backup-only"
+    },
+    {
+      "path": "dola30-original/service-worker.js",
+      "bytes": 53986,
+      "sha256": "1cab2bd8c1f6798373f09f49f4a77a2e6175461af5e04fdd6834e5c15f547498",
+      "runtime": "backup-only"
+    },
+    {
+      "path": "dola30-original/skill-pack-main.js",
+      "bytes": 13614,
+      "sha256": "d2a2ab1386c5540b61cb13b81e1d0caa65696a3fbebe08991c27fb2061af6035",
+      "runtime": "backup-only"
+    },
+    {
+      "path": "dola30-source-v1.6.14/content-panel.js",
+      "bytes": 23649,
+      "sha256": "a26056a670fd69dee32698edcad0cc97a74ea7dd3bd6f8a7498cc649eb587842",
+      "runtime": "backup-only"
+    },
+    {
+      "path": "dola30-user-source-v1.6.9/content-panel.js",
+      "bytes": 23649,
+      "sha256": "a26056a670fd69dee32698edcad0cc97a74ea7dd3bd6f8a7498cc649eb587842",
+      "runtime": "backup-only"
+    },
+    {
+      "path": "dola30-user-source-v1.6.9/duration-main.js",
+      "bytes": 31170,
+      "sha256": "4c55707ab86b9cc81339b211ba143680f7db541e8f9966c8b510de5de9bda28e",
+      "runtime": "backup-only"
+    },
+    {
+      "path": "dola30-user-source-v1.6.9/media-upload-main.js",
+      "bytes": 31387,
+      "sha256": "7c1f77c87c3ab3a87f5e5e296881e42dcb9ec0670473425c517c01be3341a1ca",
+      "runtime": "backup-only"
+    },
+    {
+      "path": "dola30-user-source-v1.6.9/skill-pack-main.js",
+      "bytes": 12183,
+      "sha256": "244688288333b786dd73d2fbff73d8fd9c8bdb40277f5d3d1634a3e656520800",
+      "runtime": "backup-only"
+    },
+    {
+      "path": "fingerprint-privacy/bridge.js",
+      "bytes": 2028,
+      "sha256": "d6da53345aa5988006a433d5c58206ff802da724acdc225256bf91a43e4dc590",
+      "runtime": "backup-only"
+    },
+    {
+      "path": "fingerprint-privacy/content-main.js",
+      "bytes": 12457,
+      "sha256": "1f779d23520ebdd39c3b5e2ecfdc6f4309e55ebead37cf65a8d04f4f814596d6",
+      "runtime": "backup-only"
+    },
+    {
+      "path": "fingerprint-privacy/popup.js",
+      "bytes": 3171,
+      "sha256": "e0144af82931fe292c795810539fce53b9ee2758a31c0107fb4574a549c96f04",
+      "runtime": "backup-only"
+    },
+    {
+      "path": "fingerprint-privacy/service-worker.js",
+      "bytes": 3311,
+      "sha256": "3996417720e57a2a5eca537905183c0a07b26f6705b1df9c1365dc9ac2212d5d",
+      "runtime": "backup-only"
+    },
+    {
+      "path": "media-probe.js",
+      "bytes": 21390,
+      "sha256": "5c0c322bc660673c727bf1e9b4f6def93e0f6d39735ca61e9a47f31b55f745f6",
+      "runtime": "backup-only"
+    },
+    {
+      "path": "prompt-tools.js",
+      "bytes": 5569,
+      "sha256": "08a0b71a21d22f68703c7397f605689ac69e90a3255cf2dc5ca8ff7c544e2b1f",
+      "runtime": "backup-only"
+    }
+  ],
+  "chromeDebugger": "not-supported",
+  "extensionPanel": "not-injected",
+  "legacyPreferences": "ignored-no-auto-opt-in",
+  "completeAttachmentBackup": "local private tooling backup; service-worker is not uploaded to public bundle",
+  "activeDocumentIdleScripts": [
+    "dola30-source-v1.6.14/duration-main.js"
+  ],
+  "nativePageAdapters": [
+    "dola30-webview-media-v1.6.14.js"
+  ],
+  "nativePageAdapterFiles": [
+    {
+      "path": "dola30-webview-media-v1.6.14.js",
+      "bytes": 11809,
+      "sha256": "70f4274e62a151a18c8d1b0be38db67e4070bfc6c7d6477da07f446af200602b"
+    }
+  ],
+  "nativeBackgroundCapabilities": [
+    "manual-confirmed-public-https-fallback",
+    "positive-memory-cache",
+    "provided-seed-media-decoding"
+  ]
+}

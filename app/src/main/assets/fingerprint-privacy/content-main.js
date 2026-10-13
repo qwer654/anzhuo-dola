@@ -1,11 +1,23 @@
 /* Doulala Fingerprint Privacy: local diagnostics and user-controlled API reduction. */
 (function (root) {
   "use strict";
-  if (!root || root.top !== root || root.__dolaFingerprintPrivacy) return;
+  // WebView document-start origin rules also inject this module into matching
+  // provider iframes. Apply the same user-selected API reductions per frame;
+  // workers and opaque origins are outside this page-world script's reach.
+  if (!root || root.__dolaFingerprintPrivacy) return;
 
   var CLEAN_USER_AGENT = "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36";
   var defaults = { cleanMode: false, blockCanvasReadback: false, hideWebglDebugInfo: true, blockAudioFingerprint: false, blockWebRTC: false, blockDeviceEnumeration: false };
-  var settings = { cleanMode: false, blockCanvasReadback: false, hideWebglDebugInfo: true, blockAudioFingerprint: false, blockWebRTC: false, blockDeviceEnumeration: false };
+  // Android's native privacy setting may seed API reductions at document start.
+  // The WebView identity remains native and internally consistent.
+  var initialSettings = root.__dolaFingerprintInitialSettings;
+  if (initialSettings && typeof initialSettings === "object") {
+    ["blockCanvasReadback", "hideWebglDebugInfo", "blockAudioFingerprint", "blockWebRTC", "blockDeviceEnumeration"].forEach(function (key) {
+      if (typeof initialSettings[key] === "boolean") defaults[key] = initialSettings[key];
+    });
+    try { delete root.__dolaFingerprintInitialSettings; } catch (_) {}
+  }
+  var settings = copy(defaults);
   var originals = {};
   var navigatorOriginals = {};
 
@@ -218,3 +230,4 @@
   });
   apply(defaults);
 })(typeof window === "undefined" ? null : window);
+

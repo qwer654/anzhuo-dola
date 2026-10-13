@@ -12,42 +12,59 @@ import android.widget.*;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 import org.json.*;
+import java.net.URI;
+import java.net.URLDecoder;
 import java.util.*;
 
 /** Each Space runs in its own process/data directory. Tabs within a Space share its login. */
 public class BrowserActivity extends Activity {
-    private static final int MAX_TABS=6, MAX_MEDIA=300, MAX_BOOKMARKS=200;
+    private static final int MAX_TABS=6, MAX_MEDIA=300, MAX_BOOKMARKS=200, MAX_SAVED_TABS_CHARS=512*1024;
     private static final int FILE_CHOOSER=8101, PICK_PROMPT=8102;
     private final ArrayList<Tab> tabs=new ArrayList<>();
     private final Handler handler=new Handler(Looper.getMainLooper());
+    private final java.util.concurrent.ExecutorService previewExecutor=java.util.concurrent.Executors.newFixedThreadPool(2);
     private SharedPreferences prefs;
     private Tab active, fileTab, promptTab;
     private int fileNavigation, promptNavigation;
     private FrameLayout viewport;
     private EditText address;
-    private TextView status,mediaButton,tabsButton,caption;
-    private String home,title,probeScript,promptScript,androidDolaScript;
+    private TextView status,mediaButton,tabsButton,caption,exitIp;
+    private boolean ipLookupRunning;
+    private Switch pageScriptsSwitch;
+    private boolean syncingScriptSwitch;
+    private String home,title,skillPackScript,mediaUploadScript,durationScript,newMediaScript;
     private ValueCallback<Uri[]> fileCallback;
     private DownloadCenter downloads;
     private CookieTransfer cookies;
-    private boolean destroyed,resumed;
+    private AlertDialog mediaDialog;
+    private LinearLayout mediaDialogList;
+    private Tab mediaDialogOwner;
+    private int mediaDialogNavigation=-1;
+    private volatile boolean destroyed;
+    private boolean resumed, fallbackRunning;
+    private final FallbackMediaResolver fallbackResolver=new FallbackMediaResolver();
     private final Runnable scanLoop=new Runnable(){public void run(){scan(active);if(resumed&&!destroyed)handler.postDelayed(this,3000);}};
 
     private static final class Tab {
         WebView view;
-        String url,title="新标签",message="等待加载";
-        int navigation;
-        boolean probe,androidTools,closed,failed;
+        String url,title="新标签",message="等待加载",savedState;
+        volatile int navigation;
+        boolean probe,androidTools,pageScriptsRegistered,failed;
+        volatile boolean closed;
+        final ArrayList<String> fallbackApis=new ArrayList<>();
+        final Set<String> fallbackKeys=new HashSet<>();
         final ArrayList<MediaItem> media=new ArrayList<>();
         final Set<String> mediaKeys=new HashSet<>();
         Tab(String u){url=u;}
     }
 
     @Override public void onCreate(Bundle state) {
-        super.onCreate(state);Ui.setup(this);readLaunch(getIntent());
-        prefs=getSharedPreferences("browser_"+getClass().getSimpleName(),MODE_PRIVATE);
+        super.onCreate(state);
+        if(DolaApplication.isSpaceResetPending(this,spaceSlot())){finish();return;}
+        Ui.setup(this);readLaunch(getIntent());
+        prefs=getSharedPreferences(DolaPageScripts.preferenceName(getClass().getSimpleName()),MODE_PRIVATE);
         downloads=new DownloadCenter(this,prefs,getClass().getSimpleName());
-        cookies=new CookieTransfer(this,()->active==null?null:active.url);
+        cookies=new CookieTransfer(this,()->active==null?null:active.url,spaceSlot());
         build();restoreTabs();
     }
     private void readLaunch(Intent i) {
@@ -57,36 +74,60 @@ public class BrowserActivity extends Activity {
     @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);readLaunch(i);if(caption!=null)caption.setText(title);}
     private static String webUrl(String raw){String u=UrlRules.normalize(raw);return u!=null&&u.startsWith("https://")?u:null;}
 
+    private int spaceSlot(){return Integer.parseInt(getClass().getSimpleName().substring(5));}
     private void build() {
         LinearLayout root=Ui.column(this);root.setBackgroundColor(Ui.BG);
-        LinearLayout bar=Ui.row(this);Ui.pad(bar,4);
-        addAction(bar,"‹","后退",36,()->goBack());
+        caption=Ui.title(this,title,14);caption.setSingleLine(true);caption.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        caption.setPadding(Ui.dp(this,8),Ui.dp(this,3),Ui.dp(this,8),Ui.dp(this,3));root.addView(caption);
+        LinearLayout navigation=toolbarRow(root);
+        gridAction(navigation,"‹","后退",this::goBack);
+        gridAction(navigation,"›","前进",()->{if(active!=null&&active.view!=null&&active.view.canGoForward())active.view.goForward();});
+        gridAction(navigation,"↻","刷新",()->{if(active!=null){if(active.view==null)select(active);else active.view.reload();}});
+        gridAction(navigation,"空间","回到空间列表",this::returnToCatalog);
+        tabsButton=gridAction(navigation,"标签 1","浏览器菜单",this::showMenu);
+        LinearLayout tools=toolbarRow(root);
+        gridAction(tools,"Dola 登录","Dola登录",this::showSiteLogin);
+        gridAction(tools,"代理","代理说明",this::showProxyHelp);
+        pageScriptsSwitch=new Switch(this);pageScriptsSwitch.setText("30s");pageScriptsSwitch.setTextSize(12);pageScriptsSwitch.setTextColor(Ui.INK);
+        pageScriptsSwitch.setContentDescription("本空间新脚本30s开关");pageScriptsSwitch.setMinHeight(Ui.dp(this,48));
+        pageScriptsSwitch.setGravity(Gravity.CENTER);tools.addView(pageScriptsSwitch,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1));
+        syncScriptSwitch();pageScriptsSwitch.setOnCheckedChangeListener((button,checked)->{if(syncingScriptSwitch)return;syncScriptSwitch();confirmPageScriptsMode(checked);});
+        gridAction(tools,"清理","清理空间",this::showSpaceCleanup);
+        LinearLayout addressRow=toolbarRow(root);
         address=Ui.edit(this,"输入 HTTPS 地址",home);address.setSingleLine(true);address.setTextSize(14);address.setSelectAllOnFocus(true);
         address.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);
         address.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_GO);
-        address.setOnEditorActionListener((v,action,event)->{
-            if(action==android.view.inputmethod.EditorInfo.IME_ACTION_GO || (event!=null&&event.getKeyCode()==KeyEvent.KEYCODE_ENTER&&event.getAction()==KeyEvent.ACTION_UP)) {
-                String u=webUrl(address.getText().toString());
-                if(u==null)address.setError("请输入有效的 HTTPS 地址");else{
-                    load(u);address.clearFocus();
-                    ((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(address.getWindowToken(),0);
-                }return true;
-            }return false;
-        });
-        bar.addView(address,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1));
-        addAction(bar,"↻","刷新",40,()->{if(active.view==null)select(active);else active.view.reload();});root.addView(bar);
-        LinearLayout actions=Ui.row(this);Ui.pad(actions,4);
-        caption=Ui.text(this,title,12,Ui.MUTED);caption.setSingleLine(true);caption.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        actions.addView(caption,new LinearLayout.LayoutParams(0,-2,1));
-        tabsButton=addAction(actions,"标签 1","管理标签",66,this::showTabs);
-        mediaButton=addAction(actions,"资源 0","观察到的资源",66,this::showMedia);
-        addAction(actions,"工作台","创作工作台",60,()->{
-            promptTab=active;promptNavigation=active.navigation;
-            startActivityForResult(new Intent(this,StudioActivity.class).putExtra("pickPrompt",true),PICK_PROMPT);
-        });
-        addAction(actions,"菜单","浏览器菜单",50,this::showMenu);root.addView(actions);
-        status=Ui.text(this,"正在准备网页…",11,Ui.MUTED);status.setSingleLine(true);root.addView(status);
+        address.setOnEditorActionListener((v,action,event)->{if(action==android.view.inputmethod.EditorInfo.IME_ACTION_GO||(event!=null&&event.getKeyCode()==KeyEvent.KEYCODE_ENTER&&event.getAction()==KeyEvent.ACTION_UP)){openTypedAddress();return true;}return false;});
+        addressRow.addView(address,new LinearLayout.LayoutParams(0,Ui.dp(this,48),3));gridAction(addressRow,"打开","打开地址",this::openTypedAddress);
+        LinearLayout quick=toolbarRow(root);
+        gridAction(quick,"当前 IP","当前IP",this::showExitIp);gridAction(quick,"导入 CK","导入CK",()->cookies.importFileDirect());
+        gridAction(quick,"下载媒体","下载媒体",this::rescanMedia);
+        exitIp=Ui.text(this,"出口 IP：\n点击查询",11,Ui.MUTED);exitIp.setMaxLines(3);exitIp.setTextIsSelectable(true);exitIp.setContentDescription("出口IP显示");
+        quick.addView(exitIp,new LinearLayout.LayoutParams(0,Ui.dp(this,56),1));
+        status=Ui.text(this,"正在准备网页…",11,Ui.MUTED);status.setSingleLine(true);status.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        status.setPadding(Ui.dp(this,8),0,Ui.dp(this,8),Ui.dp(this,3));root.addView(status);
         viewport=new FrameLayout(this);root.addView(viewport,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
+    }
+    private LinearLayout toolbarRow(LinearLayout root){LinearLayout row=Ui.row(this);row.setPadding(Ui.dp(this,4),Ui.dp(this,2),Ui.dp(this,4),Ui.dp(this,2));root.addView(row);return row;}
+    private Button gridAction(LinearLayout row,String label,String description,Runnable action){Button button=Ui.button(this,label,action);button.setTextSize(12);button.setPadding(Ui.dp(this,3),0,Ui.dp(this,3),0);button.setContentDescription(description);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,Ui.dp(this,48),1);lp.setMargins(Ui.dp(this,2),0,Ui.dp(this,2),0);row.addView(button,lp);return button;}
+    private void openTypedAddress(){String u=webUrl(address.getText().toString());if(u==null){address.setError("请输入有效的 HTTPS 地址");return;}load(u);address.clearFocus();((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(address.getWindowToken(),0);}
+    static String officialLoginUrl(){return "https://www.dola.com/chat/";}
+    private void showSiteLogin(){new AlertDialog.Builder(this).setTitle("Dola 官网登录").setMessage("请使用 Dola 页面内的登录入口。邮箱、手机号或第三方登录方式以官网当前地区和账号提供的选项为准；本应用不自行提交账号密码或验证码。登录状态仅保存在本空间，不复制到其它空间。直接打开 Google 账户页面不等于登录 Dola；若官方 Google 授权拒绝 WebView，请使用官网提供的其它方式，本应用不绕过限制。").setNegativeButton("取消",null).setPositiveButton("打开 Dola 登录页",(d,w)->load(officialLoginUrl())).show();}
+    private void showProxyHelp(){new AlertDialog.Builder(this).setTitle("代理与出口").setMessage("当前使用手机系统网络或 VPN。本应用尚未提供每空间独立代理配置；此按钮不是代理开关。不同空间不会自动获得不同 IP，按目标分流时 IP 查询结果也可能与 Dola 不同。").setPositiveButton("知道了",null).show();}
+    private void showSpaceCleanup(){new AlertDialog.Builder(this).setTitle("管理本空间").setItems(new String[]{"清除数据（保留空间）","删除空间（释放名额）"},(d,n)->{startActivity(new Intent(this,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP).putExtra(SpaceReset.EXTRA_RESET_SLOT,spaceSlot()).putExtra(SpaceReset.EXTRA_RESET_OPERATION,n==0?SpaceReset.OP_CLEAR:SpaceReset.OP_DELETE));}).setNegativeButton("取消",null).show();}
+    private void openSequentialVideo(){startActivity(new Intent(this,SequentialVideoActivity.class).putExtra("spaceId",getClass().getSimpleName()));}
+    private void syncScriptSwitch() {
+        if(pageScriptsSwitch==null)return;syncingScriptSwitch=true;
+        pageScriptsSwitch.setChecked(prefs.getBoolean(DolaPageScripts.PREF_KEY,false));syncingScriptSwitch=false;
+    }
+    private void openStudio() {
+        if(active==null)return;promptTab=active;promptNavigation=active.navigation;
+        startActivityForResult(new Intent(this,StudioActivity.class).putExtra("pickPrompt",true),PICK_PROMPT);
+    }
+    private void showExitIp() {
+        if(ipLookupRunning)return;ipLookupRunning=true;exitIp.setText("出口 IP：\n查询中…");
+        previewExecutor.execute(()->{String result;try{result=ExitIpClient.lookup();}catch(Exception e){result="查询失败";}final String text=result;
+            runOnUiThread(()->{ipLookupRunning=false;if(!destroyed&&exitIp!=null)exitIp.setText("出口 IP：\n"+text);});});
     }
     private TextView addAction(LinearLayout row,String text,String description,int width,Runnable action) {
         TextView v=Ui.text(this,text,14,Ui.ACCENT);v.setGravity(Gravity.CENTER);v.setContentDescription(description);
@@ -94,21 +135,42 @@ public class BrowserActivity extends Activity {
     }
     private void restoreTabs() {
         try {
-            String saved=prefs.getString("tabs","[]");if(saved.length()>128*1024)throw new JSONException("too large");
+            String saved=prefs.getString("tabs","[]");if(saved.length()>MAX_SAVED_TABS_CHARS)throw new JSONException("too large");
             JSONArray array=new JSONArray(saved);
-            for(int i=0;i<array.length()&&tabs.size()<MAX_TABS;i++){String u=webUrl(array.optString(i));if(u!=null)tabs.add(new Tab(u));}
+            for(int i=0;i<array.length()&&tabs.size()<MAX_TABS;i++){
+                Object entry=array.opt(i);String u=entry instanceof JSONObject?((JSONObject)entry).optString("url",null):String.valueOf(entry);
+                u=webUrl(u);if(u==null)continue;
+                Tab tab=new Tab(u);if(entry instanceof JSONObject)tab.savedState=TabStateCodec.validEncoded(((JSONObject)entry).optString("state",null));tabs.add(tab);
+            }
         }catch(Exception ignored){}
         if(tabs.isEmpty())tabs.add(new Tab(home));
         select(tabs.get(Math.max(0,Math.min(prefs.getInt("selected",0),tabs.size()-1))));
     }
     private void saveTabs() {
-        if(prefs==null)return;JSONArray a=new JSONArray();for(Tab t:tabs)a.put(t.url);
+        if(prefs==null)return;JSONArray a=new JSONArray();int stateBudget=TabStateCodec.TOTAL_LIMIT;
+        for(Tab t:tabs){
+            JSONObject item=new JSONObject();try{item.put("url",t.url);}catch(JSONException ignored){}
+            if(t.view!=null&&stateBudget>0){
+                Bundle state=new Bundle();try{
+                    if(t.view.saveState(state)!=null){String encoded=TabStateCodec.encode(state,stateBudget);if(encoded!=null){item.put("state",encoded);stateBudget-=encoded.length();}}
+                }catch(Exception ignored){}
+            }else if(t.savedState!=null&&stateBudget>0){try{item.put("state",t.savedState);stateBudget-=t.savedState.length();}catch(JSONException ignored){}}
+            a.put(item);
+        }
         prefs.edit().putString("tabs",a.toString()).putInt("selected",Math.max(0,tabs.indexOf(active))).apply();
     }
     private void select(Tab tab) {
         if(tab==null||tab.closed)return;
+        if(active!=tab)dismissMediaDialog();
         if(active!=null&&active.view!=null)active.view.onPause();viewport.removeAllViews();active=tab;
-        if(tab.view==null){tab.view=new WebView(this);configure(tab);installProbe(tab);tab.view.loadUrl(tab.url);}
+        if(tab.view==null){
+            tab.view=new WebView(this);configure(tab);installProbe(tab);
+            Bundle restored=TabStateCodec.decode(tab.savedState);
+            WebBackForwardList history=null;try{if(restored!=null)history=tab.view.restoreState(restored);}catch(RuntimeException ignored){}
+            if(history==null||history.getSize()==0)tab.view.loadUrl(tab.url);
+            else {String restoredUrl=webUrl(tab.view.getUrl());if(restoredUrl!=null)tab.url=restoredUrl;}
+            tab.savedState=null;
+        }
         viewport.addView(tab.view,new FrameLayout.LayoutParams(-1,-1));
         if(resumed)tab.view.onResume();else tab.view.onPause();
         updateUi();saveTabs();
@@ -141,7 +203,7 @@ public class BrowserActivity extends Activity {
                 .setPositiveButton("关闭",(x,w)->{d.dismiss();closeTab(t);}).show()));list.addView(row);
         }d.show();
     }
-    private void updateUi(){if(active==null)return;address.setText(active.url);status.setText(active.message);tabsButton.setText("标签 "+tabs.size());mediaButton.setText("资源 "+active.media.size());}
+    private void updateUi(){if(active==null)return;address.setText(active.url);status.setText(active.message);if(tabsButton!=null)tabsButton.setText("标签 "+tabs.size());if(mediaButton!=null)mediaButton.setText("资源 "+active.media.size());}
     private void message(Tab t,String text){t.message=text;if(t==active&&!destroyed)status.setText(text);}
 
     private void configure(Tab t) {
@@ -149,8 +211,10 @@ public class BrowserActivity extends Activity {
         s.setJavaScriptEnabled(true);s.setDomStorageEnabled(true);s.setDatabaseEnabled(true);
         s.setAllowFileAccess(false);s.setAllowContentAccess(true);s.setSupportMultipleWindows(false);
         s.setJavaScriptCanOpenWindowsAutomatically(false);s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        s.setSafeBrowsingEnabled(true);s.setUserAgentString(s.getUserAgentString()+" DoulalaAndroid/0.2");
-        CookieManager.getInstance().setAcceptCookie(true);CookieManager.getInstance().setAcceptThirdPartyCookies(view,true);
+        boolean cleanPrivacy=prefs.getBoolean("privacyCleanMode",false);
+        s.setSafeBrowsingEnabled(true);s.setUserAgentString(userAgentForPrivacyMode(s.getUserAgentString(),cleanPrivacy));
+        s.setGeolocationEnabled(geolocationEnabledInPrivacyMode(cleanPrivacy));
+        CookieManager.getInstance().setAcceptCookie(true);CookieManager.getInstance().setAcceptThirdPartyCookies(view,acceptThirdPartyCookiesInPrivacyMode(cleanPrivacy));
         view.setOverScrollMode(View.OVER_SCROLL_NEVER);
         view.setWebViewClient(new WebViewClient(){
             @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){
@@ -159,12 +223,13 @@ public class BrowserActivity extends Activity {
             }
             @Override public boolean shouldOverrideUrlLoading(WebView v,String u){return external(t,Uri.parse(u));}
             @Override public void onPageStarted(WebView v,String u,Bitmap icon){
-                t.navigation++;t.failed=false;t.media.clear();t.mediaKeys.clear();String valid=webUrl(u);if(valid!=null)t.url=valid;
+                if(t==mediaDialogOwner)dismissMediaDialog();
+                t.navigation++;t.failed=false;t.media.clear();t.mediaKeys.clear();t.fallbackApis.clear();t.fallbackKeys.clear();String valid=webUrl(u);if(valid!=null)t.url=valid;
                 t.message="正在加载…";if(t==active)updateUi();saveTabs();
             }
             @Override public void doUpdateVisitedHistory(WebView v,String u,boolean reload){String valid=webUrl(u);if(valid!=null){t.url=valid;if(t==active&&!address.hasFocus())address.setText(valid);saveTabs();}}
             @Override public void onPageFinished(WebView v,String u){
-                if(!t.failed)message(t,t.probe?"已就绪 · 30S 本地工具与资源观察可用":(t.androidTools?"已就绪 · 30S 本地工具可用；资源观察未启用":"已就绪 · 当前 WebView 不支持早期脚本"));scan(t);
+                if(!t.failed)message(t,prefs.getBoolean(DolaPageScripts.PREF_KEY,false)?"新附件 30s 设置已开启；执行状态见 30S 工具":"新附件 30s：关闭；旧 JS 仅备份不执行");
             }
             @Override public void onReceivedError(WebView v,WebResourceRequest r,WebResourceError e){if(r.isForMainFrame()){t.failed=true;message(t,"加载失败："+e.getDescription());}}
             @Override public void onReceivedHttpError(WebView v,WebResourceRequest r,WebResourceResponse response){if(r.isForMainFrame()){t.failed=true;message(t,"网页返回 HTTP "+response.getStatusCode());}}
@@ -194,6 +259,12 @@ public class BrowserActivity extends Activity {
             }return false;
         });
     }
+    static String userAgentForPrivacyMode(String nativeUserAgent,boolean cleanPrivacy) {
+        if(nativeUserAgent==null)return "";
+        return cleanPrivacy?nativeUserAgent:nativeUserAgent+" DoulalaAndroid/0.2";
+    }
+    static boolean acceptThirdPartyCookiesInPrivacyMode(boolean cleanPrivacy) { return !cleanPrivacy; }
+    static boolean geolocationEnabledInPrivacyMode(boolean cleanPrivacy) { return !cleanPrivacy; }
     private boolean external(Tab t,Uri uri) {
         if(webUrl(uri.toString())!=null)return false;
         String scheme=uri.getScheme();
@@ -205,22 +276,23 @@ public class BrowserActivity extends Activity {
         }else message(t,"已阻止非 HTTPS 或不支持的链接");return true;
     }
     private void installProbe(Tab t) {
-        t.probe=false;t.androidTools=false;if(!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))return;
-        Set<String> origins=new HashSet<>(Arrays.asList(
-            "https://doubao.com","https://*.doubao.com","https://dola.com","https://*.dola.com",
-            "https://qianwen.com","https://*.qianwen.com","https://jianying.com","https://*.jianying.com"));
+        // Runtime source policy: every previous external JS is backup-only.
+        // No media probe, prompt adapter, old duration or fingerprint JS is registered.
+        t.probe=false;t.androidTools=false;t.pageScriptsRegistered=false;
+        if(!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))return;
         try {
-            if(probeScript==null)probeScript=readAsset("media-probe.js");
-            WebViewCompat.addDocumentStartJavaScript(t.view,probeScript,origins);t.probe=true;
-        }catch(Exception ignored){}
-        // The supplied MV3 files stay byte-for-byte in dola30-original/. Only
-        // the Android-safe adapter and pure prompt utility are injected here.
-        try {
-            if(promptScript==null)promptScript=readAsset("prompt-tools.js");
-            if(androidDolaScript==null)androidDolaScript=readAsset("dola30-android-adapter.js");
-            WebViewCompat.addDocumentStartJavaScript(t.view,promptScript,origins);
-            WebViewCompat.addDocumentStartJavaScript(t.view,androidDolaScript,origins);t.androidTools=true;
-        }catch(Exception ignored){}
+            boolean enabled=prefs.getBoolean(DolaPageScripts.PREF_KEY,false);
+            boolean additional=prefs.getBoolean(DolaPageScripts.EXTRA_KEY,false);
+            if(enabled){
+                if(skillPackScript==null)skillPackScript=readAsset(DolaPageScripts.SKILL_ASSET);
+                if(mediaUploadScript==null)mediaUploadScript=readAsset(DolaPageScripts.UPLOAD_ASSET);
+                if(additional){if(durationScript==null)durationScript=readAsset(DolaPageScripts.DURATION_ASSET);if(newMediaScript==null)newMediaScript=readAsset(DolaPageScripts.MEDIA_ASSET);}
+            }
+            WebViewCompat.addDocumentStartJavaScript(t.view,
+                DolaPageScripts.bootstrap(enabled,prefs.contains(DolaPageScripts.PREF_KEY),additional,skillPackScript,mediaUploadScript,durationScript,newMediaScript),
+                new HashSet<>(Arrays.asList("https://dola.com","https://*.dola.com","https://doubao.com","https://*.doubao.com")));
+            t.pageScriptsRegistered=true;
+        }catch(Exception ignored){t.pageScriptsRegistered=false;}
     }
     private String readAsset(String name)throws java.io.IOException{
         try(java.io.InputStream in=getAssets().open(name);java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){
@@ -228,52 +300,324 @@ public class BrowserActivity extends Activity {
             return new String(out.toByteArray(),java.nio.charset.StandardCharsets.UTF_8);
         }
     }
-    private void scan(Tab t) {
-        if(destroyed||t==null||t.closed||t.view==null||!UrlRules.trusted(t.view.getUrl()))return;
+    // Historical compatibility helper kept inert; old privacy JS is backup-only.
+    static String privacyFingerprintBootstrap(String script,boolean enabled) { return null; }
+    private void scan(Tab t){scan(t,null);}
+    private void scan(Tab t,Runnable after){
+        if(t==null||t.closed||t.view==null||destroyed||!prefs.getBoolean(DolaPageScripts.PREF_KEY,false)||!prefs.getBoolean(DolaPageScripts.EXTRA_KEY,false)||!UrlRules.trusted(t.view.getUrl())){if(after!=null)after.run();return;}
         final int navigation=t.navigation;
-        t.view.evaluateJavascript("(window.__dolaAndroidDrain?window.__dolaAndroidDrain():[])",value->{
-            if(destroyed||t.closed||t.view==null||navigation!=t.navigation||!UrlRules.trusted(t.view.getUrl())||value==null||value.length()>4*1024*1024)return;
-            try {
-                JSONArray a=new JSONArray(value);
-                for(int i=0;i<a.length()&&t.media.size()<MAX_MEDIA;i++){
-                    JSONObject o=a.optJSONObject(i);if(o==null)continue;
-                    String u=webUrl(o.optString("url",null)),type=o.optString("type","");
-                    if(u==null||!(type.equals("image")||type.equals("video")))continue;
-                    if(t.mediaKeys.add(type+"|"+u)){String label=o.optString("title","资源");t.media.add(new MediaItem(u,type,label.substring(0,Math.min(label.length(),120))));}
+        t.view.evaluateJavascript("JSON.stringify((function(){var s=window.__dolaNewMediaState;if(!s||!s.installed)return [];if(typeof s.scan==='function')s.scan();return {items:typeof s.drain==='function'?s.drain():[],fallbackApis:typeof s.drainFallbacks==='function'?s.drainFallbacks():[]};})())",value->{
+            if(destroyed||t.closed||t!=active||t.navigation!=navigation)return;
+            try{Object raw=new JSONTokener(value).nextValue();if(raw instanceof String){
+                JSONObject observed=new JSONObject((String)raw);
+                collectMediaResult(t,navigation,observed.optJSONArray("items")==null?"[]":observed.optJSONArray("items").toString());
+                JSONArray candidates=observed.optJSONArray("fallbackApis");
+                if(candidates!=null)for(int i=0;i<candidates.length()&&t.fallbackApis.size()<8;i++){
+                    String candidate=candidates.optString(i,"");
+                    if(MediaTokenDecoder.isHttpsPublicShape(candidate)&&t.fallbackKeys.add(candidate))t.fallbackApis.add(candidate);
                 }
-                if(t==active)mediaButton.setText("资源 "+t.media.size());
-            }catch(Exception ignored){}
+            }}catch(Exception ignored){}
+            if(after!=null)after.run();
         });
     }
+    private void collectMediaResult(Tab t,int navigation,String value) {
+        if(destroyed||t.closed||t.view==null||navigation!=t.navigation||!UrlRules.trusted(t.view.getUrl())||value==null||value.length()>4*1024*1024)return;
+        try {
+            JSONArray a=new JSONArray(value);
+            boolean changed=false;
+            for(int i=0;i<a.length()&&i<1200;i++){
+                JSONObject o=a.optJSONObject(i);if(o==null)continue;
+                String u=webUrl(o.optString("url",null)),type=o.optString("type","");
+                if(u==null||!(type.equals("image")||type.equals("video")||type.equals("audio")))continue;
+                String posterUrl=type.equals("video")?webUrl(o.optString("posterUrl",null)):null;
+                List<String> channels=type.equals("video")?normalizeMediaChannels(o.optJSONArray("channels"),u):Collections.emptyList();
+                String label=o.optString("title","资源");
+                if(mergeObservedMedia(t.media,t.mediaKeys,u,type,label,posterUrl,channels))changed=true;
+            }
+            if(t==active)if(mediaButton!=null)mediaButton.setText("资源 "+t.media.size());
+            if(changed&&t==active&&t==mediaDialogOwner&&navigation==mediaDialogNavigation&&mediaDialog!=null&&mediaDialog.isShowing())
+                renderMediaDialog(mediaDialog,t,navigation,mediaDialogList);
+        }catch(Exception ignored){}
+    }
+    private void rescanMedia(){scan(active,this::showMedia);}
     private void showMedia() {
-        if(active.media.isEmpty()){
-            new AlertDialog.Builder(this).setTitle("当前标签资源").setMessage("尚未观察到图片或视频。请在白名单站点完成一次加载。只观察页面已经暴露的 URL，不请求 fallback_api，不保证原图或无水印结果。").setPositiveButton("知道了",null).show();return;
+        if(active==null)return;
+        if(active.media.isEmpty()&&active.fallbackApis.isEmpty()){
+            new AlertDialog.Builder(this).setTitle("当前标签资源").setMessage("暂无可读取媒体。需确认并开启新增页面适配；仅收集页面实际显示或同源响应中的资源。Chrome 深度嗅探不可用；候选接口仅在确认目标主机后手动查询，不保证无水印。")
+                .setNegativeButton("关闭",null).show();return;
         }
+        Tab owner=active;int navigation=owner.navigation;
         LinearLayout list=Ui.column(this);Ui.pad(list,8);
-        for(MediaItem item:new ArrayList<>(active.media)){
-            LinearLayout row=Ui.row(this);TextView label=Ui.text(this,item.type+" · "+item.title,13,Ui.INK);
-            row.addView(label,new LinearLayout.LayoutParams(0,-2,1));row.addView(Ui.button(this,"下载",()->downloads.confirm(item.url,null,null)));list.addView(row);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("当前标签资源（"+owner.media.size()+"）").setView(Ui.scroll(this,list)).setPositiveButton("关闭",null).create();
+        mediaDialog=dialog;mediaDialogList=list;mediaDialogOwner=owner;mediaDialogNavigation=navigation;
+        dialog.setOnDismissListener(d->{if(mediaDialog==dialog){mediaDialog=null;mediaDialogList=null;mediaDialogOwner=null;mediaDialogNavigation=-1;}});
+        dialog.show();renderMediaDialog(dialog,owner,navigation,list);
+    }
+    private void renderMediaDialog(AlertDialog dialog,Tab owner,int navigation,LinearLayout list) {
+        if(dialog==null||list==null||!mediaDialogMayRefresh(dialog.isShowing(),owner==active,owner.navigation==navigation,owner==mediaDialogOwner))return;
+        list.removeAllViews();dialog.setTitle("当前标签资源（"+owner.media.size()+"）");
+        if(!owner.fallbackApis.isEmpty())list.addView(Ui.button(this,"解析候选接口（"+owner.fallbackApis.size()+"）",()->chooseFallback(owner,navigation)));
+        LinkedHashMap<TextView,String> downloadRequests=new LinkedHashMap<>();
+        for(MediaItem item:new ArrayList<>(owner.media)){
+            LinearLayout row=Ui.column(this);TextView label=Ui.text(this,item.type+" · "+item.title,13,Ui.INK);
+            row.addView(label);
+            TextView downloadState=Ui.text(this,"正在读取本空间下载状态…",11,Ui.MUTED);row.addView(downloadState);
+            downloadRequests.put(downloadState,item.url);
+            LinearLayout actions=Ui.row(this);
+            if(MediaPreview.validateImageUrl(item.url,item.type)!=null)
+                addMediaAction(actions,"预览",()->previewImage(item));
+            if(item.type.equals("video")&&MediaPreview.validateImageUrl(item.posterUrl,"image")!=null)
+                addMediaAction(actions,"预览封面",()->previewImage(item.posterUrl,item.title+" · 视频封面"));
+            addMediaAction(actions,"复制",()->copyMediaUrl(item.url));
+            addMediaAction(actions,"分享",()->shareMediaUrl(item.url));
+            addMediaAction(actions,"打开",()->newTab(item.url));
+            addMediaAction(actions,"下载",()->confirmMediaDownload(item.url,downloadState));
+            addMediaAction(actions,"选择位置下载",()->chooseMediaDownloadLocation(item.url,item.title));
+            if(item.type.equals("video")&&item.channels.size()>1)
+                addMediaAction(actions,"选择渠道（"+item.channels.size()+"）",()->showMediaChannels(item));
+            row.addView(actions);list.addView(row);
         }
-        new AlertDialog.Builder(this).setTitle("当前标签资源（"+active.media.size()+"）").setView(Ui.scroll(this,list)).setPositiveButton("关闭",null).show();
+        list.addView(Ui.button(this,"复制全部资源链接",()->copyMediaUrls(owner.media)));
+        list.addView(Ui.text(this,"图片及视频封面预览仅在点击后请求；不携带 WebView Cookie/授权头/Referer，HTTPS、8 MiB 上限、禁止重定向。封面预览不播放视频。",12,Ui.MUTED));
+        list.addView(Ui.button(this,"重扫当前页",this::rescanMedia));
+        list.addView(Ui.button(this,"清空当前标签资源",()->{
+            clearObservedMedia(owner.media,owner.mediaKeys);
+            updateUi();
+            dialog.dismiss();
+            showMedia();
+        }));
+        for(Map.Entry<TextView,String> request:downloadRequests.entrySet()){
+            TextView stateView=request.getKey();stateView.setTag(dialog);
+            downloads.statusForUrl(request.getValue(),value->{Object stateOwner=stateView.getTag();if(stateOwner instanceof AlertDialog&&((AlertDialog)stateOwner).isShowing())stateView.setText(value);});
+        }
+    }
+    private boolean fallbackOwnerValid(Tab owner,int navigation){
+        return !destroyed&&!owner.closed&&owner==active&&owner.navigation==navigation&&owner.view!=null&&UrlRules.trusted(owner.view.getUrl())
+            &&prefs.getBoolean(DolaPageScripts.PREF_KEY,false)&&prefs.getBoolean(DolaPageScripts.EXTRA_KEY,false);
+    }
+    private void chooseFallback(Tab owner,int navigation){
+        if(!fallbackOwnerValid(owner,navigation)||fallbackRunning)return;
+        ArrayList<String> candidates=new ArrayList<>(owner.fallbackApis);
+        String[] hosts=new String[candidates.size()];
+        for(int i=0;i<hosts.length;i++)try{hosts[i]=(i+1)+". "+new URI(candidates.get(i)).getHost();}catch(Exception e){hosts[i]="无效候选";}
+        new AlertDialog.Builder(this).setTitle("选择候选接口主机").setItems(hosts,(d,i)->{
+            if(!fallbackOwnerValid(owner,navigation))return;
+            String candidate=candidates.get(i),host;
+            try{host=new URI(candidate).getHost();}catch(Exception e){return;}
+            new AlertDialog.Builder(this).setTitle("确认查询 "+host)
+                .setMessage("将对该公网 HTTPS 主机发起一次 GET，请求保留候选签名参数，并替换 channel、codec_type、logo_type 三个原脚本控制参数。不携带 WebView CK、授权头或 Referer；禁止跳转及内网。不自动下载，也不保证无水印或平台接受。")
+                .setPositiveButton("查询",(q,w)->resolveFallback(owner,navigation,candidate)).setNegativeButton("取消",null).show();
+        }).setNegativeButton("取消",null).show();
+    }
+    private void resolveFallback(Tab owner,int navigation,String candidate){
+        if(fallbackRunning||!fallbackOwnerValid(owner,navigation))return;
+        fallbackRunning=true;
+        java.util.concurrent.atomic.AtomicBoolean cancelled=new java.util.concurrent.atomic.AtomicBoolean();
+        AlertDialog progress=new AlertDialog.Builder(this).setTitle("正在解析候选接口")
+            .setMessage("仅请求已确认主机；不携带账号凭证。").setNegativeButton("取消",(d,w)->cancelled.set(true)).create();
+        progress.setOnCancelListener(d->cancelled.set(true));progress.show();
+        previewExecutor.execute(()->{
+            FallbackMediaResolver.Result result=fallbackResolver.resolve(candidate,()->cancelled.get()||destroyed||owner.closed||owner.navigation!=navigation);
+            runOnUiThread(()->{
+                fallbackRunning=false;if(progress.isShowing())progress.dismiss();
+                if(cancelled.get()||!fallbackOwnerValid(owner,navigation))return;
+                if(result.success){
+                    JSONArray items=new JSONArray();JSONObject item=new JSONObject();
+                    try{item.put("url",result.url);item.put("type","video");item.put("title","接口解析结果"+(result.cached?"（缓存）":""));items.put(item);}catch(JSONException ignored){}
+                    collectMediaResult(owner,navigation,items.toString());dismissMediaDialog();showMedia();
+                }else new AlertDialog.Builder(this).setTitle("未取得媒体")
+                    .setMessage("接口未返回可用媒体，或已超时、取消、被公网安全规则阻止。失败不缓存，可稍后重试；不会改变登录状态。")
+                    .setPositiveButton("知道了",null).show();
+            });
+        });
+    }
+    static boolean mediaDialogMayRefresh(boolean showing,boolean ownerActive,boolean navigationMatches,boolean sameOwner){
+        return showing&&ownerActive&&navigationMatches&&sameOwner;
+    }
+    static String mediaFingerprint(String rawUrl){
+        String normalized=webUrl(rawUrl);if(normalized==null)return rawUrl==null?"":rawUrl.split("#",2)[0];
+        try{
+            URI uri=new URI(normalized);String rawQuery=uri.getRawQuery();
+            ArrayList<String[]> kept=new ArrayList<>();
+            if(rawQuery!=null&&!rawQuery.isEmpty())for(String part:rawQuery.split("&",-1)){
+                int eq=part.indexOf('=');String rawKey=eq<0?part:part.substring(0,eq);String decoded=URLDecoder.decode(rawKey,"UTF-8");
+                if(!isVolatileMediaQueryKey(decoded.toLowerCase(Locale.ROOT)))kept.add(new String[]{decoded,part});
+            }
+            kept.sort(Comparator.comparing(pair->pair[0]));
+            StringBuilder result=new StringBuilder();result.append(uri.getScheme().toLowerCase(Locale.ROOT)).append("://").append(uri.getHost().toLowerCase(Locale.ROOT));
+            if(uri.getPort()!=-1&&!("https".equalsIgnoreCase(uri.getScheme())&&uri.getPort()==443))result.append(':').append(uri.getPort());
+            result.append(uri.getRawPath()==null||uri.getRawPath().isEmpty()?"/":uri.getRawPath());
+            if(!kept.isEmpty()){result.append('?');for(int i=0;i<kept.size();i++){if(i>0)result.append('&');result.append(kept.get(i)[1]);}}
+            return result.toString();
+        }catch(Exception ignored){return normalized.split("#",2)[0];}
+    }
+    private static boolean isVolatileMediaQueryKey(String key){
+        return key.startsWith("x-amz-")||key.startsWith("x-oss-")||key.startsWith("x-cos-")||key.startsWith("x-qn-")||
+            Arrays.asList("sign","signature","token","access_token","auth","auth_key","authorization","expire","expires","expire_at","timestamp","ts","wssecret","wstime","policy","key-pair-id").contains(key);
+    }
+    static boolean mergeObservedMedia(List<MediaItem> items,Set<String> keys,String rawUrl,String type,String title,String posterUrl,List<String> channels){
+        String url=webUrl(rawUrl);if(url==null||items==null||keys==null||!("image".equals(type)||"video".equals(type)))return false;
+        String fingerprint=mediaFingerprint(url),key=type+"|"+fingerprint;MediaItem existing=null;
+        for(MediaItem item:items)if(item.type.equals(type)&&mediaFingerprint(item.url).equals(fingerprint)){existing=item;break;}
+        if(existing==null){if(items.size()>=MAX_MEDIA)return false;String label=title==null?"资源":title;items.add(new MediaItem(url,type,label.substring(0,Math.min(label.length(),120)),posterUrl,channels));keys.add(key);return true;}
+        boolean changed=!existing.url.equals(url);String oldUrl=existing.url;existing.url=url;
+        if("video".equals(type)){
+            if(posterUrl!=null&&!Objects.equals(existing.posterUrl,posterUrl)){existing.posterUrl=posterUrl;changed=true;}
+            ArrayList<String> merged=new ArrayList<>();addMediaChannel(merged,url);
+            if(channels!=null)for(String value:channels)addMediaChannel(merged,value);
+            for(String value:existing.channels)if(!oldUrl.equals(value))addMediaChannel(merged,value);
+            if(!existing.channels.equals(merged)){existing.channels.clear();existing.channels.addAll(merged);changed=true;}
+        }
+        keys.remove(type+"|"+mediaFingerprint(oldUrl));keys.add(key);return changed;
+    }
+    private void dismissMediaDialog(){AlertDialog current=mediaDialog;if(current!=null)current.dismiss();}
+    private void showMediaChannels(MediaItem item) {
+        if(item==null||item.channels.size()<2)return;
+        String[] labels=new String[item.channels.size()];
+        for(int i=0;i<labels.length;i++)labels[i]="渠道 "+(i+1)+" · "+Uri.parse(item.channels.get(i)).getHost();
+        new AlertDialog.Builder(this).setTitle("选择视频渠道").setItems(labels,(d,index)->showMediaChannelActions(item,index)).setNegativeButton("取消",null).show();
+    }
+    private void showMediaChannelActions(MediaItem item,int index) {
+        String url=mediaChannelAt(item.channels,index);if(url==null)return;
+        new AlertDialog.Builder(this).setTitle("渠道 "+(index+1)).setItems(new String[]{"复制链接","分享链接","在新标签打开","下载","选择位置下载"},(d,action)->{
+            if(action==0)copyMediaUrl(url);
+            else if(action==1)shareMediaUrl(url);
+            else if(action==2)newTab(url);
+            else if(action==3)confirmMediaDownload(url,null);
+            else chooseMediaDownloadLocation(url,item.title);
+        }).setNegativeButton("取消",null).show();
+    }
+    private void chooseMediaDownloadLocation(String url,String title) {
+        new AlertDialog.Builder(this).setTitle("选择保存位置？")
+            .setMessage("直接请求 HTTPS 资源并写入你选择的位置。不附带 WebView Cookie、授权头或 Referer；不跟随重定向，最大 512 MiB。需登录的链接通常无法保存。")
+            .setNegativeButton("取消",null).setPositiveButton("选择位置",(d,w)->downloads.chooseLocation(url,null,title)).show();
+    }
+    private void confirmMediaDownload(String url,TextView statusView) {
+        downloads.confirm(url,null,null,state->{if(statusView!=null){Object owner=statusView.getTag();if(owner instanceof AlertDialog&&((AlertDialog)owner).isShowing())statusView.setText(state);}});
+    }
+    static List<String> normalizeMediaChannels(JSONArray raw,String primaryUrl) {
+        ArrayList<String> result=new ArrayList<>();
+        addMediaChannel(result,primaryUrl);
+        if(raw!=null)for(int i=0;i<raw.length()&&result.size()<2;i++)addMediaChannel(result,raw.optString(i,null));
+        return result;
+    }
+    private static void addMediaChannel(List<String> result,String raw) {
+        String url=webUrl(raw);if(url!=null&&!result.contains(url)&&result.size()<2)result.add(url);
+    }
+    static String mediaChannelAt(List<String> channels,int index) {
+        if(channels==null||index<0||index>=channels.size())return null;
+        return webUrl(channels.get(index));
+    }
+    static void clearObservedMedia(Collection<?> items,Set<String> keys) {
+        if(items!=null)items.clear();
+        if(keys!=null)keys.clear();
+    }
+    static boolean writeMediaUrlToClipboard(Context context,String url) {
+        if(context==null||url==null||url.trim().isEmpty())return false;
+        ClipboardManager clipboard=(ClipboardManager)context.getSystemService(CLIPBOARD_SERVICE);
+        if(clipboard==null)return false;
+        clipboard.setPrimaryClip(mediaUrlClip(url));
+        return true;
+    }
+    static ClipData mediaUrlClip(String url) {
+        if(url==null||url.trim().isEmpty())return null;
+        return ClipData.newPlainText("媒体链接",url);
+    }
+    private void copyMediaUrl(String url) {
+        Ui.toast(this,writeMediaUrlToClipboard(this,url)?"资源链接已复制":"资源链接复制失败");
+    }
+    private void addMediaAction(LinearLayout row,String label,Runnable action) {
+        Button button=Ui.button(this,label,action);
+        row.addView(button,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1));
+    }
+    private void previewImage(MediaItem item) {
+        previewImage(item.url,item.title);
+    }
+    private void previewImage(String imageUrl,String imageTitle) {
+        java.net.URL url=MediaPreview.validateImageUrl(imageUrl,"image");
+        if(url==null){Ui.toast(this,"仅支持 HTTPS 图片预览");return;}
+        LinearLayout body=Ui.column(this);Ui.pad(body,12);
+        ProgressBar progress=new ProgressBar(this);body.addView(progress);
+        ImageView image=new ImageView(this);image.setAdjustViewBounds(true);image.setMaxHeight(Ui.dp(this,420));image.setScaleType(ImageView.ScaleType.FIT_CENTER);body.addView(image);
+        TextView message=Ui.text(this,"正在获取公开图片…",13,Ui.MUTED);body.addView(message);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(imageTitle+" · 不使用页面凭据")
+                .setView(body).setNegativeButton("关闭",null).setPositiveButton("在网页打开",(d,w)->newTab(imageUrl)).create();
+        dialog.show();
+        previewExecutor.execute(()->{
+            android.graphics.Bitmap bitmap=null;String error=null;
+            try { bitmap=MediaPreview.fetch(url); } catch(Exception e) { error="预览失败："+e.getMessage(); }
+            final android.graphics.Bitmap result=bitmap;final String failure=error;
+            handler.post(()->{
+                if(destroyed||isFinishing()||!dialog.isShowing()) { if(result!=null)result.recycle();return; }
+                progress.setVisibility(View.GONE);
+                if(result!=null){image.setImageBitmap(result);message.setText("预览完成（缩放至最长边 512 px）");}
+                else message.setText(failure==null?"预览失败":failure);
+            });
+        });
+    }
+    static String validatedMediaShareUrl(String rawUrl) {
+        if(rawUrl==null||!rawUrl.equals(rawUrl.trim())||!rawUrl.regionMatches(true,0,"https://",0,8))return null;
+        return webUrl(rawUrl);
+    }
+    static Intent mediaShareIntent(String rawUrl) {
+        String url=validatedMediaShareUrl(rawUrl);
+        if(url==null)return null;
+        Intent intent=new Intent(Intent.ACTION_SEND);
+        intent.setType("text/plain");
+        intent.putExtra(Intent.EXTRA_TEXT,url);
+        intent.setClipData(ClipData.newPlainText("媒体链接",url));
+        return intent;
+    }
+    private void shareMediaUrl(String url) {
+        Intent intent=mediaShareIntent(url);
+        if(intent==null){Ui.toast(this,"仅可分享有效的 HTTPS 资源链接");return;}
+        try { startActivity(Intent.createChooser(intent,"分享资源链接")); }
+        catch(ActivityNotFoundException e) { Ui.toast(this,"没有可用的分享应用"); }
+    }
+    static String joinMediaUrls(Collection<String> urls) {
+        StringBuilder result=new StringBuilder();
+        if(urls==null)return "";
+        for(String raw:urls) {
+            String url=webUrl(raw);
+            if(url==null)continue;
+            if(result.length()>0)result.append('\n');
+            result.append(url);
+        }
+        return result.toString();
+    }
+    private void copyMediaUrls(List<MediaItem> items) {
+        ArrayList<String> urls=new ArrayList<>();for(MediaItem item:items)urls.add(item.url);
+        String text=joinMediaUrls(urls);
+        Ui.toast(this,writeMediaUrlToClipboard(this,text)?"已复制全部 HTTPS 资源链接":"没有可复制的资源链接");
     }
     private void showDurationTool() {
-        if(active==null||active.view==null||!UrlRules.trusted(active.view.getUrl())){
-            Ui.toast(this,"30S 工具仅在白名单网页可用");return;
-        }
+        boolean enabled=prefs.getBoolean(DolaPageScripts.PREF_KEY,false);
+        if(active==null||active.view==null){Ui.toast(this,"页面尚未加载");return;}
         final Tab t=active;final int navigation=t.navigation;
-        t.view.evaluateJavascript("window.getDola30sStatus?window.getDola30sStatus():null",value->{
+        // Diagnostics are read-only; never fall back to legacy extension APIs.
+        t.view.evaluateJavascript("JSON.stringify(window.__dolaWebViewPageScripts||null)",value->{
             if(destroyed||t.closed||t.view==null||t.navigation!=navigation||t!=active)return;
             JSONObject state=parseJsObject(value);
-            if(state==null){Ui.toast(this,"当前 WebView 未加载 30S 工具");return;}
-            boolean on=state.optBoolean("on",false);
-            String message="当前页面本地目标时长："+state.optInt("duration",15)+" 秒\n"+
-                "Android WebView 只保存页面状态并提供提示词时间轴转换。\n"+
-                "不会拦截请求、伪造平台能力或自动发送；网页是否支持 30 秒由平台决定。";
-            new AlertDialog.Builder(this).setTitle("30S 工具（Android WebView）")
-                .setMessage(message).setNegativeButton("关闭",null)
-                .setNeutralButton("转换提示词时间轴",(d,w)->showTimelineRewrite())
-                .setPositiveButton(on?"切换为 15S":"启用 30S",(d,w)->setDurationState(!on)).show();
+            String text=DolaPageScripts.summary(enabled,t.pageScriptsRegistered,
+                state!=null&&state.optBoolean("skillPack",false),state!=null&&state.optBoolean("mediaUpload",false))+"\n"+DolaPageScripts.additionalSummary(prefs.getBoolean(DolaPageScripts.EXTRA_KEY,false),state!=null&&state.optBoolean("duration",false),state!=null&&state.optBoolean("mediaObserver",false));
+            new AlertDialog.Builder(this).setTitle("30s（新附件 v1.6.14 / 本空间）")
+                .setMessage(text+"\n"+durationToolCapabilitySummary(false)+
+                    "\n原始页面主脚本按各自阶段执行；页面媒体由独立适配器只读收集。所有旧 JS 仅备份。加载/显示不代表上传或生成成功。")
+                .setNegativeButton("关闭",null)
+                .setPositiveButton(enabled&&!prefs.getBoolean(DolaPageScripts.EXTRA_KEY,false)?"确认新增页面功能":enabled?"关闭本空间 30s":"开启本空间 30s",(d,w)->confirmPageScriptsMode(!enabled||!prefs.getBoolean(DolaPageScripts.EXTRA_KEY,false))).show();
         });
+    }
+    static String platformSelectionSummary(String status) {
+        if("selection_matches_30s".equals(status))return "页面控件检测：显示 Seedance 2.5 + 30s（只读；不代表服务端接受或实际生成时长）";
+        if("detected_not_30s".equals(status))return "页面控件检测：已找到视频模型/时长控件，但当前选择不是 Seedance 2.5 + 30s";
+        if("not_applicable".equals(status))return "页面控件检测：此功能仅适用于 Dola 页面";
+        return "页面控件检测：未检测到可见的视频模型/时长控件；不推断平台能力";
+    }
+    static String durationToolCapabilitySummary(boolean ignoredLegacyProbe) {
+        return "旧 JS 仅备份，不执行。\n页面资源观察：需新增页面适配确认；实际状态见上方（不保证无水印）\n"+
+            "Debugger 深度/自动嗅探：不可用（Android WebView 不提供 Chrome MV3 Debugger）\n"+
+            "Chrome 扩展面板/后台接口：不可注入，未生效\n"+
+            "fallback API 解析：原生手动查询，逐次确认主机；不携带账号 CK；旧时间轴工具与隐私页面 JS 不执行";
     }
     private JSONObject parseJsObject(String value) {
         if(value==null||"null".equals(value))return null;
@@ -288,41 +632,9 @@ public class BrowserActivity extends Activity {
         try {Object decoded=new JSONTokener(value).nextValue();return decoded==JSONObject.NULL?null:String.valueOf(decoded);}
         catch(Exception ignored){return value;}
     }
-    private void setDurationState(boolean enabled) {
-        if(active==null||active.view==null)return;
-        final Tab t=active;final int navigation=t.navigation;
-        String script="window.setDola30s("+(enabled?"true":"false")+")";
-        t.view.evaluateJavascript(script,value->{
-            if(!destroyed&&!t.closed&&t==active&&t.navigation==navigation)
-                message(t,enabled?"已启用 30S 本地状态，请检查网页后手动继续":"已切换为 15S 本地状态");
-        });
-    }
-    private void showTimelineRewrite() {
-        if(active==null||active.view==null||!UrlRules.trusted(active.view.getUrl())){Ui.toast(this,"当前页面不可用");return;}
-        LinearLayout form=Ui.column(this);Ui.pad(form,8);
-        TextView hint=Ui.text(this,"仅转换提示词中的时间表达，不会提交到网页。",12,Ui.MUTED);form.addView(hint);
-        EditText prompt=Ui.edit(this,"输入提示词，例如：00:00-00:05 开场","");
-        prompt.setSingleLine(false);prompt.setMinLines(5);prompt.setGravity(Gravity.TOP|Gravity.START);
-        prompt.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-        form.addView(prompt,new LinearLayout.LayoutParams(-1,Ui.dp(this,130)));
-        EditText seconds=Ui.edit(this,"总时长（秒）","30");
-        seconds.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);form.addView(seconds);
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("转换提示词时间轴").setView(Ui.scroll(this,form))
-            .setNegativeButton("取消",null).setPositiveButton("转换",null).create();
-        dialog.setOnShowListener(x->dialog.getButton(-1).setOnClickListener(v->{
-            String input=prompt.getText().toString();if(input.length()>100000){prompt.setError("提示词最多 100000 字");return;}
-            double total;try{total=Double.parseDouble(seconds.getText().toString().trim());}catch(Exception e){total=0;}
-            if(!(total>0&&total<=86400)){seconds.setError("请输入 0–86400 之间的秒数");return;}
-            final Tab t=active;final int navigation=t==null?0:t.navigation;
-            if(t==null||t.view==null||!UrlRules.trusted(t.view.getUrl())){dialog.dismiss();Ui.toast(this,"页面已变化，请重试");return;}
-            String js="window.rewriteDolaTimeline?window.rewriteDolaTimeline("+JSONObject.quote(input)+","+Double.toString(total)+"):null";
-            t.view.evaluateJavascript(js,value->{
-                if(destroyed||t.closed||t!=active||t.navigation!=navigation){Ui.toast(this,"页面已变化，未填入结果");return;}
-                String result=decodeJsString(value);if(result==null){Ui.toast(this,"提示词工具未加载");return;}
-                dialog.dismiss();showTimelineResult(result);
-            });
-        }));dialog.show();
-    }
+    private void setDurationState(boolean enabled) { confirmPageScriptsMode(enabled); }
+    private void showTimelineRewrite() { Ui.toast(this,"旧提示词工具 JS 仅备份，不执行"); }
+    private void showOriginalScriptOptions() { Ui.toast(this,"旧版脚本及选项仅备份，不执行"); }
     private void showTimelineResult(String result) {
         TextView output=Ui.text(this,result,14,Ui.INK);output.setTextIsSelectable(true);output.setGravity(Gravity.TOP|Gravity.START);
         new AlertDialog.Builder(this).setTitle("转换结果（请手动检查）").setView(Ui.scroll(this,output))
@@ -331,11 +643,53 @@ public class BrowserActivity extends Activity {
             }).show();
     }
     private void showMenu() {
-        new AlertDialog.Builder(this).setTitle(title).setItems(new String[]{"前进","回到首页","新建标签","添加当前页书签","打开书签","下载中心","30S 工具","Cookie 手动迁移","回到空间列表"},(d,n)->{
-            switch(n){case 0:if(active.view!=null&&active.view.canGoForward())active.view.goForward();break;
-                case 1:load(home);break;case 2:newTab(home);break;case 3:addBookmark();break;
-                case 4:showBookmarks();break;case 5:downloads.show();break;case 6:showDurationTool();break;case 7:cookies.show();break;case 8:returnToCatalog();break;}
+        new AlertDialog.Builder(this).setTitle(title).setItems(new String[]{"30S 工具","创作工作台","新建标签","前进","回到首页","添加当前页书签","打开书签","下载中心","Cookie / CK 导入导出","登录与空间说明","回到空间列表","标签管理（"+tabs.size()+"）","顺序视频"},(d,n)->{
+            switch(n){case 0:showDurationTool();break;case 1:openStudio();break;case 2:newTab(home);break;
+                case 3:if(active.view!=null&&active.view.canGoForward())active.view.goForward();break;
+                case 4:load(home);break;case 5:addBookmark();break;case 6:showBookmarks();break;
+                case 7:downloads.show();break;case 8:cookies.show();break;case 9:showLoginHelp();break;case 10:returnToCatalog();break;case 11:showTabs();break;case 12:openSequentialVideo();break;}
         }).show();
+    }
+    private void showLoginHelp() {
+        new AlertDialog.Builder(this).setTitle("独立空间与登录")
+            .setMessage("本空间使用独立进程、WebView 数据及缓存目录，Cookie/网站存储只在同一空间标签之间共享，不复制到其他空间。64 是独立档案数量，不是同时常驻 64 个进程；Android 会回收后台。重新打开或归档/恢复仍使用同一数据目录；普通退出不清除网页本地设备语境。明确清除/删除则会重置登录环境，不能保证重新导入 CK 后会话可用。CK 导入摘要仅用于本机防重复，不是真实账号绑定。\n\nGoogle OAuth 不允许嵌入式 WebView 授权，可能返回 disallowed_useragent。本应用不伪装浏览器、不复制外部浏览器 Google Cookie，也不能保证在 WebView 完成 Google 登录。请使用站点允许的其他登录方式。外部浏览器登录不会自动导入本空间。")
+            .setPositiveButton("知道了",null).show();
+    }
+    private void confirmPageScriptsMode(boolean enabled) {
+        if(enabled&&!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)){
+            Ui.toast(this,"当前 WebView 不支持文档开始注入，未开启 30s");return;
+        }
+        String detail=enabled
+            ?"仅为本空间开启新附件 v1.6.14。Dola 文档开始执行原始 skill-pack / media-upload；Dola 和豆包文档空闲时原样执行 duration-main。后者会调整时长控件、在你点击发送时改写时间线提示词，并过滤部分页面回复文本。原始代码未改写，也不自动发送消息。新增只读媒体适配器收集当前页面 DOM 和指定同源响应的媒体地址；不后台请求 fallback、不自动下载、不保证无水印。原 Chrome 面板/后台/Debugger 不注入，无伪装 API；旧版 JS 全部仍只备份。确认后才授权新增页面功能，旧开启状态不会静默扩展。"
+            :"关闭本空间全部新页面脚本，并将下次受管页面时长设为 15s。不会删除 Cookie/账号，也不影响其它空间；旧 JS 始终仅备份。";
+        new AlertDialog.Builder(this).setTitle(enabled?"开启本空间 30s？":"关闭本空间 30s？")
+            .setMessage(detail+"\n为移除/安装脚本钩子，本空间所有打开标签将重新加载；未提交输入会丢失。")
+            .setNegativeButton("取消",null).setPositiveButton(enabled?"开启并重载":"关闭并重载",(d,w)->{
+                if(!prefs.edit().putBoolean(DolaPageScripts.PREF_KEY,enabled).putBoolean(DolaPageScripts.EXTRA_KEY,enabled||prefs.getBoolean(DolaPageScripts.EXTRA_KEY,false)).commit()){Ui.toast(this,"设置未保存");return;}
+                syncScriptSwitch();reloadTabsForScriptMode();
+            }).show();
+    }
+    private void confirmPrivacyCleanMode(boolean enabled) {
+        String detail=enabled
+            ?"开启后使用 Android WebView 原生 UA（不伪造机型/系统身份），阻止第三方 Cookie、关闭网页定位 API；旧隐私页面 JS 已停用，所以不再宣称 Canvas/WebGL/音频/WebRTC/设备枚举保护。不是匿名保证，也不保证阻止定向广告。依赖第三方 Cookie/定位的功能可能失效；确认后所有标签重载，未提交输入会丢失。"
+            :"关闭后恢复应用标识 UA 并允许第三方 Cookie。所有标签重载，未提交输入会丢失。";
+        new AlertDialog.Builder(this).setTitle(enabled?"开启隐私洁净模式？":"关闭隐私洁净模式？")
+            .setMessage(detail).setNegativeButton("取消",null).setPositiveButton(enabled?"开启并重载":"关闭并重载",(d,w)->{
+                if(!prefs.edit().putBoolean("privacyCleanMode",enabled).commit()){Ui.toast(this,"设置未保存");return;}
+                syncScriptSwitch();reloadTabsForScriptMode();
+            }).show();
+    }
+    private void confirmOriginalDolaMode(boolean ignored) { showOriginalScriptOptions(); }
+    private void reloadTabsForScriptMode() {
+        if(viewport!=null)viewport.removeAllViews();
+        if(fileCallback!=null)cancelFile();
+        promptTab=null;
+        for(Tab tab:tabs){
+            if(tab.view!=null){try{tab.view.stopLoading();tab.view.destroy();}catch(Exception ignored){}tab.view=null;}
+            tab.navigation++;tab.probe=false;tab.androidTools=false;tab.pageScriptsRegistered=false;tab.failed=false;tab.media.clear();tab.mediaKeys.clear();tab.fallbackApis.clear();tab.fallbackKeys.clear();
+        }
+        if(active!=null&&!active.closed)select(active);
+        Ui.toast(this,"本空间设置已保存，标签 WebView 已重建；实际脚本状态见 30S 工具");
     }
     private JSONArray bookmarks(){try{return new JSONArray(prefs.getString("bookmarks","[]"));}catch(Exception e){return new JSONArray();}}
     private void addBookmark() {
@@ -395,17 +749,77 @@ public class BrowserActivity extends Activity {
                 v->{if(!destroyed&&!t.closed&&t.navigation==navigation)message(t,"true".equals(v)?"内容已填入，请检查后手动发送":"未找到可用输入框，请从工作台复制并手动粘贴");});
         }
     }
-    @Override protected void onResume(){super.onResume();resumed=true;if(active!=null&&active.view!=null)active.view.onResume();downloads.resume();handler.removeCallbacks(scanLoop);handler.postDelayed(scanLoop,1200);}
-    @Override protected void onPause(){resumed=false;handler.removeCallbacks(scanLoop);downloads.pause();if(active!=null&&active.view!=null)active.view.onPause();saveTabs();CookieManager.getInstance().flush();super.onPause();}
+    @Override protected void onResume(){super.onResume();resumed=true;if(active!=null&&active.view!=null)active.view.onResume();if(downloads!=null)downloads.resume();handler.removeCallbacks(scanLoop);handler.postDelayed(scanLoop,1200);}
+    @Override protected void onPause(){resumed=false;handler.removeCallbacks(scanLoop);if(downloads!=null)downloads.pause();if(active!=null&&active.view!=null)active.view.onPause();saveTabs();if(prefs!=null)CookieManager.getInstance().flush();super.onPause();}
     @Override public void onBackPressed(){goBack();}
     @Override protected void onSaveInstanceState(Bundle out){saveTabs();super.onSaveInstanceState(out);}
     @Override protected void onDestroy(){
-        destroyed=true;handler.removeCallbacksAndMessages(null);cancelFile();cookies.close();downloads.close();viewport.removeAllViews();
+        destroyed=true;fallbackResolver.close();dismissMediaDialog();handler.removeCallbacksAndMessages(null);previewExecutor.shutdownNow();cancelFile();if(cookies!=null)cookies.close();if(downloads!=null)downloads.close();if(viewport!=null)viewport.removeAllViews();
         for(Tab t:tabs){t.closed=true;if(t.view!=null){t.view.stopLoading();t.view.destroy();t.view=null;}}super.onDestroy();
     }
-    private static final class MediaItem{final String url,type,title;MediaItem(String u,String t,String n){url=u;type=t;title=n;}}
-    public static class Space0 extends BrowserActivity{} public static class Space1 extends BrowserActivity{}
-    public static class Space2 extends BrowserActivity{} public static class Space3 extends BrowserActivity{}
-    public static class Space4 extends BrowserActivity{} public static class Space5 extends BrowserActivity{}
-    public static class Space6 extends BrowserActivity{} public static class Space7 extends BrowserActivity{}
+    static final class MediaItem{String url;final String type,title;String posterUrl;final ArrayList<String> channels=new ArrayList<>();MediaItem(String u,String t,String n){this(u,t,n,null,Collections.emptyList());}MediaItem(String u,String t,String n,String p){this(u,t,n,p,Collections.emptyList());}MediaItem(String u,String t,String n,String p,List<String> c){url=u;type=t;title=n;posterUrl=p;mergeChannels(c);}void mergeChannels(Collection<String> values){if(values==null)return;for(String value:values)addMediaChannel(channels,value);}}
+    public static class Space0 extends BrowserActivity{}
+    public static class Space1 extends BrowserActivity{}
+    public static class Space2 extends BrowserActivity{}
+    public static class Space3 extends BrowserActivity{}
+    public static class Space4 extends BrowserActivity{}
+    public static class Space5 extends BrowserActivity{}
+    public static class Space6 extends BrowserActivity{}
+    public static class Space7 extends BrowserActivity{}
+    public static class Space8 extends BrowserActivity{}
+    public static class Space9 extends BrowserActivity{}
+    public static class Space10 extends BrowserActivity{}
+    public static class Space11 extends BrowserActivity{}
+    public static class Space12 extends BrowserActivity{}
+    public static class Space13 extends BrowserActivity{}
+    public static class Space14 extends BrowserActivity{}
+    public static class Space15 extends BrowserActivity{}
+    public static class Space16 extends BrowserActivity{}
+    public static class Space17 extends BrowserActivity{}
+    public static class Space18 extends BrowserActivity{}
+    public static class Space19 extends BrowserActivity{}
+    public static class Space20 extends BrowserActivity{}
+    public static class Space21 extends BrowserActivity{}
+    public static class Space22 extends BrowserActivity{}
+    public static class Space23 extends BrowserActivity{}
+    public static class Space24 extends BrowserActivity{}
+    public static class Space25 extends BrowserActivity{}
+    public static class Space26 extends BrowserActivity{}
+    public static class Space27 extends BrowserActivity{}
+    public static class Space28 extends BrowserActivity{}
+    public static class Space29 extends BrowserActivity{}
+    public static class Space30 extends BrowserActivity{}
+    public static class Space31 extends BrowserActivity{}
+    public static class Space32 extends BrowserActivity{}
+    public static class Space33 extends BrowserActivity{}
+    public static class Space34 extends BrowserActivity{}
+    public static class Space35 extends BrowserActivity{}
+    public static class Space36 extends BrowserActivity{}
+    public static class Space37 extends BrowserActivity{}
+    public static class Space38 extends BrowserActivity{}
+    public static class Space39 extends BrowserActivity{}
+    public static class Space40 extends BrowserActivity{}
+    public static class Space41 extends BrowserActivity{}
+    public static class Space42 extends BrowserActivity{}
+    public static class Space43 extends BrowserActivity{}
+    public static class Space44 extends BrowserActivity{}
+    public static class Space45 extends BrowserActivity{}
+    public static class Space46 extends BrowserActivity{}
+    public static class Space47 extends BrowserActivity{}
+    public static class Space48 extends BrowserActivity{}
+    public static class Space49 extends BrowserActivity{}
+    public static class Space50 extends BrowserActivity{}
+    public static class Space51 extends BrowserActivity{}
+    public static class Space52 extends BrowserActivity{}
+    public static class Space53 extends BrowserActivity{}
+    public static class Space54 extends BrowserActivity{}
+    public static class Space55 extends BrowserActivity{}
+    public static class Space56 extends BrowserActivity{}
+    public static class Space57 extends BrowserActivity{}
+    public static class Space58 extends BrowserActivity{}
+    public static class Space59 extends BrowserActivity{}
+    public static class Space60 extends BrowserActivity{}
+    public static class Space61 extends BrowserActivity{}
+    public static class Space62 extends BrowserActivity{}
+    public static class Space63 extends BrowserActivity{}
 }

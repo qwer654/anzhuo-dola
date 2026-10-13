@@ -24,20 +24,40 @@ class Packaging(unittest.TestCase):
     def test_apk_verification_checks_built_bytes_and_rejects_tampering(self):
         with tempfile.TemporaryDirectory() as tmp:
             apk = Path(tmp) / "fixture.apk"
-            source = ROOT / "app/src/main/assets/dola30-original"
-            manifest = json.loads((source / "SOURCE-MANIFEST.json").read_text(encoding="utf-8"))
-            for tamper in (False, True):
+            sources = {
+                "dola30-original": ROOT / "app/src/main/assets/dola30-original",
+                "dola30-user-source-v1.6.9": ROOT / "app/src/main/assets/dola30-user-source-v1.6.9",
+                "dola30-source-v1.6.14": ROOT / "app/src/main/assets/dola30-source-v1.6.14",
+            }
+            manifests = {name: json.loads((source / "SOURCE-MANIFEST.json").read_text(encoding="utf-8")) for name, source in sources.items()}
+            for tamper in (False, "original", "adapter"):
                 with zipfile.ZipFile(apk, "w") as archive:
-                    for entry in manifest["files"]:
-                        data = (source / entry["path"]).read_bytes()
-                        if tamper and entry["path"] == "manifest.json":
-                            data += b" "
-                        archive.writestr("assets/dola30-original/" + entry["path"], data)
+                    written = set()
+                    for name, source in sources.items():
+                        for entry in manifests[name]["files"]:
+                            data = (source / entry["path"]).read_bytes()
+                            if tamper == "original" and name == "dola30-original" and entry["path"] == "manifest.json":
+                                data += b" "
+                            filename = "assets/" + name + "/" + entry["path"]
+                            archive.writestr(filename, data)
+                            written.add(filename)
+                    policy_path = ROOT / "app/src/main/assets/RUNTIME-SOURCE-POLICY.json"
+                    policy = json.loads(policy_path.read_text(encoding="utf-8"))
+                    archive.writestr("assets/RUNTIME-SOURCE-POLICY.json", policy_path.read_bytes())
+                    for entry in policy["retiredAndNonInjectedJavaScript"] + policy.get("nativePageAdapterFiles", []):
+                        filename = "assets/" + entry["path"]
+                        if filename not in written:
+                            data = (ROOT / "app/src/main/assets" / entry["path"]).read_bytes()
+                            if tamper == "adapter" and entry["path"] == "dola30-webview-media-v1.6.14.js":
+                                data += b" "
+                            archive.writestr(filename, data)
                 if tamper:
                     with self.assertRaises(ValueError):
                         apk_verify.verify(apk)
                 else:
-                    self.assertEqual(apk_verify.verify(apk)["originalFilesVerified"], len(manifest["files"]))
+                    result = apk_verify.verify(apk)
+                    self.assertEqual(result["originalFilesVerified"], len(manifests["dola30-original"]["files"]))
+                    self.assertEqual(result["additionalSourceFilesVerified"], {name: len(manifest["files"]) for name, manifest in manifests.items() if name != "dola30-original"})
 
     def test_packages_are_complete_deterministic_and_preserve_sources(self):
         with tempfile.TemporaryDirectory() as tmp:

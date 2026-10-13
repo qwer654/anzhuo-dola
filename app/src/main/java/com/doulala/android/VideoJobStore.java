@@ -1,0 +1,14 @@
+package com.doulala.android;
+import android.content.Context;
+import com.doulala.android.video.SequenceCheckpointStore;
+import org.json.*;
+import java.io.*;import java.nio.charset.StandardCharsets;import java.nio.file.*;import java.util.*;
+/** App-private, per-space checkpoint persistence. No credentials are serialized. */
+public final class VideoJobStore implements SequenceCheckpointStore {
+ private final Path file;
+ static String digest(String value){try{byte[] h=java.security.MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));StringBuilder s=new StringBuilder();for(byte v:h)s.append(String.format(java.util.Locale.ROOT,"%02x",v));return s.toString();}catch(Exception e){throw new IllegalStateException(e);}}
+ public VideoJobStore(Context c,String spaceId,String gateway){if(!spaceId.matches("Space([0-9]|[1-5][0-9]|6[0-3])"))throw new IllegalArgumentException("spaceId"); if(gateway==null)throw new IllegalArgumentException("gateway"); file=c.getFilesDir().toPath().resolve("video-"+spaceId).resolve("checkpoints-"+digest(gateway)+".json");}
+ @Override public synchronized Optional<Snapshot> load(String id)throws Exception{if(!Files.exists(file))return Optional.empty();JSONObject root=new JSONObject(new String(Files.readAllBytes(file),StandardCharsets.UTF_8));JSONObject x=root.optJSONObject(id);if(x==null)return Optional.empty();Map<Integer,Entry> out=new TreeMap<>();JSONObject es=x.getJSONObject("entries");for(Iterator<String>it=es.keys();it.hasNext();){String k=it.next();JSONObject e=es.getJSONObject(k);out.put(Integer.parseInt(k),new Entry(e.optString("jobId",null),Stage.valueOf(e.getString("stage")),e.optString("resultUrl",null),e.optString("outputPath",null),e.optString("continuityRef",null)));}return Optional.of(new Snapshot(id,x.getString("fingerprint"),out));}
+ @Override public synchronized void saveAtomically(Snapshot s)throws Exception{JSONObject root=Files.exists(file)?new JSONObject(new String(Files.readAllBytes(file),StandardCharsets.UTF_8)):new JSONObject();JSONObject x=new JSONObject();x.put("fingerprint",s.inputFingerprint());JSONObject es=new JSONObject();for(var p:s.entries().entrySet()){Entry e=p.getValue();JSONObject o=new JSONObject();o.put("jobId",e.jobId());o.put("stage",e.stage().name());if(e.resultUrl()!=null)o.put("resultUrl",e.resultUrl());if(e.outputPath()!=null)o.put("outputPath",e.outputPath());if(e.continuityRef()!=null)o.put("continuityRef",e.continuityRef());es.put(String.valueOf(p.getKey()),o);}x.put("entries",es);root.put(s.sequenceId(),x);Files.createDirectories(file.getParent());Path tmp=file.resolveSibling(file.getFileName()+".tmp");Files.write(tmp,root.toString().getBytes(StandardCharsets.UTF_8),StandardOpenOption.CREATE,StandardOpenOption.TRUNCATE_EXISTING);Files.move(tmp,file,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);}
+}
+

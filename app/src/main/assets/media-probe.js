@@ -6,27 +6,125 @@
     module.exports = api;
     return;
   }
-  if (!root || !root.document || root.top !== root || !api.isAllowedHost(root.location.hostname)) return;
+  if (!root || !root.document || !api.isAllowedHost(root.location.hostname)) return;
   if (root.__dolaAndroidProbeInstalled) return;
+  var isTop = root.top === root;
+  var origin = String(root.location.origin || "");
+  if (!/^https?:\/\//i.test(origin)) return;
   root.__dolaAndroidProbeInstalled = true;
-
   var collector = api.createCollector();
   var document = root.document;
   var bodyJobs = 0;
   var pendingScan = false;
+  var pendingFrames = new Map();
+  var frameRequests = new WeakMap();
+  var frameLoadListeners = new WeakSet();
   function title() { return String(document.title || "").slice(0, 200); }
-  function receive(items) { collector.add(items); }
+  function trustedOrigin(raw) {
+    try {
+      var url = new URL(raw);
+      if (url.protocol !== "https:" || !url.hostname || url.username || url.password || (url.port && url.port !== "443") || !api.isAllowedHost(url.hostname)) return "";
+      return url.origin;
+    } catch (_) { return ""; }
+  }
+  function frameOrigin(frame) {
+    if (!frame || !frame.getAttribute || frame.hasAttribute && frame.hasAttribute("srcdoc")) return "";
+    var raw = frame.getAttribute("src");
+    if (!raw || !raw.trim()) return "";
+    try { return trustedOrigin(new URL(raw, document.baseURI || root.location.href).href); }
+    catch (_) { return ""; }
+  }
+  function requestFrameScans() {
+    if (!isTop || !document.querySelectorAll || !root.crypto || typeof root.crypto.getRandomValues !== "function") return;
+    var now = Date.now();
+    pendingFrames.forEach(function (pending, nonce) { if (!pending || pending.expires < now) pendingFrames.delete(nonce); });
+    var frames;
+    try { frames = document.querySelectorAll("iframe"); } catch (_) { return; }
+    for (var i = 0; i < Math.min(frames.length, 20); i++) {
+      var frame = frames[i], targetOrigin = frameOrigin(frame), source = frame && frame.contentWindow;
+      if (!targetOrigin || !source || frame.isConnected === false) continue;
+      if (!frameLoadListeners.has(frame) && frame.addEventListener) {
+        frameLoadListeners.add(frame);
+        frame.addEventListener("load", function () { requestFrameScans(); });
+      }
+      var last = frameRequests.get(frame) || 0;
+      if (now - last < 750) continue;
+      frameRequests.set(frame, now);
+      var bytes = new Uint32Array(4);
+      try { root.crypto.getRandomValues(bytes); } catch (_) { continue; }
+      var nonce = Array.from(bytes).map(function (n) { return n.toString(16); }).join("");
+      while (pendingFrames.size >= 40) pendingFrames.delete(pendingFrames.keys().next().value);
+      pendingFrames.set(nonce, { frame: frame, source: source, origin: targetOrigin, expires: now + 5000 });
+      try { source.postMessage({ channel: "dola.android.media", version: 1, type: "scan-request", nonce: nonce }, targetOrigin); }
+      catch (_) { pendingFrames.delete(nonce); }
+    }
+  }
+  function receive(items) {
+    collector.add(items);
+    // Child frames only send data in response to a top-frame nonce challenge.
+  }
+  if (isTop && typeof root.addEventListener === "function") {
+    root.addEventListener("message", function (event) {
+      var data = event && event.data;
+      if (!event || !event.source || !data || data.channel !== "dola.android.media" || data.version !== 1 ||
+          data.type !== "scan-response" || typeof data.nonce !== "string" || data.nonce.length > 64 ||
+          !Array.isArray(data.items) || data.items.length > 50) return;
+      var pending = pendingFrames.get(data.nonce);
+      pendingFrames.delete(data.nonce);
+      if (!pending || pending.expires < Date.now() || event.source !== pending.source || event.origin !== pending.origin ||
+          !pending.frame || pending.frame.isConnected === false || pending.frame.contentWindow !== event.source || frameOrigin(pending.frame) !== event.origin) return;
+      var items = [];
+      for (var i = 0; i < data.items.length; i++) {
+        var item = data.items[i];
+        if (!item || (item.type !== "image" && item.type !== "video") ||
+            !api.normalizeMediaUrl(item.url) || typeof item.url !== "string" ||
+            item.url.length > api.LIMITS.urlLength) continue;
+        items.push({ url: item.url, type: item.type,
+          posterUrl: item.type === "video" ? api.normalizeMediaUrl(item.posterUrl) || "" : "",
+          source: "frame:" + String(item.source || "page").slice(0, 200),
+          title: String(item.title || "").slice(0, 200) });
+      }
+      // Serialize only the bounded, normalized copy; never stringify hostile raw message data.
+      var response = { items: items };
+      while (items.length && JSON.stringify(response).length > 65536) items.pop();
+      collector.add(items);
+    });
+  }
   function scanDom() {
     var nodes = document.querySelectorAll("img,video,source");
     for (var i = 0; i < Math.min(nodes.length, 300); i++) {
       var node = nodes[i];
       var tag = node.tagName.toLowerCase();
-      if (tag === "source" && (!node.parentElement || node.parentElement.tagName.toLowerCase() !== "video")) continue;
-      var type = tag === "img" ? "image" : "video";
-      var url = api.normalizeMediaUrl(node.currentSrc || node.src || "");
-      if (url) receive([{ url: url, type: type, source: "dom", title: title() }]);
+      var parentTag = node.parentElement && node.parentElement.tagName.toLowerCase();
+      if (tag === "source" && parentTag !== "video" && parentTag !== "picture") continue;
+      // A video's source alternatives are represented on the parent video row.
+      if (tag === "source" && parentTag === "video") continue;
+      var type = tag === "img" || (tag === "source" && parentTag === "picture") ? "image" : "video";
+      // Keep both the selected currentSrc and authored src where they differ
+      // (notably <picture><source srcset> + <img src="fallback">).
+      var urls = [], candidates = [node.currentSrc || "", node.src || "", node.getAttribute && node.getAttribute("src") || ""];
+      for (var u = 0; u < candidates.length; u++) {
+        var candidate = api.normalizeMediaUrl(candidates[u]);
+        if (candidate && urls.indexOf(candidate) < 0) urls.push(candidate);
+      }
+      var poster = tag === "video" ? api.normalizeMediaUrl(node.poster || (node.getAttribute && node.getAttribute("poster")) || "") : "";
       if (tag === "video") {
-        var poster = api.normalizeMediaUrl(node.poster || "");
+        var channels = api.normalizeVideoChannels(urls, node);
+        if (channels.length) receive([{ url: channels[0], channels: channels, type: "video", posterUrl: poster, source: "dom", title: title() }]);
+      } else {
+        for (var m = 0; m < urls.length; m++) receive([{ url: urls[m], type: type, posterUrl: poster, source: "dom", title: title() }]);
+      }
+      // Responsive images may expose several useful candidates while currentSrc
+      // reports only the one selected for this viewport. Parse candidates without
+      // rewriting their URL bytes; descriptors are intentionally ignored.
+      if (type === "image" && (tag === "img" || tag === "source")) {
+        var srcset = node.srcset || (node.getAttribute && node.getAttribute("srcset")) || "";
+        var candidates = api.parseSrcset(srcset);
+        for (var c = 0; c < candidates.length; c++) {
+          receive([{ url: candidates[c], type: "image", source: "dom:srcset", title: title() }]);
+        }
+      }
+      if (tag === "video") {
         if (poster) receive([{ url: poster, type: "image", source: "dom:poster", title: title() }]);
       }
     }
@@ -36,8 +134,23 @@
     pendingScan = true;
     root.setTimeout(function () { pendingScan = false; scanDom(); }, 400);
   }
-  root.__dolaAndroidScan = function () { scanDom(); return collector.snapshot(); };
-  root.__dolaAndroidDrain = function () { return collector.drain(); };
+  if (!isTop && root.parent && typeof root.addEventListener === "function") {
+    root.addEventListener("message", function (event) {
+      var data = event && event.data;
+      if (!event || event.source !== root.parent || !trustedOrigin(event.origin) ||
+          !data || data.channel !== "dola.android.media" || data.version !== 1 ||
+          data.type !== "scan-request" || typeof data.nonce !== "string" || !/^[0-9a-f]{1,64}$/.test(data.nonce)) return;
+      scanDom();
+      var items = collector.drain().slice(0, 50);
+      var response = { channel: "dola.android.media", version: 1, type: "scan-response", nonce: data.nonce, items: items };
+      // Bound the serialized response too, not only item count and URL length.
+      while (items.length && JSON.stringify(response).length > 65536) items.pop();
+      try { root.parent.postMessage(response, event.origin); }
+      catch (_) { /* Detached or navigated frame: ignore. */ }
+    });
+  }
+  root.__dolaAndroidScan = function () { scanDom(); requestFrameScans(); return collector.snapshot(); };
+  root.__dolaAndroidDrain = function () { requestFrameScans(); return collector.drain(); };
 
   async function observeResponse(response, source) {
     // Only inspect readable JSON/text copies. Never consume or replace the page's response.
@@ -141,12 +254,51 @@
   }
   function mediaType(url, hint) {
     if (!url) return "";
-    if (hint === "image" || hint === "video") return hint;
     var path;
     try { path = new URL(url).pathname; } catch (_) { return ""; }
+    // Prefer an explicit, recognizable file type over resource initiator hints:
+    // browsers report a video element's poster request with initiatorType="video".
     if (/\.(?:png|jpe?g|webp|gif|avif|bmp|heic)(?:[~!].*)?$/i.test(path)) return "image";
     if (/\.(?:mp4|m4v|mov|webm|mkv|m3u8)(?:[~!].*)?$/i.test(path)) return "video";
-    return "";
+    return hint === "image" || hint === "video" ? hint : "";
+  }
+  function normalizeVideoChannels(candidates, videoNode) {
+    var result = [];
+    function add(value) {
+      var url = normalizeMediaUrl(value);
+      if (url && result.indexOf(url) < 0 && result.length < 2) result.push(url);
+    }
+    if (Array.isArray(candidates)) for (var i = 0; i < candidates.length && i < 4; i++) add(candidates[i]);
+    if (videoNode && typeof videoNode.querySelectorAll === "function") {
+      try {
+        var sources = videoNode.querySelectorAll("source");
+        for (var j = 0; j < sources.length && j < 4 && result.length < 2; j++) {
+          var source = sources[j];
+          add(source.currentSrc || source.src || (source.getAttribute && source.getAttribute("src")) || "");
+        }
+      } catch (_) {}
+    }
+    return result;
+  }
+  function parseSrcset(value) {
+    if (typeof value !== "string" || value.length > LIMITS.bodyBytes) return [];
+    var candidates = [], i = 0;
+    while (i < value.length && candidates.length < 100) {
+      while (i < value.length && /[\s,]/.test(value[i])) i++;
+      if (i >= value.length) break;
+      var start = i;
+      while (i < value.length && !/\s/.test(value[i])) i++;
+      var rawToken = value.slice(start, i);
+      var endedCandidate = /,+$/.test(rawToken);
+      var token = rawToken.replace(/,+$/, "");
+      var url = normalizeMediaUrl(token);
+      if (url) candidates.push(url);
+      if (endedCandidate) continue;
+      // Skip a width/density descriptor until the next candidate separator.
+      while (i < value.length && value[i] !== ",") i++;
+      if (value[i] === ",") i++;
+    }
+    return candidates;
   }
   function decodeMainUrl(value) {
     var direct = normalizeMediaUrl(value);
@@ -171,10 +323,32 @@
           var url = normalizeMediaUrl(item.url), type = item.type;
           if (!url || (type !== "image" && type !== "video")) continue;
           var key = type + ":" + url;
-          if (seen.has(key)) continue;
-          seen.set(key, true);
+          var posterUrl = type === "video" ? normalizeMediaUrl(item.posterUrl) : "";
+          var channels = type === "video" ? normalizeVideoChannels(item.channels, null) : [];
+          if (type === "video" && channels.indexOf(url) < 0) channels.unshift(url);
+          if (channels.length > 2) channels.length = 2;
+          if (seen.has(key)) {
+            // A video may be observed before its poster or channel list is populated.
+            var previous = seen.get(key) || { posterUrl: "", channels: [url] };
+            var merged = normalizeVideoChannels(previous.channels.concat(channels), null);
+            var newPoster = type === "video" && posterUrl && !previous.posterUrl;
+            var newChannels = type === "video" && merged.length > previous.channels.length;
+            if (newPoster || newChannels) {
+              seen.set(key, { posterUrl: newPoster ? posterUrl : previous.posterUrl, channels: merged });
+              var update = { url: url, type: type,
+                source: String(item.source || "page").slice(0, 300), title: String(item.title || "").slice(0, 200) };
+              if (newPoster) update.posterUrl = posterUrl;
+              if (merged.length > 1) update.channels = merged;
+              queue.push(update);
+            }
+            continue;
+          }
+          seen.set(key, { posterUrl: posterUrl || "", channels: channels.length ? channels : [url] });
           if (seen.size > 3000) seen.delete(seen.keys().next().value);
-          queue.push({ url: url, type: type, source: String(item.source || "page").slice(0, 300), title: String(item.title || "").slice(0, 200) });
+          var normalized = { url: url, type: type, source: String(item.source || "page").slice(0, 300), title: String(item.title || "").slice(0, 200) };
+          if (type === "video" && posterUrl) normalized.posterUrl = posterUrl;
+          if (type === "video" && channels.length > 1) normalized.channels = channels;
+          queue.push(normalized);
         }
       },
       snapshot: function () { return queue.slice(); },
@@ -227,7 +401,9 @@
       return collector.drain();
     }
   }
-  return { LIMITS: LIMITS, isAllowedHost: isAllowedHost, normalizeMediaUrl: normalizeMediaUrl,
+  return { LIMITS: LIMITS, isAllowedHost: isAllowedHost, normalizeMediaUrl: normalizeMediaUrl, normalizeVideoChannels: normalizeVideoChannels,
+    parseSrcset: parseSrcset,
     mediaType: mediaType, decodeMainUrl: decodeMainUrl, createCollector: createCollector,
     parsePayload: parsePayload, parseText: parseText };
 });
+

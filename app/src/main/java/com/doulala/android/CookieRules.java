@@ -56,4 +56,34 @@ public final class CookieRules {
         // Snapshot API has no attribute metadata. Do NOT silently weaken HttpOnly.
         return parsed.get(0)+"; Path=/; Secure; HttpOnly; SameSite=Lax";
     }
+
+    /**
+     * Explicit legacy Dola compatibility, not an attribute-preserving restore.
+     * Only the two exact CSRF names may be script-readable; auth/unknown stay HttpOnly.
+     * Parent-domain scope is user-confirmed, never used for generic snapshots.
+     */
+    public static String restoredDolaCookie(String pair,String url) {
+        String origin=target(url);
+        String host=java.net.URI.create(origin).getHost().toLowerCase(Locale.ROOT);
+        if(!host.equals("dola.com") && !host.endsWith(".dola.com"))
+            throw new IllegalArgumentException("Dola CK compatibility requires a Dola HTTPS origin");
+        // A non-default HTTPS port is outside the explicitly supported Dola origins.
+        if(java.net.URI.create(origin).getPort()!=-1)
+            throw new IllegalArgumentException("Dola CK compatibility requires default HTTPS port");
+        List<String> parsed=parse(pair);
+        if(parsed.size()!=1) throw new IllegalArgumentException("one Cookie per write");
+        String cookie=parsed.get(0),name=cookie.substring(0,cookie.indexOf('='));
+        boolean readable=name.equals("passport_csrf_token") || name.equals("passport_csrf_token_default");
+        boolean hostOnly=name.startsWith("__Host-");
+        return cookie+(hostOnly?"":"; Domain=dola.com")+"; Path=/; Secure"
+            +(readable?"":"; HttpOnly")+"; SameSite=Lax";
+    }
+
+    /** Clears only this named, root-path host cookie before a confirmed domain write. */
+    public static String expiredHostCookie(String pair) {
+        List<String> parsed=parse(pair);
+        if(parsed.size()!=1) throw new IllegalArgumentException("one Cookie per write");
+        String cookie=parsed.get(0),name=cookie.substring(0,cookie.indexOf('='));
+        return name+"=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0";
+    }
 }

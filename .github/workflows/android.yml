@@ -4,6 +4,18 @@ on:
   workflow_dispatch:
   push:
     paths:
+      - 'tools/build_android_ffmpeg.sh'
+      - 'app/**'
+      - '*.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'tests/**'
+      - 'tools/verify_apk_assets.py'
+      - '.gitattributes'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'tools/build_android_ffmpeg.sh'
       - 'app/**'
       - '*.gradle'
       - 'settings.gradle'
@@ -23,7 +35,7 @@ concurrency:
 jobs:
   debug-apk:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -36,8 +48,10 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '20'
-      - name: Test media, Dola30 and fingerprint modules
-        run: node --test tests/media-probe.test.cjs tests/dola30-source.test.cjs tests/dola30-android-adapter.test.cjs tests/fingerprint-privacy.test.cjs
+      - name: Test active page scripts and backup-only runtime policy
+        run: node --test tests/dola30-source.test.cjs tests/dola30-page-main.test.cjs tests/runtime-source-policy.test.cjs tests/spaces64-contract.test.cjs tests/dola30-webview-media.test.cjs
+      - name: Test deterministic extension packaging and APK asset verifier
+        run: python3 -m unittest tests.test_extension_packaging -v
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
         with:
@@ -54,15 +68,52 @@ jobs:
           fi
           test -f "$SDK_ROOT/platforms/android-35/android.jar"
           test -f "$SDK_ROOT/build-tools/35.0.0/apksigner"
-      - name: Assemble debug APK
-        run: gradle --no-daemon --stacktrace testDebugUnitTest lintDebug assembleDebug
+      - name: Cache pinned Android FFmpeg binaries
+        id: ffmpeg-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            app/src/main/jniLibs
+            app/src/main/assets/ffmpeg
+          key: ffmpeg-7.1.1-ndk27-api28-${{ runner.os }}-${{ hashFiles('tools/build_android_ffmpeg.sh') }}
+      - name: Build pinned Android FFmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER=$(find "$SDK_ROOT/cmdline-tools" -name sdkmanager -type f | head -n 1)
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" 'ndk;27.2.12479018'
+          export ANDROID_NDK_HOME="$SDK_ROOT/ndk/27.2.12479018"
+          ABIS='arm64-v8a x86_64' ANDROID_API=28 bash tools/build_android_ffmpeg.sh
+      - name: Save successfully built FFmpeg before Java checks
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            app/src/main/jniLibs
+            app/src/main/assets/ffmpeg
+          key: ffmpeg-7.1.1-ndk27-api28-${{ runner.os }}-${{ hashFiles('tools/build_android_ffmpeg.sh') }}
+      - name: Assemble debug and side-by-side validation APKs
+        run: gradle --no-daemon --stacktrace testDebugUnitTest lintDebug lintSessionValidation lintNewSourceValidation assembleDebug assembleDeviceValidation assembleSessionValidation assembleNewSourceValidation assembleDeviceValidationAndroidTest
       - name: Verify APK signature and record SHA-256
         run: |
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/deviceValidation/app-deviceValidation.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/sessionValidation/app-sessionValidation.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/newSourceValidation/app-newSourceValidation.apk
           cd app/build/outputs/apk/debug
           sha256sum app-debug.apk > app-debug.apk.sha256
+          cd ../deviceValidation
+          sha256sum app-deviceValidation.apk > app-deviceValidation.apk.sha256
+          cd ../sessionValidation
+          sha256sum app-sessionValidation.apk > app-sessionValidation.apk.sha256
+          cd ../newSourceValidation
+          sha256sum app-newSourceValidation.apk > app-newSourceValidation.apk.sha256
       - name: Verify original extension bytes inside APK
-        run: python3 tools/verify_apk_assets.py app/build/outputs/apk/debug/app-debug.apk
+        run: |
+          python3 tools/verify_apk_assets.py app/build/outputs/apk/debug/app-debug.apk
+          python3 tools/verify_apk_assets.py app/build/outputs/apk/deviceValidation/app-deviceValidation.apk
+          python3 tools/verify_apk_assets.py app/build/outputs/apk/sessionValidation/app-sessionValidation.apk
+          python3 tools/verify_apk_assets.py app/build/outputs/apk/newSourceValidation/app-newSourceValidation.apk
       - name: Upload APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -70,6 +121,13 @@ jobs:
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             app/build/outputs/apk/debug/app-debug.apk.sha256
+            app/build/outputs/apk/deviceValidation/app-deviceValidation.apk
+            app/build/outputs/apk/deviceValidation/app-deviceValidation.apk.sha256
+            app/build/outputs/apk/sessionValidation/app-sessionValidation.apk
+            app/build/outputs/apk/sessionValidation/app-sessionValidation.apk.sha256
+            app/build/outputs/apk/newSourceValidation/app-newSourceValidation.apk
+            app/build/outputs/apk/newSourceValidation/app-newSourceValidation.apk.sha256
+            app/build/outputs/apk/androidTest/deviceValidation/app-deviceValidation-androidTest.apk
           if-no-files-found: error
           retention-days: 14
       - name: Upload test reports
@@ -80,3 +138,4 @@ jobs:
           path: app/build/reports/
           if-no-files-found: ignore
           retention-days: 7
+

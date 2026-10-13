@@ -7,19 +7,57 @@ const root = path.join(__dirname, "../app/src/main/assets/fingerprint-privacy");
 const read = name => fs.readFileSync(path.join(root, name), "utf8");
 const vm = require("node:vm");
 
-function pageFixture(withHints = true) {
+function pageFixture(withHints = true, initialSettings = null, topLevel = true) {
   const prototype = { userAgent: "Original UA", appVersion: "Original version", platform: "Original platform", language: "en-US", languages: ["en-US"], hardwareConcurrency: 12, maxTouchPoints: 5, vendor: "Original vendor" };
   if (withHints) { prototype.userAgentData = { platform: "Original platform" }; prototype.deviceMemory = 8; }
   const navigator = Object.create(prototype);
+  navigator.mediaDevices = { enumerateDevices: function () { return Promise.resolve(["camera", "microphone"]); } };
   Object.defineProperty(navigator, "language", { configurable: true, enumerable: false, value: "ja-JP" });
   function GL() {}
   GL.prototype.getExtension = function (name) { return "native:" + name; };
-  const window = { navigator, WebGLRenderingContext: GL, dispatchEvent() {}, addEventListener() {} };
-  window.top = window;
+  function Canvas() {}
+  Canvas.prototype.toDataURL = function () { return "data:image/png;base64,AA=="; };
+  Canvas.prototype.toBlob = function () {};
+  function Canvas2D() {}
+  Canvas2D.prototype.getImageData = function () { return { data: [] }; };
+  function OfflineAudioContext() {}
+  function RTCPeerConnection() {}
+  const window = { navigator, WebGLRenderingContext: GL, HTMLCanvasElement: Canvas, CanvasRenderingContext2D: Canvas2D,
+    OfflineAudioContext, RTCPeerConnection, dispatchEvent() {}, addEventListener() {} };
+  if (initialSettings) window.__dolaFingerprintInitialSettings = initialSettings;
+  window.top = topLevel ? window : {};
   const context = vm.createContext({ window, DOMException, CustomEvent: function (type, options) { this.type = type; this.detail = options.detail; } });
   vm.runInContext(read("content-main.js"), context);
   return { window, navigator, prototype, api: window.__dolaFingerprintPrivacy };
 }
+
+test("Android document-start seed blocks fingerprint APIs without identity spoofing", async () => {
+  const { window, navigator, api } = pageFixture(true, { blockCanvasReadback: true, hideWebglDebugInfo: true,
+    blockAudioFingerprint: true, blockWebRTC: true, blockDeviceEnumeration: true });
+  const gl = new window.WebGLRenderingContext();
+  assert.equal(api.getSettings().hideWebglDebugInfo, true);
+  assert.equal(api.getSettings().blockCanvasReadback, true);
+  assert.equal(api.getSettings().blockAudioFingerprint, true);
+  assert.equal(api.getSettings().blockWebRTC, true);
+  assert.equal(api.getSettings().blockDeviceEnumeration, true);
+  assert.equal(api.getSettings().cleanMode, false);
+  assert.equal(gl.getExtension("WEBGL_debug_renderer_info"), null);
+  assert.throws(() => new window.HTMLCanvasElement().toDataURL(), { name: "SecurityError" });
+  assert.throws(() => new window.CanvasRenderingContext2D().getImageData(), { name: "SecurityError" });
+  assert.throws(() => new window.OfflineAudioContext(), { name: "SecurityError" });
+  assert.throws(() => new window.RTCPeerConnection(), { name: "SecurityError" });
+  assert.deepEqual(Array.from(await navigator.mediaDevices.enumerateDevices()), []);
+  assert.equal(navigator.userAgent, "Original UA");
+  assert.equal("__dolaFingerprintInitialSettings" in window, false);
+});
+
+test("Android API reductions initialize in an eligible provider iframe context", () => {
+  const { window, api } = pageFixture(true, { blockCanvasReadback: true, hideWebglDebugInfo: true,
+    blockAudioFingerprint: true, blockWebRTC: true, blockDeviceEnumeration: true }, false);
+  assert.ok(api, "frame should install the privacy API independently");
+  assert.equal(api.getSettings().blockCanvasReadback, true);
+  assert.throws(() => new window.HTMLCanvasElement().toDataURL(), { name: "SecurityError" });
+});
 
 function workerFixture() {
   const listeners = {};
@@ -229,3 +267,4 @@ test("popup does not claim success when network rules fail", async () => {
   assert.match(popup.elements.output.textContent, /旧请求头规则可能仍存在/);
   assert.equal(popup.elements.save.disabled, false);
 });
+
