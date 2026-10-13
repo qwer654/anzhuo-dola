@@ -64,7 +64,7 @@ public class BrowserActivity extends Activity {
         Ui.setup(this);readLaunch(getIntent());
         prefs=getSharedPreferences(DolaPageScripts.preferenceName(getClass().getSimpleName()),MODE_PRIVATE);
         downloads=new DownloadCenter(this,prefs,getClass().getSimpleName());
-        cookies=new CookieTransfer(this,()->active==null?null:active.url);
+        cookies=new CookieTransfer(this,()->active==null?null:active.url,spaceSlot());
         build();restoreTabs();
     }
     private void readLaunch(Intent i) {
@@ -652,7 +652,7 @@ public class BrowserActivity extends Activity {
     }
     private void showLoginHelp() {
         new AlertDialog.Builder(this).setTitle("独立空间与登录")
-            .setMessage("本空间使用独立进程、WebView 数据及缓存目录，Cookie/网站存储只在同一空间标签之间共享，不复制到其他空间。64 是独立档案数量，不是同时常驻 64 个进程；Android 会回收后台。\n\nGoogle OAuth 不允许嵌入式 WebView 授权，可能返回 disallowed_useragent。本应用不伪装浏览器、不复制外部浏览器 Google Cookie，也不能保证在 WebView 完成 Google 登录。请使用站点允许的其他登录方式。外部浏览器登录不会自动导入本空间。")
+            .setMessage("本空间使用独立进程、WebView 数据及缓存目录，Cookie/网站存储只在同一空间标签之间共享，不复制到其他空间。64 是独立档案数量，不是同时常驻 64 个进程；Android 会回收后台。重新打开或归档/恢复仍使用同一数据目录；普通退出不清除网页本地设备语境。明确清除/删除则会重置登录环境，不能保证重新导入 CK 后会话可用。CK 导入摘要仅用于本机防重复，不是真实账号绑定。\n\nGoogle OAuth 不允许嵌入式 WebView 授权，可能返回 disallowed_useragent。本应用不伪装浏览器、不复制外部浏览器 Google Cookie，也不能保证在 WebView 完成 Google 登录。请使用站点允许的其他登录方式。外部浏览器登录不会自动导入本空间。")
             .setPositiveButton("知道了",null).show();
     }
     private void confirmPageScriptsMode(boolean enabled) {

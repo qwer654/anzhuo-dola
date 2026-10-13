@@ -38,7 +38,7 @@ public class CkCookieImportUiRegressionTest {
         // CookieTransfer only needs an Activity and an origin supplier. Keeping
         // it independent of BrowserActivity avoids opening a real web page.
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() ->
-            transfer = new CookieTransfer(host, () -> "https://www.dola.com/"));
+            transfer = new CookieTransfer(host, () -> "https://www.dola.com/",62));
     }
 
     @After public void tearDown() {
@@ -109,6 +109,32 @@ public class CkCookieImportUiRegressionTest {
         assertTrue(device.wait(Until.hasObject(By.text("确认修改本空间登录态？")),10_000));
         org.junit.Assert.assertFalse(device.hasObject(By.text("Dola兼容方式")));
         device.findObject(By.text("取消")).click();
+    }
+
+    @Test public void importShowsRiskWarningWithoutClaimingSessionRepair() throws Exception {
+        invokeChoose(CkCookieImport.parse("{\"cookie\":\"sessionid=fixture-risk\"}"));
+        assertTrue(device.wait(Until.hasObject(By.textContains("710022002")),10_000));
+        assertTrue(device.wait(Until.hasObject(By.textContains("安卓根因")),5_000));
+        device.findObject(By.text("取消")).click();
+    }
+
+    @Test public void identicalCkInAnotherSpaceIsRejectedBeforeCookieWrites() throws Exception {
+        android.content.Context c=host.getApplicationContext();
+        CkImportBindings guard=new CkImportBindings(c.getNoBackupFilesDir().toPath().resolve("ck-import-bindings"));
+        List<String> pairs=CookieRules.parse("sessionid=fixture-conflict-only; csrf=fixture");
+        guard.release(61);guard.release(62);
+        try {
+            assertTrue(guard.reserve(61,pairs).allowed);
+            Method begin=CookieTransfer.class.getDeclaredMethod("beginConfirmedImport",String.class,List.class,boolean.class);
+            begin.setAccessible(true);
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(()->{
+                try{begin.invoke(transfer,"https://www.dola.com/",pairs,false);}catch(Exception e){throw new AssertionError(e);}
+            });
+            assertTrue(device.wait(Until.hasObject(By.text("拒绝跨空间重复导入 CK")),10_000));
+            assertTrue(device.wait(Until.hasObject(By.textContains("SPACE 62")),5_000));
+            assertTrue(device.wait(Until.hasObject(By.textContains("未写入任何 Cookie")),5_000));
+            device.findObject(By.text("知道了")).click();
+        } finally {guard.release(61);guard.release(62);}
     }
 
     private void invokeChoose(List<CkCookieImport.Entry> entries) throws Exception {

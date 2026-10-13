@@ -30,3 +30,16 @@ test('nested activities and ergonomic browser actions are present', () => {
 });
 
 test('native login opens Dola official flow, never a standalone Google account page',()=>{ assert.match(browser,/Dola 官网登录/); assert.match(browser,/Dola登录/); assert.match(browser,/officialLoginUrl\(\)/); assert.doesNotMatch(browser,/load\("https:\/\/accounts\.google\.com/); });
+
+test('CK import safety precedes writes and targeted reset releases only its binding',()=>{
+  const transfer=fs.readFileSync(path.join(javaDir,'CookieTransfer.java'),'utf8');
+  const guard=fs.readFileSync(path.join(javaDir,'CkImportBindings.java'),'utf8');
+  const reset=fs.readFileSync(path.join(javaDir,'SpaceReset.java'),'utf8');
+  assert.match(browser,/new CookieTransfer\(this,[^;]+spaceSlot\(\)\)/);
+  assert.match(transfer,/bindings\.reserve\(spaceSlot,pairs\)/);
+  assert.match(transfer,/拒绝跨空间重复导入 CK/);
+  assert.match(transfer,/安卓根因与固定目录能否解决尚未证实/);
+  assert.match(guard,/HmacSHA256/);assert.match(guard,/ATOMIC_MOVE/);assert.match(guard,/tryLock\(\)/);
+  assert.match(transfer,/getNoBackupFilesDir\(\)/);assert.match(reset,/ck-import-bindings[^;]+release\(slot\)/);
+  assert.doesNotMatch(guard,/samantha_web_web_id|s_v_web_id|localStorage|device_id|CookieManager/);
+});

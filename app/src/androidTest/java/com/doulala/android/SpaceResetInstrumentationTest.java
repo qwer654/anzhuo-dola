@@ -39,4 +39,18 @@ public final class SpaceResetInstrumentationTest {
   assertTrue(SpaceReset.performBlocking(c,SLOT,SpaceReset.OP_DELETE));
   assertFalse(own.exists());assertTrue(neighbor.exists());assertFalse(c.getSharedPreferences("catalog",0).getBoolean("enabled"+SLOT,false));assertFalse(c.getSharedPreferences("catalog",0).contains("name"+SLOT));assertFalse(SpaceReset.isPending(c,SLOT));
  }
+ @Test public void clearAndDeleteReleaseOnlyOwnImportAttempts()throws Exception{
+  Context c=context();CkImportBindings guard=new CkImportBindings(c.getNoBackupFilesDir().toPath().resolve("ck-import-bindings"));
+  java.util.List<String> own=CookieRules.parse("sessionid=fixture-own-reset"),other=CookieRules.parse("sessionid=fixture-neighbor-reset");
+  guard.release(SLOT);guard.release(NEIGHBOR);
+  try{
+   for(String op:new String[]{SpaceReset.OP_CLEAR,SpaceReset.OP_DELETE}){
+    assertTrue(guard.reserve(SLOT,own).allowed);assertTrue(guard.reserve(NEIGHBOR,other).allowed);
+    assertTrue(SpaceReset.performBlocking(c,SLOT,op));
+    assertTrue(guard.reserve(60,own).allowed);guard.release(60);
+    assertFalse(guard.reserve(SLOT,other).allowed); // neighbor digest survived
+    guard.release(SLOT);
+   }
+  }finally{guard.release(SLOT);guard.release(NEIGHBOR);guard.release(60);}
+ }
 }

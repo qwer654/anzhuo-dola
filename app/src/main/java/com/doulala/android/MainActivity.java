@@ -26,7 +26,7 @@ private void refreshCatalog(String raw){String q=raw==null?"":raw.trim().toLower
   if(!SpaceReset.valid(slot)||!SpaceReset.isOperation(op)){Ui.toast(this,"无效的空间清理请求");return;}
   String name=settings.getString("name"+slot,"创作空间 "+(slot+1));boolean deleting=SpaceReset.OP_DELETE.equals(op);
   new AlertDialog.Builder(this).setTitle(deleting?"彻底删除账号空间？":"清理账号空间登录数据？")
-   .setMessage("“"+name+"”的 Cookie、网页存储、标签、缓存和该空间的视频任务将被清除。下载到公共下载目录的文件不会删除。"+(deleting?"\n\n删除还会移除此空间条目并释放名额；此操作不可撤销。":"\n\n空间名称和首页会保留，但需要重新登录。"))
+   .setMessage("“"+name+"”的 Cookie、网页存储、标签、缓存和该空间的视频任务将被清除。下载到公共下载目录的文件不会删除。该空间的 CK 导入尝试摘要也会移除；原网站设备语境会被重置，重新导入旧 CK 不保证可用。若只是暂时不用，请选择归档保留原环境。"+(deleting?"\n\n删除还会移除此空间条目并释放名额；此操作不可撤销。":"\n\n空间名称和首页会保留，但需要重新登录。"))
    .setNegativeButton("取消",null).setPositiveButton(deleting?"删除并释放名额":"清理并退出登录",(d,w)->runReset(slot,op)).show();
  }
  private void confirmSpaceMaintenance(final int slot){new AlertDialog.Builder(this).setTitle("管理 SPACE "+(slot+1)).setItems(new String[]{"清理登录数据，保留空间名称","彻底删除空间并释放名额"},(d,which)->{Intent request=new Intent();request.putExtra(SpaceReset.EXTRA_RESET_SLOT,slot);request.putExtra(SpaceReset.EXTRA_RESET_OPERATION,which==0?SpaceReset.OP_CLEAR:SpaceReset.OP_DELETE);handleResetIntent(request);}).show();}

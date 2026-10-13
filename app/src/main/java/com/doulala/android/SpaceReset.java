@@ -54,6 +54,9 @@ public final class SpaceReset {
             // This also removes browser_SpaceN.xml; do not retain a cached instance in Main.
             File browserPrefs=new File(app.getDataDir(),"shared_prefs/browser_Space"+slot+".xml");
             if(browserPrefs.exists()&&!app.deleteSharedPreferences("browser_Space"+slot)) return false;
+            // Reset only this slot's local import-attempt digests, after profile cleanup.
+            // Failure keeps the reset gate closed so it can be retried safely.
+            new CkImportBindings(app.getNoBackupFilesDir().toPath().resolve("ck-import-bindings")).release(slot);
             SharedPreferences.Editor e=catalog.edit().remove(PENDING+slot).remove(OP+slot);
             if(OP_DELETE.equals(op)) {
                 e.remove("enabled"+slot).remove("name"+slot).remove("url"+slot)
