@@ -28,3 +28,5 @@ test('nested activities and ergonomic browser actions are present', () => {
   for (const oldLabel of ['隐私洁净模式：关闭', '旧 Dola30 JS：仅备份，不执行']) assert.doesNotMatch(browser, new RegExp(oldLabel));
   for (const menuLabel of ['30S 工具', '创作工作台', '新建标签', '回到首页', '添加当前页书签', '打开书签', '下载中心', 'Cookie \/ CK 导入导出', '登录与空间说明', '回到空间列表']) assert.match(browser, new RegExp(menuLabel));
 });
+
+test('native login opens Dola official flow, never a standalone Google account page',()=>{ assert.match(browser,/Dola 官网登录/); assert.match(browser,/Dola登录/); assert.match(browser,/officialLoginUrl\(\)/); assert.doesNotMatch(browser,/load\("https:\/\/accounts\.google\.com/); });

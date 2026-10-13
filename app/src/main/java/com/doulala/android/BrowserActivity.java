@@ -86,7 +86,7 @@ public class BrowserActivity extends Activity {
         gridAction(navigation,"空间","回到空间列表",this::returnToCatalog);
         tabsButton=gridAction(navigation,"标签 1","浏览器菜单",this::showMenu);
         LinearLayout tools=toolbarRow(root);
-        gridAction(tools,"Google 登录","Google登录",this::showGoogleLogin);
+        gridAction(tools,"Dola 登录","Dola登录",this::showSiteLogin);
         gridAction(tools,"代理","代理说明",this::showProxyHelp);
         pageScriptsSwitch=new Switch(this);pageScriptsSwitch.setText("30s");pageScriptsSwitch.setTextSize(12);pageScriptsSwitch.setTextColor(Ui.INK);
         pageScriptsSwitch.setContentDescription("本空间新脚本30s开关");pageScriptsSwitch.setMinHeight(Ui.dp(this,48));
@@ -111,7 +111,8 @@ public class BrowserActivity extends Activity {
     private LinearLayout toolbarRow(LinearLayout root){LinearLayout row=Ui.row(this);row.setPadding(Ui.dp(this,4),Ui.dp(this,2),Ui.dp(this,4),Ui.dp(this,2));root.addView(row);return row;}
     private Button gridAction(LinearLayout row,String label,String description,Runnable action){Button button=Ui.button(this,label,action);button.setTextSize(12);button.setPadding(Ui.dp(this,3),0,Ui.dp(this,3),0);button.setContentDescription(description);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,Ui.dp(this,48),1);lp.setMargins(Ui.dp(this,2),0,Ui.dp(this,2),0);row.addView(button,lp);return button;}
     private void openTypedAddress(){String u=webUrl(address.getText().toString());if(u==null){address.setError("请输入有效的 HTTPS 地址");return;}load(u);address.clearFocus();((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(address.getWindowToken(),0);}
-    private void showGoogleLogin(){new AlertDialog.Builder(this).setTitle("Google 登录说明").setMessage("该页面只在本空间打开，Cookie 不复制到其它空间。但 Google OAuth 可能拒绝 WebView，本应用不绕过限制，也不保证授权成功。").setNegativeButton("取消",null).setPositiveButton("打开 Google 页面",(d,w)->load("https://accounts.google.com/")).show();}
+    static String officialLoginUrl(){return "https://www.dola.com/chat/";}
+    private void showSiteLogin(){new AlertDialog.Builder(this).setTitle("Dola 官网登录").setMessage("请使用 Dola 页面内的登录入口。邮箱、手机号或第三方登录方式以官网当前地区和账号提供的选项为准；本应用不自行提交账号密码或验证码。登录状态仅保存在本空间，不复制到其它空间。直接打开 Google 账户页面不等于登录 Dola；若官方 Google 授权拒绝 WebView，请使用官网提供的其它方式，本应用不绕过限制。").setNegativeButton("取消",null).setPositiveButton("打开 Dola 登录页",(d,w)->load(officialLoginUrl())).show();}
     private void showProxyHelp(){new AlertDialog.Builder(this).setTitle("代理与出口").setMessage("当前使用手机系统网络或 VPN。本应用尚未提供每空间独立代理配置；此按钮不是代理开关。不同空间不会自动获得不同 IP，按目标分流时 IP 查询结果也可能与 Dola 不同。").setPositiveButton("知道了",null).show();}
     private void showSpaceCleanup(){new AlertDialog.Builder(this).setTitle("管理本空间").setItems(new String[]{"清除数据（保留空间）","删除空间（释放名额）"},(d,n)->{startActivity(new Intent(this,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP).putExtra(SpaceReset.EXTRA_RESET_SLOT,spaceSlot()).putExtra(SpaceReset.EXTRA_RESET_OPERATION,n==0?SpaceReset.OP_CLEAR:SpaceReset.OP_DELETE));}).setNegativeButton("取消",null).show();}
     private void openSequentialVideo(){startActivity(new Intent(this,SequentialVideoActivity.class).putExtra("spaceId",getClass().getSimpleName()));}
